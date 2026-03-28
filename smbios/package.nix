@@ -21,7 +21,12 @@ stdenvNoCC.mkDerivation {
     cp $src $out/bin/smbios-extract
     chmod +x $out/bin/smbios-extract
     wrapProgram $out/bin/smbios-extract \
-      --prefix PATH : ${lib.makeBinPath [ dmidecode coreutils ]}
+      --prefix PATH : ${
+        lib.makeBinPath [
+          dmidecode
+          coreutils
+        ]
+      }
   '';
 
   meta = {

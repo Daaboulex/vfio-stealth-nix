@@ -13,8 +13,8 @@ let
   cfg = config.myModules.vfio.stealth;
 
   # These are shell script strings (postPatch fragments), not .patch files.
-  timingPatchScript = import ./kernel/timing-patch.nix { inherit lib; };
-  cpuidPatchScript = import ./kernel/cpuid-patch.nix { inherit lib; };
+  timingPatchScript = import ./kernel/timing-patch.nix;
+  cpuidPatchScript = import ./kernel/cpuid-patch.nix;
 in
 {
   _class = "nixos";
@@ -117,9 +117,10 @@ in
     # We do NOT set boot.kernelPackages here to avoid overriding the host's
     # kernel choice (e.g., CachyOS LTO) and to prevent infinite recursion.
 
-    boot.kernelParams =
-      [ "processor.max_cstate=${toString cfg.kernelParams.maxCState}" ]
-      ++ lib.optionals cfg.kernelParams.tscReliable [ "tsc=reliable" ];
+    boot.kernelParams = [
+      "processor.max_cstate=${toString cfg.kernelParams.maxCState}"
+    ]
+    ++ lib.optionals cfg.kernelParams.tscReliable [ "tsc=reliable" ];
   };
 
   # Expose patch scripts for host-level kernel integration
