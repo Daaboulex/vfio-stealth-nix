@@ -13,22 +13,8 @@ let
   cfg = config.myModules.vfio.stealth;
 
   # These are shell script strings (postPatch fragments), not .patch files.
-  # We call them with { inherit lib; } as documented in each file's header.
   timingPatchScript = import ./kernel/timing-patch.nix { inherit lib; };
   cpuidPatchScript = import ./kernel/cpuid-patch.nix { inherit lib; };
-
-  # Build a combined postPatch fragment from whichever patches are enabled.
-  extraPostPatch =
-    lib.optionalString cfg.timing.enable timingPatchScript
-    + lib.optionalString cfg.cpuidSpoof.enable cpuidPatchScript;
-
-  # Overlay the current kernel with our postPatch additions.
-  # boot.kernelPatches only accepts { name, patch, structuredExtraConfig,
-  # extraConfig, features } — there is no postPatch key. Sed-based source
-  # modifications therefore require overrideAttrs on the kernel derivation.
-  patchedKernel = pkgs.linux.overrideAttrs (old: {
-    postPatch = (old.postPatch or "") + extraPostPatch;
-  });
 in
 {
   _class = "nixos";
@@ -126,19 +112,24 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Apply kernel source patches via overrideAttrs on the kernel derivation.
-    # NOTE: boot.kernelPatches does NOT support a postPatch key — its items are
-    # limited to { name, patch, structuredExtraConfig, extraConfig, features }
-    # and the patch value must be a file/derivation, not a shell script string.
-    # Our BetterTiming and CPUID patches are sed-based source modifications, so
-    # we overlay the kernel package instead.
-    boot.kernelPackages = lib.mkIf (cfg.timing.enable || cfg.cpuidSpoof.enable) (
-      pkgs.linuxPackagesFor patchedKernel
-    );
+    # Expose the postPatch scripts as an option so the host config can apply
+    # them to its own kernel (CachyOS, stock, etc.) via overrideAttrs.
+    # We do NOT set boot.kernelPackages here to avoid overriding the host's
+    # kernel choice (e.g., CachyOS LTO) and to prevent infinite recursion.
 
-    boot.kernelParams = [
-      "processor.max_cstate=${toString cfg.kernelParams.maxCState}"
-    ]
-    ++ lib.optionals cfg.kernelParams.tscReliable [ "tsc=reliable" ];
+    boot.kernelParams =
+      [ "processor.max_cstate=${toString cfg.kernelParams.maxCState}" ]
+      ++ lib.optionals cfg.kernelParams.tscReliable [ "tsc=reliable" ];
+  };
+
+  # Expose patch scripts for host-level kernel integration
+  options.myModules.vfio.stealth._kernelPostPatch = lib.mkOption {
+    type = lib.types.str;
+    readOnly = true;
+    internal = true;
+    default =
+      lib.optionalString cfg.timing.enable timingPatchScript
+      + lib.optionalString cfg.cpuidSpoof.enable cpuidPatchScript;
+    description = "Combined kernel postPatch script. Apply via kernel overrideAttrs in host config.";
   };
 }
