@@ -12,13 +12,13 @@
  *     Length           0x000000A1 (161)
  *     Revision         0x01
  *     Checksum         0x80
- *     OEM ID           "BOCHS"
- *     OEM Table ID     "BXPCSSDT"
+ *     OEM ID           "_ASUS_"
+ *     OEM Table ID     "Notebook"
  *     OEM Revision     0x00000001 (1)
  *     Compiler ID      "INTL"
  *     Compiler Version 0x20240927 (539232551)
  */
- DefinitionBlock ("", "SSDT", 1, "BOCHS", "BXPCSSDT", 0x00000001)
+ DefinitionBlock ("", "SSDT", 1, "_ASUS_", "Notebook", 0x00000001)
  {
      External (_SB_.PCI0, DeviceObj)
  

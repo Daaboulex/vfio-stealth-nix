@@ -170,6 +170,29 @@
           "-smbios"
           "type=29,description=Current Probe,type=5,status=3,max=30000,min=100"
         ]
+        # SMBIOS type 7 (cache memory) — prevents empty Win32_CacheMemory
+        ++ [
+          "-smbios"
+          "type=7,designation=L1 Cache,type=1,level=1,installed-size=512,maximum-size=512"
+        ]
+        ++ [
+          "-smbios"
+          "type=7,designation=L2 Cache,type=1,level=2,installed-size=8192,maximum-size=8192"
+        ]
+        ++ [
+          "-smbios"
+          "type=7,designation=L3 Cache,type=1,level=3,installed-size=98304,maximum-size=98304"
+        ]
+        # SMBIOS type 8 (port connector) — prevents empty Win32_PortConnector
+        ++ [
+          "-smbios"
+          "type=8,internal-designator=USB 3.2 Gen 2,port-type=9"
+        ]
+        # SMBIOS type 9 (system slots) — prevents empty Win32_SystemSlot
+        ++ [
+          "-smbios"
+          "type=9,designation=PCIEX16_1,type=0xa5,current-usage=3,length=4"
+        ]
         # ACPI SSDT tables
         ++ [
           "-acpitable"

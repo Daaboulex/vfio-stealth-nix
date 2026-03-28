@@ -65,17 +65,17 @@ in
       };
       biosVendor = lib.mkOption {
         type = lib.types.str;
-        default = "American Megatrends International, LLC.";
+        default = "American Megatrends Inc.";
         description = "SMBIOS BIOS vendor string";
       };
       biosVersion = lib.mkOption {
         type = lib.types.str;
-        default = "1401";
+        default = "2101";
         description = "SMBIOS BIOS version string";
       };
       serial = lib.mkOption {
         type = lib.types.str;
-        default = "M8OAMB000000000";
+        default = "System Serial Number";
         description = "SMBIOS system serial number";
       };
       socketPrefix = lib.mkOption {
