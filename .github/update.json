@@ -1,0 +1,12 @@
+{
+  "package": "vfio-stealth",
+  "upstream": {
+    "type": "custom"
+  },
+  "packageFile": "version.json",
+  "hashes": [],
+  "verify": {
+    "check": "elf"
+  },
+  "schedule": "0 6 * * *"
+}
