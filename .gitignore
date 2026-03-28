@@ -1,0 +1,8 @@
+result
+.direnv/
+CLAUDE.md
+GEMINI.md
+.claude/
+.gemini/
+AI-progress.json
+AI-tasks.json
