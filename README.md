@@ -1,8 +1,13 @@
 # vfio-stealth-nix
 
-VM anti-detection stack for NixOS — QEMU, OVMF, ACPI, SMBIOS, timing.
-
 [![CI](https://github.com/Daaboulex/vfio-stealth-nix/actions/workflows/ci.yml/badge.svg)](https://github.com/Daaboulex/vfio-stealth-nix/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/Daaboulex/vfio-stealth-nix)](./LICENSE)
+[![NixOS](https://img.shields.io/badge/NixOS-unstable-78C0E8?logo=nixos&logoColor=white)](https://nixos.org)
+[![Last commit](https://img.shields.io/github/last-commit/Daaboulex/vfio-stealth-nix)](https://github.com/Daaboulex/vfio-stealth-nix/commits)
+[![Stars](https://img.shields.io/github/stars/Daaboulex/vfio-stealth-nix?style=flat)](https://github.com/Daaboulex/vfio-stealth-nix/stargazers)
+[![Issues](https://img.shields.io/github/issues/Daaboulex/vfio-stealth-nix)](https://github.com/Daaboulex/vfio-stealth-nix/issues)
+
+VM anti-detection stack for NixOS — QEMU, OVMF, ACPI, SMBIOS, timing.
 
 ## Components
 
