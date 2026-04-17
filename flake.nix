@@ -42,7 +42,7 @@
         { pkgs, ... }:
         {
           default = pkgs.callPackage ./qemu/package.nix { inherit autovirt; };
-          ovmf-stealth = pkgs.callPackage ./ovmf/package.nix { inherit autovirt; };
+          ovmf-stealth = pkgs.callPackage ./ovmf/package.nix { };
           acpi-ssdt-stealth = pkgs.callPackage ./acpi/package.nix { };
           smbios-extract = pkgs.callPackage ./smbios/package.nix { };
         }

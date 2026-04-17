@@ -83,6 +83,39 @@ in
         default = "AM5";
         description = "SMBIOS processor socket designator prefix";
       };
+      memory = {
+        manufacturer = lib.mkOption {
+          type = lib.types.str;
+          default = "G.Skill International";
+          description = "DIMM manufacturer for SMBIOS type 17.";
+        };
+        partNumber = lib.mkOption {
+          type = lib.types.str;
+          default = "F5-6000J3040G32G";
+          description = "DIMM part number.";
+        };
+        speed = lib.mkOption {
+          type = lib.types.int;
+          default = 6000;
+          description = "Memory speed in MT/s.";
+        };
+        size = lib.mkOption {
+          type = lib.types.int;
+          default = 16384;
+          description = "DIMM size in MB (per module).";
+        };
+        count = lib.mkOption {
+          type = lib.types.int;
+          default = 2;
+          description = "Number of DIMMs to report.";
+        };
+      };
+    };
+
+    aperfMperf = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Pass through IA32_APERF/MPERF MSRs to guest (defeats IET-based VM detection). Requires kernel 6.18+.";
     };
 
     spoofMac = lib.mkOption {
@@ -95,6 +128,12 @@ in
       type = lib.types.str;
       default = "04:42:1a";
       description = "OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. 04:42:1a)";
+    };
+
+    stripVirtio = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Remove VirtIO balloon, RNG, and tablet devices from VM config when stealth is enabled.";
     };
 
     acpiSsdt = {

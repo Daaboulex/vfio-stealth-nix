@@ -8,6 +8,8 @@
       macPrefix ? "04:42:1a",
       cpuIdentity ? null,
       vmUuid ? null,
+      aperfMperf ? true,
+      stripVirtio ? true,
     }:
     {
       cpuFeatures = [
@@ -213,6 +215,26 @@
           "cpu.model-id=${cpuIdentity.modelId}"
           "-smbios"
           "type=4,sock_pfx=${smbios.socketPrefix},manufacturer=Advanced Micro Devices\\, Inc.,version=${cpuIdentity.modelId},max-speed=${toString cpuIdentity.maxSpeed},current-speed=${toString cpuIdentity.currentSpeed}"
+        ]
+        # SMBIOS type 17 (physical memory / DIMMs)
+        ++ lib.concatMap (i: [
+          "-smbios"
+          "type=17,loc_pfx=DIMM_,bank=BANK ${toString i},speed=${toString smbios.memory.speed},part=${smbios.memory.partNumber},serial=0000000${toString i},size=${toString smbios.memory.size},manufacturer=${smbios.memory.manufacturer}"
+        ]) (lib.range 0 (smbios.memory.count - 1))
+        # APERF/MPERF passthrough (defeats IET-based VM detection, kernel 6.18+)
+        ++ lib.optionals aperfMperf [
+          "-cpu"
+          "host,kvm-disable-exits=aperfmperf"
         ];
+
+      # Devices the consuming module should remove when stripVirtio is true.
+      # VirtIO device models are trivially fingerprinted by anti-cheat;
+      # replace balloon with static memory, RNG with virtio-rng-pci passthrough
+      # or remove entirely, and tablet with USB passthrough or PS/2 emulation.
+      devicesToRemove = lib.optionals stripVirtio [
+        "virtio-balloon"
+        "virtio-rng"
+        "virtio-tablet"
+      ];
     };
 }
