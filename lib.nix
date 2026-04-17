@@ -18,7 +18,7 @@
       },
       aperfMperf ? true,
       stripVirtio ? true,
-      hypervVendorId ? "AuthAMD Ryzen",
+      hypervVendorId ? "AuthAMDRyzen", # 12 chars — libvirt max
     }:
     {
       cpuFeatures = [

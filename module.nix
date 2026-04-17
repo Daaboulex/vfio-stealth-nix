@@ -179,9 +179,9 @@ in
     # well-known VM values like "AMDisbetter!" or "Microsoft Hv".
 
     hypervVendorId = lib.mkOption {
-      type = lib.types.str;
-      default = "AuthAMD Ryzen";
-      description = "Hyper-V vendor_id reported to guest (12 chars max). Avoid well-known values like 'AMDisbetter!'.";
+      type = lib.types.strMatching "^.{1,12}$";
+      default = "AuthAMDRyzen"; # 12 chars exactly — libvirt max
+      description = "Hyper-V vendor_id reported to guest (1–12 chars, libvirt hard limit). Avoid well-known VM values like 'AMDisbetter!' or 'Microsoft Hv'.";
     };
 
     # --- VirtIO device stripping ---
