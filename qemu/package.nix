@@ -36,6 +36,19 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemu.version)
       "${autovirt}/patches/QEMU/AMD-v10.2.0.patch"
     ];
     postPatch = (old.postPatch or "") + ''
+      echo "=== Applying EDK2/OVMF stealth patch ==="
+      # AutoVirt EDK2 patch: clears VirtualMachine SMBIOS bit, replaces Red Hat
+      # PCI vendor IDs (1B36→1022, 1234→1002), renames VMM-prefixed variables,
+      # spoofs ACPI OEM fields. Applied inside QEMU's bundled roms/edk2/.
+      if [ -d roms/edk2 ]; then
+        patch -d roms/edk2 -p1 < "${autovirt}/patches/EDK2/AMD-edk2-stable202602.patch" || {
+          echo "WARNING: EDK2 patch failed — firmware may contain VM indicators"
+        }
+        # Replace firmware vendor string with realistic value
+        substituteInPlace roms/edk2/OvmfPkg/OvmfPkgX64.dsc \
+          --replace-warn 'L"EDK II"' 'L"American Megatrends Inc."' || true
+      fi
+
       echo "=== Customizing stealth QEMU with unique hardware identifiers ==="
 
       # EDID: patch defaults to MSI G27C4X — replace with real monitor (${edidModel})
