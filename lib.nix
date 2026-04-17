@@ -213,7 +213,7 @@
           "-acpitable"
           "file=${acpiDir}/fake-battery.aml"
         ]
-        ++ lib.optionals (acpiSsdt.sensorProbes or true) [
+        ++ lib.optionals acpiSsdt.sensorProbes [
           "-acpitable"
           "file=${acpiDir}/sensor-probes.aml"
         ]
