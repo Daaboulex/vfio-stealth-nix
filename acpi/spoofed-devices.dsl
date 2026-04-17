@@ -65,9 +65,6 @@ DefinitionBlock ("", "SSDT", 1, "_ASUS_", "Notebook", 0x20250321)
             {
                 Return (0x0F)
             }
-            Name (_CRS, ResourceTemplate()
-            {
-            })
         }
 
         Device (TIMR)
@@ -77,9 +74,6 @@ DefinitionBlock ("", "SSDT", 1, "_ASUS_", "Notebook", 0x20250321)
             {
                 Return (0x0F)
             }
-            Name (_CRS, ResourceTemplate()
-            {
-            })
         }
 
         // Voltage probe — Win32_VoltageProbe WMI detection

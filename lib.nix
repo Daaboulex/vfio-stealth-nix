@@ -4,13 +4,12 @@
     {
       smbios,
       acpiTables,
-      spoofMac ? true,
-      macPrefix ? "04:42:1a",
       cpuIdentity ? null,
       vmUuid ? null,
       acpiSsdt ? {
         spoofedDevices = true;
         fakeBattery = true;
+        sensorProbes = true;
       },
       cache ? {
         l1 = 512;
@@ -212,6 +211,10 @@
         ++ lib.optionals acpiSsdt.fakeBattery [
           "-acpitable"
           "file=${acpiDir}/fake-battery.aml"
+        ]
+        ++ lib.optionals (acpiSsdt.sensorProbes or true) [
+          "-acpitable"
+          "file=${acpiDir}/sensor-probes.aml"
         ]
         # CPU power management
         ++ [

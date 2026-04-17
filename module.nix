@@ -199,6 +199,11 @@ in
         default = true;
         description = "Include a fake ACPI battery device in the SSDT table. Defeats 'no battery = server/VM' heuristic.";
       };
+      sensorProbes = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Include CPU and VRM thermal zone probes (defeats MSAcpi_ThermalZoneTemperature WMI detection).";
+      };
     };
 
     # --- EDID monitor identity ---
