@@ -174,6 +174,16 @@ in
       description = "OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. 00:1b:21). Intel OUI by default.";
     };
 
+    # --- Hyper-V vendor_id ---
+    # The vendor_id exposed via Hyper-V enlightenments. Anti-cheat may flag
+    # well-known VM values like "AMDisbetter!" or "Microsoft Hv".
+
+    hypervVendorId = lib.mkOption {
+      type = lib.types.str;
+      default = "AuthAMD Ryzen";
+      description = "Hyper-V vendor_id reported to guest (12 chars max). Avoid well-known values like 'AMDisbetter!'.";
+    };
+
     # --- VirtIO device stripping ---
     # VirtIO PCI vendor/device IDs (1af4:10xx) are trivially fingerprinted.
 

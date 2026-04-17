@@ -18,6 +18,7 @@
       },
       aperfMperf ? true,
       stripVirtio ? true,
+      hypervVendorId ? "AuthAMD Ryzen",
     }:
     {
       cpuFeatures = [
@@ -54,7 +55,7 @@
           reset.state = true;
           vendor_id = {
             state = true;
-            value = "AMDisbetter!";
+            value = hypervVendorId;
           };
           frequencies.state = true;
           reenlightenment.state = true;
@@ -234,9 +235,11 @@
           "type=17,loc_pfx=DIMM_,bank=BANK ${toString i},speed=${toString smbios.memory.speed},part=${smbios.memory.partNumber},serial=0000000${toString i},size=${toString smbios.memory.size},manufacturer=${smbios.memory.manufacturer}"
         ]) (lib.range 0 (smbios.memory.count - 1))
         # APERF/MPERF passthrough (defeats IET-based VM detection, kernel 6.18+)
+        # Use standalone -cpu property form to append to libvirt's existing -cpu host
+        # rather than re-specifying the model (which would conflict/reset features).
         ++ lib.optionals aperfMperf [
           "-cpu"
-          "host,kvm-disable-exits=aperfmperf"
+          "kvm-disable-exits=aperfmperf"
         ];
 
       # Devices the consuming module should remove when stripVirtio is true.
