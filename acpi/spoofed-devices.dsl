@@ -81,6 +81,17 @@ DefinitionBlock ("", "SSDT", 1, "_ASUS_", "Notebook", 0x20250321)
             {
             })
         }
+
+        // Voltage probe — Win32_VoltageProbe WMI detection
+        Device (VLT0)
+        {
+            Name (_HID, "PNP0C02")
+            Name (_STR, Unicode ("Voltage Regulator Module"))
+            Method (_STA, 0, NotSerialized)
+            {
+                Return (0x0F)
+            }
+        }
     }
 
     Scope (_SB.PCI0)
@@ -144,6 +155,12 @@ DefinitionBlock ("", "SSDT", 1, "_ASUS_", "Notebook", 0x20250321)
                 {
                     PFAN
                 })
+
+                Method (_FST, 0, NotSerialized)
+                {
+                    // Fan Speed Trip point: Revision 1, Control=1 (on), Speed=1200 RPM
+                    Return (Package (3) { One, One, 0x04B0 })
+                }
             }
 
             ThermalZone (TZ0)

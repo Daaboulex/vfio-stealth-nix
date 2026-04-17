@@ -15,12 +15,14 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     iasl -p spoofed-devices spoofed-devices.dsl
     iasl -p fake-battery fake-battery.dsl
+    iasl -p sensor-probes sensor-probes.dsl
   '';
 
   installPhase = ''
     mkdir -p $out/share/acpi
     cp spoofed-devices.aml $out/share/acpi/
     cp fake-battery.aml $out/share/acpi/
+    cp sensor-probes.aml $out/share/acpi/
   '';
 
   meta = {

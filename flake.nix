@@ -48,6 +48,8 @@
         }
       );
 
+      # Consumers can customize hardware strings:
+      # pkgs.qemu-stealth.override { edidManufacturer = "DEL"; diskModel = "..."; }
       overlays.default = final: prev: {
         qemu-stealth = self.packages.${final.system}.default;
         ovmf-stealth = self.packages.${final.system}.ovmf-stealth;

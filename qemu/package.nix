@@ -2,22 +2,22 @@
   lib,
   qemu,
   autovirt,
-  # EDID: Dell AW2521HFA
-  edidManufacturer ? "DEL",
-  edidModelAbbrev ? "DEL     ",
-  edidModel ? "DEL AW2521HFA   ",
-  edidSerial ? "AW2521HFA",
-  edidProductCode ? "0xa161",
-  edidDpi ? 102,
-  edidWeek ? 18,
-  edidYear ? 2021,
-  # ACPI OEM: ASUS (6-char and 8-char padded)
-  acpiOemId ? "ASUS  ",
-  acpiOemTableId ? "ASUS    ",
-  # Disk: Samsung SSD 870 EVO 1TB
-  diskModel ? "Samsung SSD 870 EVO 1TB ",
-  # Optical: ASUS DRW-24B1ST
-  opticalModel ? "ASUS DRW-24B1ST   c    ",
+  # EDID: Generic ASUS monitor
+  edidManufacturer ? "ACI",
+  edidModelAbbrev ? "ACI     ",
+  edidModel ? "ASUS VG248      ",
+  edidSerial ? "VG248QE",
+  edidProductCode ? "0x2480",
+  edidDpi ? 91,
+  edidWeek ? 22,
+  edidYear ? 2020,
+  # ACPI OEM: Generic AMI (6-char and 8-char padded)
+  acpiOemId ? "ALASKA",
+  acpiOemTableId ? "A M I   ",
+  # Disk: Generic WD
+  diskModel ? "WDC WD10EZEX-00WN4A0     ",
+  # Optical: Generic LG
+  opticalModel ? "HL-DT-ST DVDRAM GH24NSC0 ",
 }:
 
 let
@@ -50,10 +50,18 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemu.version)
       # EDID DPI: patch uses 82, real is ${toString edidDpi}
       sed -i 's|uint32_t dpi = 82;|uint32_t dpi = ${toString edidDpi};|g' hw/display/edid-generate.c
 
-      # ACPI OEM: patch uses ALASKA/AMI — use ASUS-specific strings
+      # ACPI OEM: patch uses ALASKA/AMI — replace with configured OEM strings
       # These defines are in include/hw/acpi/aml-build.h (6-char and 8-char padded)
       sed -i 's|"ALASKA"|"${acpiOemId}"|g' include/hw/acpi/aml-build.h
       sed -i 's|"A M I   "|"${acpiOemTableId}"|g' include/hw/acpi/aml-build.h
+
+      # fw_cfg ACPI device: QEMU0002 is a dead giveaway for VM detection.
+      # Replace with PNP0C02 (generic motherboard resource) to blend in.
+      sed -i 's|"QEMU0002"|"PNP0C02"|g' hw/acpi/core.c hw/acpi/aml-build.c 2>/dev/null || true
+
+      # pvpanic ACPI device: QEMU0001 is another VM fingerprint.
+      # Replace with PNP0C02 to match real hardware ACPI tables.
+      sed -i 's|"QEMU0001"|"PNP0C02"|g' hw/acpi/generic_event_device.c 2>/dev/null || true
 
       # Disk model: patch uses "Hitachi HMS360404D5CF00" — replace with ${diskModel}
       sed -i 's|Hitachi HMS360404D5CF00|${diskModel}|g' hw/ide/core.c hw/scsi/scsi-disk.c 2>/dev/null || true

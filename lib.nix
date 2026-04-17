@@ -8,6 +8,15 @@
       macPrefix ? "04:42:1a",
       cpuIdentity ? null,
       vmUuid ? null,
+      acpiSsdt ? {
+        spoofedDevices = true;
+        fakeBattery = true;
+      },
+      cache ? {
+        l1 = 512;
+        l2 = 8192;
+        l3 = 32768;
+      },
       aperfMperf ? true,
       stripVirtio ? true,
     }:
@@ -175,15 +184,15 @@
         # SMBIOS type 7 (cache memory) — prevents empty Win32_CacheMemory
         ++ [
           "-smbios"
-          "type=7,designation=L1 Cache,type=1,level=1,installed-size=512,maximum-size=512"
+          "type=7,designation=L1 Cache,type=1,level=1,installed-size=${toString cache.l1},maximum-size=${toString cache.l1}"
         ]
         ++ [
           "-smbios"
-          "type=7,designation=L2 Cache,type=1,level=2,installed-size=8192,maximum-size=8192"
+          "type=7,designation=L2 Cache,type=1,level=2,installed-size=${toString cache.l2},maximum-size=${toString cache.l2}"
         ]
         ++ [
           "-smbios"
-          "type=7,designation=L3 Cache,type=1,level=3,installed-size=98304,maximum-size=98304"
+          "type=7,designation=L3 Cache,type=1,level=3,installed-size=${toString cache.l3},maximum-size=${toString cache.l3}"
         ]
         # SMBIOS type 8 (port connector) — prevents empty Win32_PortConnector
         ++ [
@@ -196,11 +205,11 @@
           "type=9,designation=PCIEX16_1,type=0xa5,current-usage=3,length=4"
         ]
         # ACPI SSDT tables
-        ++ [
+        ++ lib.optionals acpiSsdt.spoofedDevices [
           "-acpitable"
           "file=${acpiDir}/spoofed-devices.aml"
         ]
-        ++ [
+        ++ lib.optionals acpiSsdt.fakeBattery [
           "-acpitable"
           "file=${acpiDir}/fake-battery.aml"
         ]
