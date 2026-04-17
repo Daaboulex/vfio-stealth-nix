@@ -11,10 +11,8 @@ let
   # - Renames VMM-prefixed variables
   # - Spoofs ACPI OEM fields
   autovirtPatch = fetchurl {
-    url = "https://raw.githubusercontent.com/Scrut1ny/AutoVirt/bd326182af29fa3b8f3b6b3f54eef2e6da5aba8e/patches/EDK2/AMD-edk2-stable202602.patch";
-    # TODO: hash needs extraction via build — run `nix build .#ovmf` and
-    # replace with the correct hash from the error output
-    hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    url = "https://raw.githubusercontent.com/Scrut1ny/Hypervisor-Phantom/bd326182066fccc10ffa4b98047981d1abf6383e/patches/EDK2/AMD-edk2-stable202602.patch";
+    hash = "sha256-lNWxQFgkDNapoiLZ4XOFhYQi+t0WR9O3H6CrwPNLrCg=";
   };
 
   # Patch edk2 source first, then pass to OVMF which wraps it.
