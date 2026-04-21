@@ -6,7 +6,8 @@
   "packageFile": "version.json",
   "hashes": [],
   "verify": {
+    "binary": null,
+    "args": null,
     "check": "elf"
-  },
-  "schedule": "0 6 * * *"
+  }
 }

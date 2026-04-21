@@ -6,3 +6,7 @@ GEMINI.md
 .gemini/
 AI-progress.json
 AI-tasks.json
+result-*
+.direnv
+.envrc
+# AI context — local only, never committed
