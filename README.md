@@ -7,11 +7,32 @@
 [![Stars](https://img.shields.io/github/stars/Daaboulex/vfio-stealth-nix?style=flat)](https://github.com/Daaboulex/vfio-stealth-nix/stargazers)
 [![Issues](https://img.shields.io/github/issues/Daaboulex/vfio-stealth-nix)](https://github.com/Daaboulex/vfio-stealth-nix/issues)
 
+## Upstream
+
+This is a **multi-upstream Nix integration** combining several anti-detection projects into one declarative NixOS module. All credit for the core techniques goes to:
+
+- **AutoVirt** — QEMU AMD patches + EDK2/OVMF anti-detection patches: [Scrut1ny/AutoVirt](https://github.com/Scrut1ny/AutoVirt)
+- **BetterTiming** — TSC compensation kernel patch technique: [SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming)
+- **Hypervisor-Phantom** — CPUID leaf 0 spoofing technique
+- **Original glue + module + ACPI SSDT compilation**: this repo
+
+The update workflow runs on a daily cron schedule. On success, it commits and pushes the flake input update automatically. On failure, it creates a GitHub issue with the build log and pushes the attempted update to a branch for manual recovery.
+
+Licensed under [MIT](./LICENSE) for the Nix-side glue + ACPI SSDT files. Each upstream patch retains its own license — see the linked repos.
+
 ## Overview
 
 vfio-stealth-nix is a NixOS module that makes VFIO/KVM virtual machines indistinguishable from bare-metal hardware. It is designed for **legitimate VM gaming** where users own the hardware, the games, and the operating system licenses. The goal is to prevent false-positive VM detection that locks paying customers out of games they own, simply because they run them in a VM for driver isolation, security, or multi-OS workflows.
 
 This is **not a cheat tool**. It does not modify game memory, inject code, or bypass integrity checks. It makes the VM environment report truthful hardware characteristics instead of exposing hypervisor artifacts that have nothing to do with cheating.
+
+## Documentation
+
+For long-form references beyond the quick start below, see:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — directory layout, component-to-file mapping, kernel-integration boundary
+- [`docs/BUILD.md`](docs/BUILD.md) — operator commands: dev shell, formatters, hooks, tests, update contract, troubleshooting
+- [`docs/OPTIONS.md`](docs/OPTIONS.md) — full `myModules.vfio.stealth.*` option reference (mirrors the Configuration Reference section)
 
 ## Components
 
