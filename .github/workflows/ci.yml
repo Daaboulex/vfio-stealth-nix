@@ -15,7 +15,7 @@ jobs:
       - name: Fail if AI artifacts are tracked
         run: |
           set -e
-          FORBIDDEN='^(CLAUDE\.md|GEMINI\.md|AGENTS\.md|AI-progress\.json|AI-tasks\.json|\.session-handoff\.md|\.claude/|\.gemini/|\.ai-context/|\.cursor/|\.superpowers/|memory/|self-improvements-pending-.*\.jsonl)'
+          FORBIDDEN='^(CLAUDE\.md|GEMINI\.md|AGENTS\.md|AI-progress\.json|AI-tasks\.json|\.session-handoff.*\.md|\.claude/|\.gemini/|\.codex/|\.ai-context/|\.cursor/|\.superpowers/|\.planning/|memory/|handoffs/|deferred-work\.jsonl|self-improvements-pending-.*\.jsonl)'
           MATCHES=$(git ls-files | grep -E "$FORBIDDEN" || true)
           if [ -n "$MATCHES" ]; then
             echo "::error::Tracked AI artifacts detected. These files must be gitignored, never committed:"

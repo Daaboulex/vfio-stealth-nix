@@ -33,7 +33,7 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemu.version)
   (old: {
     pname = "qemu-stealth";
     patches = (old.patches or [ ]) ++ [
-      "${autovirt}/patches/QEMU/AMD-v10.2.0.patch"
+      "${autovirt}/patches/QEMU/Archive/AMD-v10.2.0.patch"
     ];
     postPatch = (old.postPatch or "") + ''
       echo "=== Applying EDK2/OVMF stealth patch ==="
