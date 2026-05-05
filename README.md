@@ -411,6 +411,15 @@ Two upstream projects are tracked and auto-updated daily via GitHub Actions (`up
 
 The update workflow runs on a daily cron schedule. On success, it commits and pushes the flake input update automatically. On failure, it creates a GitHub issue with the build log and pushes the attempted update to a branch for manual recovery.
 
+## Development
+
+```bash
+nix develop                  # dev shell with pre-commit hooks
+nix flake check --no-build   # eval check (fast)
+nix build                    # build packages
+nix fmt                      # format with treefmt
+```
+
 ## Known Limitations
 
 These detection methods **cannot be bypassed** by software-level spoofing:
