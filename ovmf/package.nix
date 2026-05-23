@@ -25,6 +25,17 @@ let
       # Replace default firmware vendor string with a realistic one
       substituteInPlace OvmfPkg/OvmfPkgX64.dsc \
         --replace-warn 'L"EDK II"' 'L"American Megatrends Inc."' || true
+
+      # Strip TianoCore boot logo + BGRT table (VMAware CRC fingerprint 0x110350C5)
+      # Many real desktops have no BGRT, so absence is normal.
+      substituteInPlace OvmfPkg/OvmfPkgX64.dsc \
+        --replace-warn \
+          'MdeModulePkg/Universal/Acpi/BootGraphicsResourceTableDxe/BootGraphicsResourceTableDxe.inf' \
+          '# stripped: BootGraphicsResourceTableDxe' || true
+      substituteInPlace OvmfPkg/OvmfPkgX64.fdf \
+        --replace-warn \
+          'INF MdeModulePkg/Logo/LogoDxe.inf' \
+          '# stripped: LogoDxe' || true
     '';
   });
 in

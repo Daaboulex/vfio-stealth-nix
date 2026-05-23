@@ -6,7 +6,7 @@ integration is layered.
 
 ## Directory layout
 
-```
+```text
 vfio-stealth-nix/
 ├── flake.nix                # packages, overlays.default, nixosModules.default
 ├── module.nix               # myModules.vfio.stealth.* options + assertions
@@ -22,7 +22,9 @@ vfio-stealth-nix/
 ├── acpi/
 │   ├── spoofed-devices.dsl  # ACPI SSDT: fake EC, fan, thermal zone,
 │   │                        # power/sleep buttons, timers
-│   └── fake-battery.dsl     # Control Method Battery (PNP0C0A)
+│   ├── sensor-probes.dsl    # CPU/VRM thermal zones + temperature probes
+│   ├── fake-battery.dsl     # Control Method Battery (PNP0C0A)
+│   └── package.nix          # Compiles DSL → AML, bundles as derivation
 ├── kernel/
 │   ├── timing-patch.nix     # BetterTiming TSC compensation
 │   │                        # → exposed via _kernelPostPatch
@@ -32,7 +34,9 @@ vfio-stealth-nix/
 │   └── extract-tool.nix     # smbios-extract — host SMBIOS dump +
 │                            # anonymization helper
 ├── guest/
-│   └── windows-tools/       # PowerShell scripts for guest-side cleanup
+│   ├── verify-stealth.ps1   # 30-vector detection check (run inside VM)
+│   ├── cleanup-registry.ps1 # Registry artifact removal (admin, run once)
+│   └── verify-host.sh       # Host-side sanity checks
 ├── scripts/
 │   └── update.sh            # AutoVirt + BetterTiming flake-input bumper
 ├── .github/
@@ -50,15 +54,15 @@ vfio-stealth-nix/
 
 | Component | Option prefix | Detection vectors covered |
 |---|---|---|
-| `qemu-stealth` (qemu/package.nix) | build-time args (`edid*`, `disk*`, `optical*`, `acpiOem*`) — overlay or `callPackage` | EDID display identity, disk/optical model strings, ACPI OEM IDs |
-| `ovmf-stealth` (ovmf/package.nix) | inherited via overlay — no module options | OVMF SMBIOS Type 0 (VirtualMachine bit), Red Hat PCI vendor IDs, ACPI OEM fields |
-| `module.nix` `smbios.*` | `myModules.vfio.stealth.smbios.*` | SMBIOS Types 1, 2, 4, 17 (system, baseboard, processor, memory) |
-| `module.nix` `acpiSsdt.*` | `myModules.vfio.stealth.acpiSsdt.*` | ACPI SSDT (EC, fan, thermal, battery, buttons, timers) |
-| `module.nix` `kernel.*` (timing + cpuidSpoof) | `myModules.vfio.stealth.kernel.{timing,cpuidSpoof}.*` | RDTSC/RDTSCP timing, CPUID vendor string + hypervisor bit |
-| `module.nix` `kernelParams.*` | `myModules.vfio.stealth.kernelParams.{maxCState,tscReliable}` | TSC stability, TSC source selection |
+| `qemu-stealth` (qemu/package.nix) | build-time args (`edid*`, `disk*`, `optical*`, `acpiOem*`) — overlay or `callPackage` | EDID display identity, disk/optical model strings, disk serial, ACPI OEM IDs, fw_cfg 4-byte probe signature |
+| `ovmf-stealth` (ovmf/package.nix) | inherited via overlay — no module options | OVMF SMBIOS Type 0 (VirtualMachine bit), Red Hat PCI vendor IDs (1AF4/1B36→1022, 1234→1002), ACPI OEM fields, BGRT table (TianoCore CRC fingerprint) |
+| `module.nix` `smbios.*` | `myModules.vfio.stealth.smbios.*` | SMBIOS Types 1, 2, 4, 7, 8, 9, 11, 17, 26, 27, 28, 29, 41 (system, baseboard incl. version/serial/asset/location, processor, cache, port connector, system slots, OEM strings, memory, voltage/cooling/temperature/current probes, onboard devices) |
+| `module.nix` `acpiSsdt.*` | `myModules.vfio.stealth.acpiSsdt.*` | ACPI SSDT (EC, fan, thermal zone with fluctuation, battery, buttons, timers) |
+| `module.nix` `kernel.*` (timing + cpuidSpoof) | `myModules.vfio.stealth.{timing,cpuidSpoof}.*` | RDTSC/RDTSCP timing, CPUID vendor string + hypervisor bit |
+| `module.nix` `kernelParams.*` | `myModules.vfio.stealth.kernelParams.{maxCState,tscReliable}` | TSC stability, TSC source selection, SVM params (kvm_amd.vls=0, kvm_amd.vgif=0) |
 | `module.nix` `aperfMperf` | `myModules.vfio.stealth.aperfMperf` | IA32_APERF/MPERF MSR passthrough (defeats IET) |
-| `module.nix` `stripVirtio` / `spoofMac` / `macPrefix` | top-level toggles | VirtIO PCI vendor ID, MAC OUI |
-| `lib.nix` (libvirt rewriter) | applied to `services.virtualisation.vms.<name>` | KVM hidden bit, Hyper-V vendor_id spoof, fake-battery wiring |
+| `module.nix` `stripVirtio` / `spoofMac` / `macPrefix` | top-level toggles | VirtIO PCI vendor ID, MAC OUI (default: D8:BB:C1, Realtek) |
+| `lib.nix` (libvirt rewriter) | applied to `services.virtualisation.vms.<name>` | KVM hidden bit, Hyper-V vendor_id spoof, fake-battery wiring, HPET present=true, KVM MSR enforce (kvm-pv-enforce-cpuid=on), hypercall patching disable |
 | `acpi/*.dsl` | compiled AML embedded in `acpi-ssdt-stealth` | ACPI SSDT runtime fingerprints |
 | `smbios-extract` (smbios/extract-tool.nix) | CLI tool, not a module option | Host SMBIOS dump for VM injection |
 
@@ -75,13 +79,16 @@ separate patch sets compose into this single hook:
    - Patches `MSR_IA32_TSC` reads to return compensated values
    - Enables RDTSC interception in SVM `init_vmcb`
    - Adds `handle_rdtsc_interception` returning compensated TSC
+   - Adds `handle_rdtscp_interception` returning compensated TSC + TSC_AUX in ECX
    - Wraps CPUID, WBINVD, XSETBV, INVD exit handlers to tag
      `exit_reason=123` for timing compensation
+   - Disables KVM hypercall instruction patching (forces `#UD` on
+     VMCALL/VMMCALL instead of `#PF`, matching bare-metal behavior)
 
 2. **CPUID spoofing** (`kernel/cpuid-patch.nix`) — Hypervisor-Phantom
    - Intercepts CPUID leaf 0 inside `svm_vcpu_run` after
      `svm_vcpu_enter_exit` returns
-   - Spoofs vendor string to `AuthenticAMD` with max leaf `0x16`
+   - Spoofs vendor string to `AuthenticAMD` with max leaf `0x20`
    - Advances RIP and re-enters guest via `goto reenter_guest_fast`
      (no full VM exit)
    - Clears RDTSC/RDTSCP interception bits (BetterTiming re-enables

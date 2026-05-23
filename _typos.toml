@@ -1,0 +1,6 @@
+[default.extend-words]
+# ACI = ASUS Computer International (3-letter EDID manufacturer code)
+ACI = "ACI"
+aci = "aci"
+# "ths" appears in "10ths" (tenths)
+ths = "ths"

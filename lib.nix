@@ -83,7 +83,7 @@
           }
           {
             name = "hpet";
-            present = false;
+            present = true;
           }
           {
             name = "kvmclock";
@@ -111,6 +111,14 @@
           {
             name = "version";
             value = smbios.biosVersion;
+          }
+          {
+            name = "date";
+            value = smbios.biosDate;
+          }
+          {
+            name = "release";
+            value = smbios.biosRelease;
           }
         ];
         system.entry = [
@@ -147,6 +155,22 @@
           {
             name = "product";
             value = smbios.product;
+          }
+          {
+            name = "version";
+            value = smbios.baseBoardVersion;
+          }
+          {
+            name = "serial";
+            value = smbios.baseBoardSerial;
+          }
+          {
+            name = "asset";
+            value = smbios.baseBoardAsset;
+          }
+          {
+            name = "location";
+            value = smbios.baseBoardLocation;
           }
         ];
       };
@@ -234,6 +258,23 @@
           "-smbios"
           "type=17,loc_pfx=DIMM_,bank=BANK ${toString i},speed=${toString smbios.memory.speed},part=${smbios.memory.partNumber},serial=0000000${toString i},size=${toString smbios.memory.size},manufacturer=${smbios.memory.manufacturer}"
         ]) (lib.range 0 (smbios.memory.count - 1))
+        # SMBIOS type 11 (OEM strings) — prevents empty Win32_ComputerSystem.OEMStringArray
+        ++ [
+          "-smbios"
+          ("type=11" + lib.concatMapStrings (s: ",value=${s}") smbios.oemStrings)
+        ]
+        # SMBIOS type 41 (onboard devices extended) — prevents empty Win32_OnBoardDevice
+        ++ lib.concatMap (dev: [
+          "-smbios"
+          "type=41,designation=${dev.designation},kind=${dev.kind},instance=${toString dev.instance}"
+        ]) smbios.onboardDevices
+        # KVM paravirt MSR enforcement — with kvm.hidden=on, ensure
+        # guest_pv_has() rejects all KVM feature MSR access (#GP instead
+        # of returning valid pvclock/steal-time data that reveals KVM).
+        ++ [
+          "-cpu"
+          "host,kvm-pv-enforce-cpuid=on"
+        ]
         # APERF/MPERF passthrough (defeats IET-based VM detection, kernel 6.18+)
         # Use standalone -cpu property form to append to libvirt's existing -cpu host
         # rather than re-specifying the model (which would conflict/reset features).

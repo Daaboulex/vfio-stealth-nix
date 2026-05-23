@@ -16,6 +16,7 @@
   acpiOemTableId ? "A M I   ",
   # Disk: Generic WD
   diskModel ? "WDC WD10EZEX-00WN4A0     ",
+  diskSerial ? "WD-WMC4N0E0XYZA",
   # Optical: Generic LG
   opticalModel ? "HL-DT-ST DVDRAM GH24NSC0 ",
 }:
@@ -68,19 +69,24 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemu.version)
       sed -i 's|"ALASKA"|"${acpiOemId}"|g' include/hw/acpi/aml-build.h
       sed -i 's|"A M I   "|"${acpiOemTableId}"|g' include/hw/acpi/aml-build.h
 
-      # fw_cfg ACPI device: QEMU0002 is a dead giveaway for VM detection.
-      # Replace with PNP0C02 (generic motherboard resource) to blend in.
-      sed -i 's|"QEMU0002"|"PNP0C02"|g' hw/acpi/core.c hw/acpi/aml-build.c 2>/dev/null || true
-
-      # pvpanic ACPI device: QEMU0001 is another VM fingerprint.
-      # Replace with PNP0C02 to match real hardware ACPI tables.
-      sed -i 's|"QEMU0001"|"PNP0C02"|g' hw/acpi/generic_event_device.c 2>/dev/null || true
+      # QEMU0001/QEMU0002 ACPI device IDs: already patched by AutoVirt
+      # (QEMU0001 → UEFI0001, QEMU0002 → UEFI0002). Previous sed
+      # commands here were no-ops since the original strings no longer exist.
 
       # Disk model: patch uses "Hitachi HMS360404D5CF00" — replace with ${diskModel}
       sed -i 's|Hitachi HMS360404D5CF00|${diskModel}|g' hw/ide/core.c hw/scsi/scsi-disk.c 2>/dev/null || true
+      # Disk serial: AutoVirt blanks the IDE serial (drive_serial_str = '\0') — set realistic WD serial
+      sed -i "s|drive_serial_str\[0\] = '\\\\0';.*|pstrcpy(s->drive_serial_str, sizeof(s->drive_serial_str), \"${diskSerial}\");|g" hw/ide/core.c 2>/dev/null || true
+      # SCSI product: AutoVirt uses "Samsung SSD 980 500GB" — replace with ${diskModel}
+      sed -i 's|Samsung SSD 980 500GB|${diskModel}|g' hw/scsi/scsi-disk.c 2>/dev/null || true
 
       # Optical drive: patch uses "HL-DT-ST BD-RE WH16NS60" — use ${opticalModel}
       sed -i 's|HL-DT-ST BD-RE WH16NS60|${opticalModel}|g' hw/ide/core.c hw/ide/atapi.c 2>/dev/null || true
+
+      # fw_cfg 4-byte probe signature: selector 0x0000 returns "QEMU"
+      # AutoVirt patched the 8-byte DMA signature but left this 4-byte probe.
+      # Kernel-mode scanners can detect it via inb(0x511) after outw(0x510, 0x0000).
+      sed -i 's|fw_cfg_add_bytes(s, FW_CFG_SIGNATURE, (char \*)"QEMU", 4)|fw_cfg_add_bytes(s, FW_CFG_SIGNATURE, (char *)"AMDK", 4)|g' hw/nvram/fw_cfg.c
 
       echo "=== Stealth customization complete ==="
     '';

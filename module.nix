@@ -85,10 +85,40 @@ in
         default = "1001";
         description = "SMBIOS BIOS version string. Defeats WMI Win32_BIOS.SMBIOSBIOSVersion checks.";
       };
+      biosDate = lib.mkOption {
+        type = lib.types.str;
+        default = "02/14/2025";
+        description = "BIOS release date (MM/DD/YYYY format). Defeats Win32_BIOS.ReleaseDate checks. OVMF defaults to 02/02/2022 which is a generic VM date.";
+      };
+      biosRelease = lib.mkOption {
+        type = lib.types.str;
+        default = "2.4";
+        description = "BIOS release version (major.minor). Maps to SMBIOS Type 0 System BIOS Release field.";
+      };
       serial = lib.mkOption {
         type = lib.types.str;
         default = "System Serial Number";
         description = "SMBIOS system serial number. Defeats WMI Win32_ComputerSystemProduct.IdentifyingNumber checks.";
+      };
+      baseBoardVersion = lib.mkOption {
+        type = lib.types.str;
+        default = "Rev 1.xx";
+        description = "Baseboard version string (SMBIOS Type 2). Defeats Win32_BaseBoard.Version checks.";
+      };
+      baseBoardSerial = lib.mkOption {
+        type = lib.types.str;
+        default = "220631884300123";
+        description = "Baseboard serial number (SMBIOS Type 2). ASUS format: 15 alphanumeric chars.";
+      };
+      baseBoardAsset = lib.mkOption {
+        type = lib.types.str;
+        default = "Default string";
+        description = "Baseboard asset tag (SMBIOS Type 2).";
+      };
+      baseBoardLocation = lib.mkOption {
+        type = lib.types.str;
+        default = "Default string";
+        description = "Baseboard location in chassis (SMBIOS Type 2).";
       };
       socketPrefix = lib.mkOption {
         type = lib.types.str;
@@ -145,6 +175,62 @@ in
           description = "L3 cache size in KB for SMBIOS type 7.";
         };
       };
+
+      oemStrings = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [
+          "Default string"
+          "Default string"
+          "Default string"
+          "Default string"
+        ];
+        description = "OEM Strings for SMBIOS Type 11. Real boards populate 4-6 entries. Empty Type 11 is a VM indicator.";
+      };
+
+      onboardDevices = lib.mkOption {
+        type = lib.types.listOf (
+          lib.types.submodule {
+            options = {
+              designation = lib.mkOption {
+                type = lib.types.str;
+                description = "Device designation string.";
+              };
+              kind = lib.mkOption {
+                type = lib.types.enum [
+                  "other"
+                  "unknown"
+                  "video"
+                  "scsi"
+                  "ethernet"
+                  "tokenring"
+                  "sound"
+                  "pata"
+                  "sata"
+                  "sas"
+                ];
+                description = "Device type.";
+              };
+              instance = lib.mkOption {
+                type = lib.types.int;
+                description = "Device instance number.";
+              };
+            };
+          }
+        );
+        default = [
+          {
+            designation = "Intel I225-V 2.5G LAN";
+            kind = "ethernet";
+            instance = 1;
+          }
+          {
+            designation = "PROM21 SATA Controller";
+            kind = "sata";
+            instance = 1;
+          }
+        ];
+        description = "Onboard devices for SMBIOS Type 41. Prevents empty Win32_OnBoardDevice.";
+      };
     };
 
     # --- MSR passthrough ---
@@ -170,8 +256,8 @@ in
 
     macPrefix = lib.mkOption {
       type = lib.types.str;
-      default = "00:1b:21";
-      description = "OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. 00:1b:21). Intel OUI by default.";
+      default = "D8:BB:C1";
+      description = "OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard LAN.";
     };
 
     # --- Hyper-V vendor_id ---
@@ -329,6 +415,8 @@ in
 
     boot.kernelParams = [
       "processor.max_cstate=${toString cfg.kernelParams.maxCState}"
+      "kvm_amd.vls=0" # Force VMLOAD/VMSAVE interception (prevents SVM instruction fingerprint)
+      "kvm_amd.vgif=0" # Force STGI/CLGI interception (prevents vGIF behavior fingerprint)
     ]
     ++ lib.optionals cfg.kernelParams.tscReliable [ "tsc=reliable" ];
   };

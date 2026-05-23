@@ -14,6 +14,7 @@
 | **Project** | Custom |
 | **License** | N/A |
 | **Tracked** | Custom update script |
+
 <!-- END generated:upstream -->
 
 ## Overview
@@ -34,8 +35,8 @@ For long-form references beyond the quick start below, see:
 
 | Package | Description |
 |---|---|
-| **qemu-stealth** | Patched QEMU with AutoVirt AMD anti-detection patches + configurable hardware fingerprints (EDID, ACPI OEM, disk/optical models) |
-| **ovmf-stealth** | Patched EDK2/OVMF firmware: clears VirtualMachine bit in SMBIOS Type 0, replaces Red Hat PCI vendor IDs, spoofs ACPI OEM fields |
+| **qemu-stealth** | Patched QEMU with AutoVirt AMD anti-detection patches + configurable hardware fingerprints (EDID, ACPI OEM, disk/optical models, disk serial spoofing, fw_cfg probe fix) |
+| **ovmf-stealth** | Patched EDK2/OVMF firmware: clears VirtualMachine bit in SMBIOS Type 0, replaces Red Hat PCI vendor IDs, spoofs ACPI OEM fields, strips BGRT boot logo (VMAware fingerprint) |
 | **acpi-ssdt-stealth** | Compiled ACPI SSDT tables providing fake embedded controller, fan, thermal zone, battery, power/sleep buttons, timers |
 | **smbios-extract** | Host SMBIOS dump + anonymization tool for extracting real hardware strings to inject into VM config |
 
@@ -45,12 +46,12 @@ For long-form references beyond the quick start below, see:
 |---|---|---|
 | CPUID hypervisor bit | Cleared via `kvm.hidden` + Hyper-V vendor_id spoofing | `lib.nix` (libvirt features) |
 | CPUID leaf 0 vendor string | Hypervisor-Phantom: intercept at SVM level, spoof AuthenticAMD, re-enter guest without full exit | `kernel/cpuid-patch.nix` |
-| RDTSC/RDTSCP timing | BetterTiming: track cumulative VM-exit time, subtract from TSC reads | `kernel/timing-patch.nix` |
+| RDTSC/RDTSCP timing | BetterTiming: track cumulative VM-exit time, subtract from TSC reads (RDTSC + RDTSCP handlers with compensated values) | `kernel/timing-patch.nix` |
 | MSR_IA32_TSC reads | Compensated TSC value returned via patched `kvm_get_msr_common` | `kernel/timing-patch.nix` |
 | IA32_APERF/MPERF MSR | Passthrough via `kvm-disable-exits=aperfmperf` (defeats IET-based detection) | `lib.nix` (QEMU args) |
-| SMBIOS Type 0 (BIOS) | Vendor + version spoofing | `module.nix` options, `lib.nix` sysinfo |
+| SMBIOS Type 0 (BIOS) | Vendor, version, date, release spoofing | `module.nix` options, `lib.nix` sysinfo |
 | SMBIOS Type 1 (System) | Manufacturer, product, serial, family, UUID | `module.nix` options, `lib.nix` sysinfo |
-| SMBIOS Type 2 (Baseboard) | Manufacturer + product | `lib.nix` sysinfo |
+| SMBIOS Type 2 (Baseboard) | Manufacturer, product, version, serial, asset tag, location | `lib.nix` sysinfo |
 | SMBIOS Type 3 (Chassis) | Manufacturer, version, serial, asset tag | `lib.nix` QEMU args |
 | SMBIOS Type 4 (Processor) | Socket, manufacturer, version, speed | `lib.nix` QEMU args (via cpuIdentity) |
 | SMBIOS Type 7 (Cache) | L1/L2/L3 cache designation and sizes | `lib.nix` QEMU args |
@@ -71,20 +72,29 @@ For long-form references beyond the quick start below, see:
 | Hyper-V enlightenments | Full enlightenment set (relaxed, vapic, spinlocks, stimer, frequencies, etc.) with vendor_id spoofing | `lib.nix` features |
 | KVM feature hiding | `kvm.hidden`, `hint-dedicated`, `poll-control` | `lib.nix` features |
 | VMPort | Disabled | `lib.nix` features |
-| Clock/timer spoofing | kvmclock disabled, hypervclock + native TSC enabled, HPET disabled | `lib.nix` clock config |
+| Clock/timer spoofing | kvmclock disabled, hypervclock + native TSC enabled, HPET present (ACPI table retained, not used as clocksource) | `lib.nix` clock config |
 | OVMF VirtualMachine bit | Cleared in SMBIOS Type 0 via EDK2 patch | `ovmf/package.nix` |
 | OVMF PCI vendor IDs | Red Hat IDs replaced with AMD/Intel | `ovmf/package.nix` |
 | VirtIO device fingerprints | Balloon, RNG, tablet devices stripped from VM config | `lib.nix` devicesToRemove |
+| SMBIOS Type 11 (OEM Strings) | Populated with realistic entries (empty Type 11 is a VM indicator) | `module.nix` options, `lib.nix` QEMU args |
+| SMBIOS Type 41 (Onboard Devices) | Ethernet + SATA controller entries (prevents empty Win32_OnBoardDevice) | `module.nix` options, `lib.nix` QEMU args |
+| Disk serial string | IDE drive serial set to realistic WD format instead of AutoVirt blank | `qemu/package.nix` postPatch |
+| fw_cfg probe signature | 4-byte fw_cfg selector 0x0000 changed from "QEMU" to "AMDK" | `qemu/package.nix` postPatch |
+| KVM paravirt MSR enforcement | `kvm-pv-enforce-cpuid=on` ensures guest_pv_has() rejects pvclock/steal-time MSRs when kvm.hidden=on | `lib.nix` QEMU args |
+| KVM hypercall patching | Disabled: emulator_fix_hypercall always injects #UD (bare-metal behavior on VMCALL/VMMCALL) | `kernel/timing-patch.nix` |
+| SVM instruction interception | `kvm_amd.vls=0` + `kvm_amd.vgif=0` force VMLOAD/VMSAVE/STGI/CLGI interception | `module.nix` kernel params |
+| OVMF boot logo / BGRT | TianoCore LogoDxe + BootGraphicsResourceTableDxe stripped (VMAware CRC fingerprint) | `ovmf/package.nix` |
+| ACPI thermal zone fluctuation | Timer()-based dynamic temperature in CPU + VRM thermal zones (defeats static-value detection) | `acpi/sensor-probes.dsl` |
 
 ## Anti-Cheat Compatibility
 
 | Anti-Cheat | Status | Notes |
 |---|---|---|
 | VAC | Works | Light detection, user-mode only. CPUID + SMBIOS spoofing sufficient. |
-| EAC | Partial | Config-dependent. March 2026 crackdown added new timing checks. Requires full BetterTiming + APERF/MPERF passthrough. |
-| BattlEye | Difficult | Cat-and-mouse with timing-based detection. Works intermittently; kernel updates may break it. |
+| EAC | Likely | Requires full BetterTiming + RDTSCP handler + APERF/MPERF passthrough + kvm-pv-enforce-cpuid. Timing checks tightened March 2026; current patch set covers known vectors. |
+| BattlEye | Likely | Requires full stack: BetterTiming, CPUID spoofing, SMBIOS, fw_cfg probe fix, hypercall #UD injection. Previous intermittent failures traced to missing vectors now covered. |
 | Vanguard | Blocked | Hardware attestation via TPM 2.0 + Secure Boot chain. Cannot be bypassed by software spoofing. |
-| FACEIT | Blocked | Requires virtualization disabled at BIOS level. Detects any hypervisor regardless of hiding. |
+| FACEIT | Unknown | Detects any hypervisor regardless of hiding. Exit-less CPUID spoofing (Phase 4) may address the detection method; untested. |
 | nProtect | Works | CPUID + SMBIOS spoofing sufficient for GameGuard. |
 
 ## Quick Start
@@ -128,7 +138,7 @@ All options live under `myModules.vfio.stealth`.
 | `enable` | `bool` | `false` | Enable the VFIO stealth anti-detection stack | -- |
 | `stripVirtio` | `bool` | `true` | Remove VirtIO balloon, RNG, and tablet devices from VM config | VirtIO PCI vendor ID fingerprinting |
 | `spoofMac` | `bool` | `true` | Spoof guest NIC MAC address with a realistic OUI prefix | MAC address OUI reveals VM NIC vendor |
-| `macPrefix` | `str` | `"04:42:1a"` | OUI prefix for spoofed MAC address (colon-separated hex) | MAC address OUI |
+| `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for spoofed MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
 | `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
 
 ### Kernel
@@ -144,17 +154,25 @@ All options live under `myModules.vfio.stealth`.
 
 | Option | Type | Default | Description | Detection Vector |
 |---|---|---|---|---|
-| `smbios.manufacturer` | `str` | `"ASUSTeK COMPUTER INC."` | System and baseboard manufacturer (Types 1, 2) | Win32_ComputerSystem.Manufacturer |
-| `smbios.product` | `str` | `"ROG CROSSHAIR X870E HERO"` | System and baseboard product name (Types 1, 2) | Win32_ComputerSystem.Model |
+| `smbios.manufacturer` | `str` | `"To Be Filled By O.E.M."` | System and baseboard manufacturer (Types 1, 2) | Win32_ComputerSystem.Manufacturer |
+| `smbios.product` | `str` | `"To Be Filled By O.E.M."` | System and baseboard product name (Types 1, 2) | Win32_ComputerSystem.Model |
 | `smbios.biosVendor` | `str` | `"American Megatrends Inc."` | BIOS vendor string (Type 0) | Win32_BIOS.Manufacturer |
-| `smbios.biosVersion` | `str` | `"2101"` | BIOS version string (Type 0) | Win32_BIOS.SMBIOSBIOSVersion |
+| `smbios.biosVersion` | `str` | `"1001"` | BIOS version string (Type 0) | Win32_BIOS.SMBIOSBIOSVersion |
+| `smbios.biosDate` | `str` | `"02/14/2025"` | BIOS release date MM/DD/YYYY (Type 0). OVMF default 02/02/2022 is a generic VM date | Win32_BIOS.ReleaseDate |
+| `smbios.biosRelease` | `str` | `"2.4"` | BIOS release version major.minor (Type 0 System BIOS Release field) | Win32_BIOS release fields |
 | `smbios.serial` | `str` | `"System Serial Number"` | System serial number (Type 1) | Win32_ComputerSystem.SerialNumber |
+| `smbios.baseBoardVersion` | `str` | `"Rev 1.xx"` | Baseboard version string (Type 2) | Win32_BaseBoard.Version |
+| `smbios.baseBoardSerial` | `str` | `"220631884300123"` | Baseboard serial number (Type 2, ASUS 15-char format) | Win32_BaseBoard.SerialNumber |
+| `smbios.baseBoardAsset` | `str` | `"Default string"` | Baseboard asset tag (Type 2) | Win32_BaseBoard.Tag |
+| `smbios.baseBoardLocation` | `str` | `"Default string"` | Baseboard location in chassis (Type 2) | Win32_BaseBoard.LocationInChassis |
 | `smbios.socketPrefix` | `str` | `"AM5"` | Processor socket designator prefix (Type 4) | Win32_Processor.SocketDesignation |
-| `smbios.memory.manufacturer` | `str` | `"G.Skill International"` | DIMM manufacturer (Type 17) | Win32_PhysicalMemory.Manufacturer |
+| `smbios.memory.manufacturer` | `str` | `"Kingston"` | DIMM manufacturer (Type 17) | Win32_PhysicalMemory.Manufacturer |
 | `smbios.memory.partNumber` | `str` | `"KF560C36-16"` | DIMM part number (Type 17) | Win32_PhysicalMemory.PartNumber |
-| `smbios.memory.speed` | `int` | `6000` | Memory speed in MT/s (Type 17) | Win32_PhysicalMemory.Speed |
+| `smbios.memory.speed` | `int` | `4800` | Memory speed in MT/s (Type 17) | Win32_PhysicalMemory.Speed |
 | `smbios.memory.size` | `int` | `16384` | DIMM size in MB per module (Type 17) | Win32_PhysicalMemory.Capacity |
 | `smbios.memory.count` | `int` | `2` | Number of DIMMs to report (Type 17) | Win32_PhysicalMemory count |
+| `smbios.oemStrings` | `listOf str` | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator | Win32_ComputerSystem.OEMStringArray |
+| `smbios.onboardDevices` | `listOf submodule` | Ethernet + SATA controller | Onboard devices for Type 41 (submodule with designation, kind, instance). Prevents empty Win32_OnBoardDevice | Win32_OnBoardDevice |
 
 ### EDID (Display Identity)
 
@@ -162,14 +180,14 @@ These are build-time arguments to `qemu-stealth` (passed via overlay or `callPac
 
 | Argument | Default | Description | Detection Vector |
 |---|---|---|---|
-| `edidManufacturer` | `"DEL"` | 3-letter EDID manufacturer ID | Monitor manufacturer fingerprint |
-| `edidModelAbbrev` | `"DEL     "` | 8-char padded manufacturer abbreviation | EDID block manufacturer field |
+| `edidManufacturer` | `"ACI"` | 3-letter EDID manufacturer ID | Monitor manufacturer fingerprint |
+| `edidModelAbbrev` | `"ACI     "` | 8-char padded manufacturer abbreviation | EDID block manufacturer field |
 | `edidModel` | `"ASUS VG248      "` | 16-char padded monitor model string | EDID block model field |
 | `edidSerial` | `"VG248QE"` | Monitor serial string | EDID serial number |
-| `edidProductCode` | `"0xa161"` | EDID product code (hex) | EDID product code field |
-| `edidDpi` | `102` | Monitor DPI | EDID physical size calculation |
-| `edidWeek` | `18` | Manufacture week (1-52) | EDID manufacture date |
-| `edidYear` | `2021` | Manufacture year | EDID manufacture date |
+| `edidProductCode` | `"0x2480"` | EDID product code (hex) | EDID product code field |
+| `edidDpi` | `91` | Monitor DPI | EDID physical size calculation |
+| `edidWeek` | `22` | Manufacture week (1-52) | EDID manufacture date |
+| `edidYear` | `2020` | Manufacture year | EDID manufacture date |
 
 ### Disk
 
@@ -177,8 +195,9 @@ Build-time arguments to `qemu-stealth`:
 
 | Argument | Default | Description | Detection Vector |
 |---|---|---|---|
-| `diskModel` | `"WDC WD10EZEX-00W          "` | IDE/SCSI disk model string (24 chars, space-padded) | Disk model reveals QEMU default |
-| `opticalModel` | `"HL-DT-ST DVDRAM GH24NSC0  "` | IDE/ATAPI optical drive model string (24 chars) | Optical drive model reveals QEMU |
+| `diskModel` | `"WDC WD10EZEX-00WN4A0     "` | IDE/SCSI disk model string (25 chars, space-padded) | Disk model reveals QEMU default |
+| `diskSerial` | `"WD-WMC4N0E0XYZA"` | IDE disk serial string (replaces AutoVirt blank serial) | Blank disk serial is a VM indicator |
+| `opticalModel` | `"HL-DT-ST DVDRAM GH24NSC0 "` | IDE/ATAPI optical drive model string (25 chars) | Optical drive model reveals QEMU |
 
 ### ACPI
 
@@ -186,20 +205,21 @@ Build-time arguments to `qemu-stealth`:
 |---|---|---|---|---|
 | `acpiSsdt.spoofedDevices` | `bool` | `true` | Include spoofed ACPI devices (EC, fan, thermal zone, power/sleep buttons, timers) in SSDT | Missing EC/fan/thermal = VM fingerprint |
 | `acpiSsdt.fakeBattery` | `bool` | `true` | Include fake ACPI battery device in SSDT | Missing battery can flag VM detection |
+| `acpiSsdt.sensorProbes` | `bool` | `true` | Include CPU + VRM thermal zones with Timer()-based dynamic fluctuation | Static/missing thermal data flags VM |
 
 Build-time arguments to `qemu-stealth` for ACPI OEM strings:
 
 | Argument | Default | Description | Detection Vector |
 |---|---|---|---|
-| `acpiOemId` | `"ASUS  "` | 6-char padded ACPI OEM ID (replaces ALASKA) | ACPI table OEM ID reveals QEMU |
-| `acpiOemTableId` | `"ASUS    "` | 8-char padded ACPI OEM Table ID (replaces A M I) | ACPI table OEM Table ID |
+| `acpiOemId` | `"ALASKA"` | 6-char ACPI OEM ID | ACPI table OEM ID reveals QEMU |
+| `acpiOemTableId` | `"A M I   "` | 8-char padded ACPI OEM Table ID | ACPI table OEM Table ID |
 
 ### Network
 
 | Option | Type | Default | Description | Detection Vector |
 |---|---|---|---|---|
 | `spoofMac` | `bool` | `true` | Enable MAC address OUI spoofing | OUI prefix identifies virtual NIC vendor |
-| `macPrefix` | `str` | `"04:42:1a"` | OUI prefix (first 3 octets) | MAC OUI lookup reveals VM |
+| `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix (Realtek OUI matching ASUS X870E onboard LAN) | MAC OUI lookup reveals VM |
 
 ### CPU Identity
 
@@ -219,7 +239,7 @@ Cache entries are hardcoded in `lib.nix` QEMU args with realistic L1/L2/L3 sizes
 |---|---|---|
 | L1 | L1 Cache | 512 KB |
 | L2 | L2 Cache | 8192 KB |
-| L3 | L3 Cache | 98304 KB |
+| L3 | L3 Cache | 32768 KB |
 
 ## Example Configurations
 
@@ -390,16 +410,20 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 ### What the patches do
 
 **BetterTiming** (`timing-patch.nix`):
+
 - Adds `last_exit_start` and `total_exit_time` fields to `struct kvm_vcpu`
 - Wraps `vcpu_enter_guest` to measure VM-exit duration
 - Patches `MSR_IA32_TSC` reads to return compensated (exit-time-subtracted) values
-- Enables RDTSC interception in SVM `init_vmcb`
+- Enables RDTSC + RDTSCP interception in SVM `init_vmcb`
 - Adds `handle_rdtsc_interception` handler that returns compensated TSC
+- Adds `handle_rdtscp_interception` handler returning compensated TSC + TSC_AUX in ECX
 - Wraps CPUID, WBINVD, XSETBV, INVD exit handlers to tag `exit_reason=123` for timing compensation
+- Disables KVM hypercall instruction patching (`emulator_fix_hypercall` always injects #UD)
 
 **CPUID spoofing** (`cpuid-patch.nix`):
+
 - Intercepts CPUID leaf 0 inside `svm_vcpu_run` after `svm_vcpu_enter_exit` returns
-- Spoofs vendor string to `AuthenticAMD` with max leaf `0x16`
+- Spoofs vendor string to `AuthenticAMD` with max leaf `0x20`
 - Advances RIP and re-enters guest via `goto reenter_guest_fast` (no full VM exit)
 - Clears RDTSC/RDTSCP interception bits (BetterTiming re-enables RDTSC if active)
 
@@ -431,7 +455,7 @@ These detection methods **cannot be bypassed** by software-level spoofing:
 | **Secure Boot chain verification** | Anti-cheat that validates the full Secure Boot chain (bootloader signatures, kernel signing) will detect a patched kernel. The kernel patches modify KVM source, breaking any signature chain. |
 | **#DB exception timing** | Single-step debug exception timing is a low-level detection vector that operates below the TSC compensation layer. No known mitigation exists for SVM. |
 | **AI behavioral analysis** | Machine-learning models that analyze gameplay patterns, input timing distributions, and performance variance can flag VMs based on behavior rather than system fingerprints. No hardware spoofing addresses this. |
-| **FACEIT virtualization check** | FACEIT's anti-cheat checks whether virtualization extensions are enabled in the BIOS and refuses to run inside any hypervisor, regardless of how well it is hidden. |
+| **FACEIT virtualization check** | FACEIT's anti-cheat detects any hypervisor regardless of hiding. Exit-less CPUID spoofing (Phase 4) may address the detection method but is untested. |
 
 ## License
 

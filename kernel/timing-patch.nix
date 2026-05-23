@@ -94,13 +94,43 @@
       echo "[WARN] x86.c: could not find MSR_IA32_TSC case block — skipping"
     fi
 
-    # ---------- 5. Enable RDTSC interception in init_vmcb ----------
+    # ---------- 5. Enable RDTSC and RDTSCP interception in init_vmcb ----------
     if grep -q 'svm_set_intercept(svm, INTERCEPT_RSM);' arch/x86/kvm/svm/svm.c; then
-      sed -i '/svm_set_intercept(svm, INTERCEPT_RSM);/a\\tsvm_set_intercept(svm, INTERCEPT_RDTSC);' \
+      sed -i '/svm_set_intercept(svm, INTERCEPT_RSM);/a\\tsvm_set_intercept(svm, INTERCEPT_RDTSC);\n\tsvm_set_intercept(svm, INTERCEPT_RDTSCP);' \
         arch/x86/kvm/svm/svm.c
-      echo "[OK] svm.c: enabled RDTSC interception in init_vmcb"
+      echo "[OK] svm.c: enabled RDTSC+RDTSCP interception in init_vmcb"
     else
-      echo "[WARN] svm.c: could not find INTERCEPT_RSM anchor for RDTSC interception"
+      echo "[WARN] svm.c: could not find INTERCEPT_RSM anchor for RDTSC/RDTSCP interception"
+    fi
+
+    # ---------- 6b. Add handle_rdtscp_interception handler ----------
+    # Insert before the svm_exit_handlers table definition.
+    # Identical to RDTSC handler but also returns TSC_AUX in ECX.
+    if grep -q '^static int (\*const svm_exit_handlers\[\])' arch/x86/kvm/svm/svm.c; then
+      sed -i '/^static int (\*const svm_exit_handlers\[\])/i\
+  static int handle_rdtscp_interception(struct kvm_vcpu *vcpu)\
+  {\
+  \tu64 difference;\
+  \tu64 final_time;\
+  \tu64 data;\
+  \
+  \tdifference = rdtsc() - vcpu->last_exit_start;\
+  \tfinal_time = vcpu->total_exit_time + difference;\
+  \
+  \tdata = rdtsc() - final_time;\
+  \
+  \tvcpu->arch.regs[VCPU_REGS_RAX] = data & -1u;\
+  \tvcpu->arch.regs[VCPU_REGS_RDX] = (data >> 32) & -1u;\
+  \tvcpu->arch.regs[VCPU_REGS_RCX] = (u32)vcpu->arch.tsc_aux;\
+  \
+  \tvcpu->run->exit_reason = 123;\
+  \n\treturn kvm_skip_emulated_instruction(vcpu);\
+  }\
+  ' arch/x86/kvm/svm/svm.c
+      echo "[OK] svm.c: added handle_rdtscp_interception handler"
+    else
+      echo "[FAIL] svm.c: could not find svm_exit_handlers table"
+      exit 1
     fi
 
     # ---------- 6. Add handle_rdtsc_interception handler ----------
@@ -141,6 +171,16 @@
       echo "[OK] svm.c: registered SVM_EXIT_RDTSC handler"
     else
       echo "[WARN] svm.c: could not find AVIC_UNACCELERATED_ACCESS entry for RDTSC registration"
+    fi
+
+    # ---------- 7b. Register RDTSCP handler in svm_exit_handlers table ----------
+    # Replace the upstream kvm_handle_invalid_op mapping for SVM_EXIT_RDTSCP.
+    if grep -q '\[SVM_EXIT_RDTSCP\].*=.*kvm_handle_invalid_op,' arch/x86/kvm/svm/svm.c; then
+      sed -i 's/\[SVM_EXIT_RDTSCP\].*=.*kvm_handle_invalid_op,/[SVM_EXIT_RDTSCP]\t\t\t= handle_rdtscp_interception,/' \
+        arch/x86/kvm/svm/svm.c
+      echo "[OK] svm.c: registered SVM_EXIT_RDTSCP handler"
+    else
+      echo "[WARN] svm.c: could not find SVM_EXIT_RDTSCP entry for handler registration"
     fi
 
     # ---------- 8. Tag exit_reason=123 on CPUID, WBINVD, XSETBV, INVD ----------
@@ -185,6 +225,18 @@
     sed -i 's/\[SVM_EXIT_INVD\].*=.*kvm_emulate_invd,/[SVM_EXIT_INVD]\t\t\t\t= stealth_invd_interception,/' \
       arch/x86/kvm/svm/svm.c
     echo "[OK] svm.c: updated exit handler table to use stealth wrappers"
+
+    # ---------- 9. Disable KVM hypercall instruction patching ----------
+    # KVM's patch_hypercall() writes VMCALL/VMMCALL to guest memory.
+    # On read-execute pages this triggers #PF instead of #UD (bare metal
+    # behavior). Force the quirk check to always inject #UD.
+    if grep -q 'if (!kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_FIX_HYPERCALL_INSN))' arch/x86/kvm/x86.c; then
+      sed -i 's/if (!kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_FIX_HYPERCALL_INSN))/if (1)/' \
+        arch/x86/kvm/x86.c
+      echo "[OK] x86.c: disabled hypercall instruction patching (always inject #UD)"
+    else
+      echo "[WARN] x86.c: could not find KVM_X86_QUIRK_FIX_HYPERCALL_INSN check"
+    fi
 
     echo "=== BetterTiming: patch complete ==="
 ''

@@ -16,7 +16,7 @@ README is the canonical home, this page is the deep-link target.
 | `enable` | `bool` | `false` | Enable the VFIO stealth anti-detection stack | -- |
 | `stripVirtio` | `bool` | `true` | Remove VirtIO balloon, RNG, tablet devices from VM config | VirtIO PCI vendor ID fingerprinting |
 | `spoofMac` | `bool` | `true` | Spoof guest NIC MAC address with a realistic OUI prefix | MAC OUI reveals VM NIC vendor |
-| `macPrefix` | `str` | `"04:42:1a"` | OUI prefix for spoofed MAC (colon-separated hex) | MAC address OUI |
+| `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for spoofed MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
 | `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
 
 ## Kernel
@@ -32,17 +32,25 @@ README is the canonical home, this page is the deep-link target.
 
 | Option | Type | Default | Description | Detection vector |
 |---|---|---|---|---|
-| `smbios.manufacturer` | `str` | `"ASUSTeK COMPUTER INC."` | System + baseboard manufacturer (Types 1, 2) | `Win32_ComputerSystem.Manufacturer` |
-| `smbios.product` | `str` | `"ROG CROSSHAIR X870E HERO"` | System + baseboard product (Types 1, 2) | `Win32_ComputerSystem.Model` |
+| `smbios.manufacturer` | `str` | `"To Be Filled By O.E.M."` | System + baseboard manufacturer (Types 1, 2) | `Win32_ComputerSystem.Manufacturer` |
+| `smbios.product` | `str` | `"To Be Filled By O.E.M."` | System + baseboard product (Types 1, 2) | `Win32_ComputerSystem.Model` |
 | `smbios.biosVendor` | `str` | `"American Megatrends Inc."` | BIOS vendor string (Type 0) | `Win32_BIOS.Manufacturer` |
-| `smbios.biosVersion` | `str` | `"2101"` | BIOS version string (Type 0) | `Win32_BIOS.SMBIOSBIOSVersion` |
+| `smbios.biosVersion` | `str` | `"1001"` | BIOS version string (Type 0) | `Win32_BIOS.SMBIOSBIOSVersion` |
+| `smbios.biosDate` | `str` | `"02/14/2025"` | BIOS release date MM/DD/YYYY (Type 0). OVMF default 02/02/2022 is a generic VM date | `Win32_BIOS.ReleaseDate` |
+| `smbios.biosRelease` | `str` | `"2.4"` | BIOS release version major.minor (Type 0 System BIOS Release field) | `Win32_BIOS` release fields |
 | `smbios.serial` | `str` | `"System Serial Number"` | System serial number (Type 1) | `Win32_ComputerSystem.SerialNumber` |
+| `smbios.baseBoardVersion` | `str` | `"Rev 1.xx"` | Baseboard version string (Type 2) | `Win32_BaseBoard.Version` |
+| `smbios.baseBoardSerial` | `str` | `"220631884300123"` | Baseboard serial number (Type 2, ASUS 15-char format) | `Win32_BaseBoard.SerialNumber` |
+| `smbios.baseBoardAsset` | `str` | `"Default string"` | Baseboard asset tag (Type 2) | `Win32_BaseBoard.Tag` |
+| `smbios.baseBoardLocation` | `str` | `"Default string"` | Baseboard location in chassis (Type 2) | `Win32_BaseBoard.LocationInChassis` |
 | `smbios.socketPrefix` | `str` | `"AM5"` | Processor socket designator prefix (Type 4) | `Win32_Processor.SocketDesignation` |
-| `smbios.memory.manufacturer` | `str` | `"G.Skill International"` | DIMM manufacturer (Type 17) | `Win32_PhysicalMemory.Manufacturer` |
+| `smbios.memory.manufacturer` | `str` | `"Kingston"` | DIMM manufacturer (Type 17) | `Win32_PhysicalMemory.Manufacturer` |
 | `smbios.memory.partNumber` | `str` | `"KF560C36-16"` | DIMM part number (Type 17) | `Win32_PhysicalMemory.PartNumber` |
-| `smbios.memory.speed` | `int` | `6000` | Memory speed MT/s (Type 17) | `Win32_PhysicalMemory.Speed` |
+| `smbios.memory.speed` | `int` | `4800` | Memory speed MT/s (Type 17) | `Win32_PhysicalMemory.Speed` |
 | `smbios.memory.size` | `int` | `16384` | DIMM size in MB per module (Type 17) | `Win32_PhysicalMemory.Capacity` |
 | `smbios.memory.count` | `int` | `2` | Number of DIMMs to report (Type 17) | `Win32_PhysicalMemory` count |
+| `smbios.oemStrings` | `listOf str` | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator | `Win32_ComputerSystem.OEMStringArray` |
+| `smbios.onboardDevices` | `listOf submodule` | Ethernet + SATA controller | Onboard devices for Type 41 (submodule: designation, kind, instance). Prevents empty Win32_OnBoardDevice | `Win32_OnBoardDevice` |
 
 ## ACPI SSDT
 
@@ -50,6 +58,7 @@ README is the canonical home, this page is the deep-link target.
 |---|---|---|---|---|
 | `acpiSsdt.spoofedDevices` | `bool` | `true` | Include EC, fan, thermal zone, power/sleep buttons, timers | Missing EC/fan/thermal = VM fingerprint |
 | `acpiSsdt.fakeBattery` | `bool` | `true` | Include fake ACPI battery (PNP0C0A) in SSDT | Missing battery flags VM detection |
+| `acpiSsdt.sensorProbes` | `bool` | `true` | Include CPU + VRM thermal zones with Timer()-based dynamic fluctuation | Static/missing thermal data flags VM |
 
 ## Network
 
@@ -76,28 +85,29 @@ nixpkgs.overlays = [
 
 | Argument | Default | Description | Detection vector |
 |---|---|---|---|
-| `edidManufacturer` | `"DEL"` | 3-letter EDID manufacturer ID | Monitor manufacturer fingerprint |
-| `edidModelAbbrev` | `"DEL     "` | 8-char padded manufacturer abbreviation | EDID block manufacturer field |
+| `edidManufacturer` | `"ACI"` | 3-letter EDID manufacturer ID | Monitor manufacturer fingerprint |
+| `edidModelAbbrev` | `"ACI     "` | 8-char padded manufacturer abbreviation | EDID block manufacturer field |
 | `edidModel` | `"ASUS VG248      "` | 16-char padded monitor model string | EDID block model field |
 | `edidSerial` | `"VG248QE"` | Monitor serial string | EDID serial number |
-| `edidProductCode` | `"0xa161"` | EDID product code (hex) | EDID product code field |
-| `edidDpi` | `102` | Monitor DPI | EDID physical size calculation |
-| `edidWeek` | `18` | Manufacture week (1-52) | EDID manufacture date |
-| `edidYear` | `2021` | Manufacture year | EDID manufacture date |
+| `edidProductCode` | `"0x2480"` | EDID product code (hex) | EDID product code field |
+| `edidDpi` | `91` | Monitor DPI | EDID physical size calculation |
+| `edidWeek` | `22` | Manufacture week (1-52) | EDID manufacture date |
+| `edidYear` | `2020` | Manufacture year | EDID manufacture date |
 
 ### Disk / optical
 
 | Argument | Default | Description | Detection vector |
 |---|---|---|---|
-| `diskModel` | `"WDC WD10EZEX-00W          "` | IDE/SCSI disk model string (24 chars, space-padded) | Disk model reveals QEMU default |
-| `opticalModel` | `"HL-DT-ST DVDRAM GH24NSC0  "` | IDE/ATAPI optical drive model string (24 chars) | Optical drive model reveals QEMU |
+| `diskModel` | `"WDC WD10EZEX-00WN4A0     "` | IDE/SCSI disk model string (25 chars, space-padded) | Disk model reveals QEMU default |
+| `diskSerial` | `"WD-WMC4N0E0XYZA"` | IDE disk serial string (replaces AutoVirt blank serial) | Blank disk serial is a VM indicator |
+| `opticalModel` | `"HL-DT-ST DVDRAM GH24NSC0 "` | IDE/ATAPI optical drive model string (25 chars) | Optical drive model reveals QEMU |
 
 ### ACPI OEM
 
 | Argument | Default | Description | Detection vector |
 |---|---|---|---|
-| `acpiOemId` | `"ASUS  "` | 6-char padded ACPI OEM ID (replaces `ALASKA`) | ACPI table OEM ID reveals QEMU |
-| `acpiOemTableId` | `"ASUS    "` | 8-char padded ACPI OEM Table ID (replaces `A M I`) | ACPI table OEM Table ID |
+| `acpiOemId` | `"ALASKA"` | 6-char ACPI OEM ID | ACPI table OEM ID reveals QEMU |
+| `acpiOemTableId` | `"A M I   "` | 8-char padded ACPI OEM Table ID | ACPI table OEM Table ID |
 
 ## Read-only outputs
 
