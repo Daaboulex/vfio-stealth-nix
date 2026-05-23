@@ -25,14 +25,25 @@
 # - The Hypervisor-Phantom patch (cpuid-patch.nix) becomes a no-op if
 #   both are applied — CPUID never exits, so the spoof never fires.
 #
+# Stability: init_vmcb sets intercepts once for non-nested operation.
+# Nested SVM (enter_svm_guest_mode) can re-set intercepts, but a
+# Windows gaming VM never enables nested virtualization. Belt-and-
+# suspenders: we also clear in pre_svm_run to catch any future
+# kernel path that might re-enable INTERCEPT_CPUID.
+#
+# Limitation: hypercall patching (timing-patch.nix step 9) is host-
+# wide — ALL VMs get #UD for VMCALL/VMMCALL from ring 3. Linux guests
+# on this host lose KVM paravirt features (kvmclock, PV TLB flush).
+# This is acceptable for a single-purpose gaming VM host.
+#
 # Targets: arch/x86/kvm/svm/svm.c
 ''
   echo "=== CPUID Passthrough: disabling CPUID interception ==="
 
   # ---------- 1. Clear INTERCEPT_CPUID after init_vmcb intercept setup ----------
   # Anchors on INTERCEPT_RSM (same anchor used by timing-patch and cpuid-patch).
-  # This runs AFTER timing-patch (which adds RDTSC/RDTSCP intercepts after RSM),
-  # so the clear is placed after all other intercept additions.
+  # sed /a inserts in LIFO order — this clear lands closest to the anchor,
+  # before timing-patch's RDTSC/RDTSCP sets (which is fine — they're independent).
   if grep -q 'svm_set_intercept(svm, INTERCEPT_RSM);' arch/x86/kvm/svm/svm.c; then
     sed -i '/svm_set_intercept(svm, INTERCEPT_RSM);/a\\n\t/* CPUID passthrough: disable interception so guest reads hardware\n\t * CPUID at native speed. AuthenticAMD + no hypervisor bit natively.\n\t * Defeats timing-based VM detection (TIMER, SINGLE_STEP). */\n\tsvm_clr_intercept(svm, INTERCEPT_CPUID);' \
       arch/x86/kvm/svm/svm.c
@@ -40,6 +51,19 @@
   else
     echo "[FAIL] svm.c: could not find INTERCEPT_RSM anchor for CPUID disable"
     exit 1
+  fi
+
+  # ---------- 2. Belt-and-suspenders: clear in pre_svm_run ----------
+  # Ensures INTERCEPT_CPUID stays clear even if a future kernel path
+  # (nested SVM, vCPU reset, intercept recalculation) re-enables it.
+  # pre_svm_run runs before every VMRUN — last-writer-wins.
+  if grep -q 'static void pre_svm_run(struct vcpu_svm \*svm)' arch/x86/kvm/svm/svm.c; then
+    sed -i '/^static void pre_svm_run(struct vcpu_svm \*svm)/,/^}/ {
+      /^}/ i\\n\t/* CPUID passthrough: ensure interception stays clear across\n\t * any recalculation path (nested exits, resets, etc.). */\n\tsvm_clr_intercept(svm, INTERCEPT_CPUID);
+    }' arch/x86/kvm/svm/svm.c
+    echo "[OK] svm.c: added CPUID clear in pre_svm_run (belt-and-suspenders)"
+  else
+    echo "[WARN] svm.c: could not find pre_svm_run — init_vmcb clear is sufficient for non-nested"
   fi
 
   echo "=== CPUID Passthrough: patch complete ==="

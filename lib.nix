@@ -185,22 +185,24 @@
           "-smbios"
           "type=3,manufacturer=${smbios.manufacturer},version=1.0,serial=Default string,asset=Default string,sku=Default string"
         ]
-        # SMBIOS type 27 (cooling device)
+        # SMBIOS type 27 (cooling device) — second `type=` is the device-type
+        # field (32 = cooling fan), not a structure type override. Verify
+        # with `dmidecode -t 27` in guest after first boot.
         ++ [
           "-smbios"
           "type=27,type=32,status=3,speed=3200"
         ]
-        # SMBIOS type 28 (temperature probe)
+        # SMBIOS type 28 (temperature probe) — second `type=` is probe-type (3 = celsius)
         ++ [
           "-smbios"
           "type=28,description=CPU Thermal Probe,type=3,status=3,max=1000,min=100"
         ]
-        # SMBIOS type 26 (voltage probe)
+        # SMBIOS type 26 (voltage probe) — second `type=` is probe-type (5 = DC volts)
         ++ [
           "-smbios"
           "type=26,description=Voltage Probe,type=5,status=3,max=1500,min=800"
         ]
-        # SMBIOS type 29 (current probe)
+        # SMBIOS type 29 (current probe) — second `type=` is probe-type (5 = DC amps)
         ++ [
           "-smbios"
           "type=29,description=Current Probe,type=5,status=3,max=30000,min=100"
