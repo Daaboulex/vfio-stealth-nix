@@ -43,7 +43,8 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemu.version)
       # spoofs ACPI OEM fields. Applied inside QEMU's bundled roms/edk2/.
       if [ -d roms/edk2 ]; then
         patch -d roms/edk2 -p1 < "${autovirt}/patches/EDK2/AMD-edk2-stable202602.patch" || {
-          echo "WARNING: EDK2 patch failed — firmware may contain VM indicators"
+          echo "FATAL: EDK2 patch failed — firmware will contain VM indicators"
+          exit 1
         }
         # Replace firmware vendor string with realistic value
         substituteInPlace roms/edk2/OvmfPkg/OvmfPkgX64.dsc \

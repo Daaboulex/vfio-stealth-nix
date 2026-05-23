@@ -251,7 +251,13 @@
           "-global"
           "cpu.model-id=${cpuIdentity.modelId}"
           "-smbios"
-          "type=4,sock_pfx=${smbios.socketPrefix},manufacturer=Advanced Micro Devices\\, Inc.,version=${cpuIdentity.modelId},max-speed=${toString cpuIdentity.maxSpeed},current-speed=${toString cpuIdentity.currentSpeed}"
+          "type=4,sock_pfx=${smbios.socketPrefix},manufacturer=Advanced Micro Devices\\, Inc.,version=${cpuIdentity.modelId}${
+            lib.optionalString (cpuIdentity.maxSpeed != null) ",max-speed=${toString cpuIdentity.maxSpeed}"
+          }${
+            lib.optionalString (
+              cpuIdentity.currentSpeed != null
+            ) ",current-speed=${toString cpuIdentity.currentSpeed}"
+          }"
         ]
         # SMBIOS type 17 (physical memory / DIMMs)
         ++ lib.concatMap (i: [

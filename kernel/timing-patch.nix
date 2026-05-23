@@ -44,7 +44,7 @@
   \
   \tresult = vcpu_enter_guest_real(vcpu);\
   \
-  \tif (vcpu->run->exit_reason == 123) {\
+  \tif (vcpu->run->exit_reason == 0xDEAD) {\
   \t\tdifference = rdtsc() - vcpu->last_exit_start;\
   \t\tvcpu->total_exit_time += difference;\
   \t}\
@@ -71,12 +71,13 @@
         print "\t\tu64 bt_diff;"
         print "\t\tu64 bt_total;"
         print ""
-        print "\t\tbt_diff = rdtsc() - vcpu->last_exit_start;"
+        print "\t\tu64 bt_now = rdtsc();"
+        print "\t\tbt_diff = bt_now - vcpu->last_exit_start;"
         print "\t\tbt_total = vcpu->total_exit_time + bt_diff;"
         print ""
-        print "\t\tmsr_info->data = rdtsc() - bt_total;"
+        print "\t\tmsr_info->data = bt_now - bt_total;"
         print ""
-        print "\t\tvcpu->run->exit_reason = 123;"
+        print "\t\tvcpu->run->exit_reason = 0xDEAD;"
         print "\t\tbreak;"
         print "\t}"
         # Skip old content until the closing brace+break
@@ -96,6 +97,10 @@
     fi
 
     # ---------- 5. Enable RDTSC and RDTSCP interception in init_vmcb ----------
+    # Note: sed /a inserts in LIFO order — last appended is closest to
+    # anchor. When cpuid-patch.nix clears these intercepts (also via /a
+    # on the same anchor), the clears land BEFORE these sets, so the
+    # sets override the clears. This is correct behavior.
     if grep -q 'svm_set_intercept(svm, INTERCEPT_RSM);' arch/x86/kvm/svm/svm.c; then
       sed -i '/svm_set_intercept(svm, INTERCEPT_RSM);/a\\tsvm_set_intercept(svm, INTERCEPT_RDTSC);\n\tsvm_set_intercept(svm, INTERCEPT_RDTSCP);' \
         arch/x86/kvm/svm/svm.c
@@ -124,8 +129,8 @@
   \tvcpu->arch.regs[VCPU_REGS_RDX] = (data >> 32) & -1u;\
   \t{ u64 __tsc_aux; rdmsrl(MSR_TSC_AUX, __tsc_aux); vcpu->arch.regs[VCPU_REGS_RCX] = (u32)__tsc_aux; }\
   \
-  \tvcpu->run->exit_reason = 123;\
-  \n\treturn kvm_skip_emulated_instruction(vcpu);\
+  \tvcpu->run->exit_reason = 0xDEAD;\
+  \treturn kvm_skip_emulated_instruction(vcpu);\
   }\
   ' arch/x86/kvm/svm/svm.c
       echo "[OK] svm.c: added handle_rdtscp_interception handler"
@@ -136,12 +141,11 @@
 
     # ---------- 6. Add handle_rdtsc_interception handler ----------
     # Insert before the svm_exit_handlers table definition.
-    # In 6.19, handlers take (struct kvm_vcpu *vcpu), and we use to_svm() to get svm.
+    # In 6.19, handlers take (struct kvm_vcpu *vcpu).
     if grep -q '^static int (\*const svm_exit_handlers\[\])' arch/x86/kvm/svm/svm.c; then
       sed -i '/^static int (\*const svm_exit_handlers\[\])/i\
   static int handle_rdtsc_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tstruct vcpu_svm *svm = to_svm(vcpu);\
   \tu64 difference;\
   \tu64 final_time;\
   \tu64 data;\
@@ -154,8 +158,8 @@
   \tvcpu->arch.regs[VCPU_REGS_RAX] = data & -1u;\
   \tvcpu->arch.regs[VCPU_REGS_RDX] = (data >> 32) & -1u;\
   \
-  \tvcpu->run->exit_reason = 123;\
-  \n\treturn kvm_skip_emulated_instruction(vcpu);\
+  \tvcpu->run->exit_reason = 0xDEAD;\
+  \treturn kvm_skip_emulated_instruction(vcpu);\
   }\
   ' arch/x86/kvm/svm/svm.c
       echo "[OK] svm.c: added handle_rdtsc_interception handler"
@@ -184,33 +188,33 @@
       echo "[WARN] svm.c: could not find SVM_EXIT_RDTSCP entry for handler registration"
     fi
 
-    # ---------- 8. Tag exit_reason=123 on CPUID, WBINVD, XSETBV, INVD ----------
+    # ---------- 8. Tag exit_reason=0xDEAD on CPUID, WBINVD, XSETBV, INVD ----------
     # In 6.19, these map directly to kvm_emulate_* functions. We create wrapper
-    # functions that set exit_reason=123 then call through, and update the table.
+    # functions that set exit_reason=0xDEAD then call through, and update the table.
 
     # 8a. Create wrapper functions (insert before svm_exit_handlers table)
     sed -i '/^static int handle_rdtsc_interception/i\
   static int stealth_cpuid_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tvcpu->run->exit_reason = 123;\
+  \tvcpu->run->exit_reason = 0xDEAD;\
   \treturn kvm_emulate_cpuid(vcpu);\
   }\
   \
   static int stealth_wbinvd_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tvcpu->run->exit_reason = 123;\
+  \tvcpu->run->exit_reason = 0xDEAD;\
   \treturn kvm_emulate_wbinvd(vcpu);\
   }\
   \
   static int stealth_xsetbv_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tvcpu->run->exit_reason = 123;\
+  \tvcpu->run->exit_reason = 0xDEAD;\
   \treturn kvm_emulate_xsetbv(vcpu);\
   }\
   \
   static int stealth_invd_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tvcpu->run->exit_reason = 123;\
+  \tvcpu->run->exit_reason = 0xDEAD;\
   \treturn kvm_emulate_invd(vcpu);\
   }\
   ' arch/x86/kvm/svm/svm.c

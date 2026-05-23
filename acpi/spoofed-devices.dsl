@@ -159,29 +159,34 @@ DefinitionBlock ("", "SSDT", 1, "_ASUS_", "Notebook", 0x20250321)
 
             ThermalZone (TZ0)
             {
+                // 40°C idle = 313.15K = 3132 tenths-of-Kelvin
                 Method (_TMP, 0, NotSerialized)  // _TMP: Temperature
                 {
-                    Return (0x1770)
+                    Return (0x0C3C)
                 }
 
+                // 55°C fan-on threshold
                 Method (_AC0, 0, NotSerialized)  // _ACx: Active Cooling, x=0-9
                 {
-                    Return (0x1770)
+                    Return (0x0CD2)
                 }
 
+                // 85°C passive cooling
                 Method (_PSV, 0, NotSerialized)  // _PSV: Passive Temperature
                 {
-                    Return (0x1670)
+                    Return (0x0DFE)
                 }
 
+                // 90°C hot
                 Method (_HOT, 0, NotSerialized)  // _HOT: Hot Temperature
                 {
-                    Return (0x1780)
+                    Return (0x0E30)
                 }
 
+                // 95°C critical
                 Method (_CRT, 0, NotSerialized)  // _CRT: Critical Temperature
                 {
-                    Return (0x1780)
+                    Return (0x0E62)
                 }
 
                 Method (_SCP, 1, NotSerialized)  // _SCP: Set Cooling Policy
