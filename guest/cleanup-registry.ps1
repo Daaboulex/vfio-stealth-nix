@@ -145,7 +145,11 @@ $vioDrivers = Get-ChildItem "$env:SystemRoot\System32\drivers\vio*.sys" -ErrorAc
 $removedDrivers = 0
 foreach ($drv in $vioDrivers) {
     Remove-Item $drv.FullName -Force -ErrorAction SilentlyContinue
-    $removedDrivers++
+    if (Test-Path $drv.FullName) {
+        Write-Host "[WARN] Could not remove $($drv.FullName) (kernel-locked)" -ForegroundColor Yellow
+    } else {
+        $removedDrivers++
+    }
 }
 if ($removedDrivers -gt 0) {
     Write-Host "[OK] Removed $removedDrivers VirtIO driver files from System32\drivers" -ForegroundColor Green

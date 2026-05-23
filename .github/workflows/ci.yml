@@ -48,7 +48,7 @@ jobs:
         run: |
           # Skip build for module-only repos (no packages output)
           if nix eval .#packages.x86_64-linux.default --apply 'x: true' 2>/dev/null; then
-            nix build --print-build-logs
+            nix build .#default .#ovmf-stealth .#acpi-ssdt-stealth .#smbios-extract --no-link --print-build-logs
           else
             echo "No default package — skipping build (module-only repo)"
           fi

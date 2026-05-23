@@ -24,7 +24,8 @@ jobs:
         run: |
           set +e
           nix build --no-link --print-build-logs 2>&1 | tee /tmp/lock-build.log
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          BUILD_EXIT=${PIPESTATUS[0]}
+          echo "exit_code=$BUILD_EXIT" >> "$GITHUB_OUTPUT"
 
       - name: Push if build passes
         if: steps.build.outputs.exit_code == '0'

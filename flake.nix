@@ -57,10 +57,7 @@
         smbios-extract = self.packages.${final.system}.smbios-extract;
       };
 
-      nixosModules.default = import ./module.nix {
-        inherit autovirt better-timing;
-        vfio-stealth = self;
-      };
+      nixosModules.default = import ./module.nix;
 
       lib = import ./lib.nix { inherit (nixpkgs) lib; };
 

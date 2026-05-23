@@ -260,8 +260,23 @@ myModules.vfio.stealth = {
     product = "MAG X670E TOMAHAWK WIFI";
     biosVendor = "American Megatrends International, LLC.";
     biosVersion = "7E12vAH";
+    biosDate = "02/15/2025";
+    biosRelease = "2.3";
+    baseBoardVersion = "Rev 1.02";
+    baseBoardSerial = "K716234029";
     serial = "K716234029";
     socketPrefix = "AM5";
+    cache = {
+      l1 = 512;
+      l2 = 16384;
+      l3 = 65536;
+    };
+    oemStrings = [
+      "Default string"
+      "Default string"
+      "TOMAHAWK"
+      "Default string"
+    ];
     memory = {
       manufacturer = "Corsair";
       partNumber = "CMK32GX5M2B5600C36";
@@ -288,6 +303,7 @@ nixpkgs.overlays = [
       acpiOemId = "MSI_NB";
       acpiOemTableId = "MEGABOOK";
       diskModel = "WDC WD10EZEX-00WN4A0    ";
+      diskSerial = "WD-WMC4T0D2XYZA";
       opticalModel = "HL-DT-ST DVDRAM GH24NSC0";
     };
   })
@@ -304,6 +320,10 @@ myModules.vfio.stealth = {
     product = "B650 AORUS ELITE AX";
     biosVendor = "American Megatrends Inc.";
     biosVersion = "F20";
+    biosDate = "03/22/2025";
+    biosRelease = "2.0";
+    baseBoardVersion = "x.x";
+    baseBoardSerial = "SN220847001234";
     serial = "SN220847001234";
     socketPrefix = "AM5";
     memory = {

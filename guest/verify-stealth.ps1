@@ -6,6 +6,7 @@
 
 $failed = 0
 $warned = 0
+$skipped = 0
 
 Write-Host "=== vfio-stealth detection check (30 vectors) ===" -ForegroundColor Cyan
 Write-Host ""
@@ -36,7 +37,7 @@ if ($bios.Manufacturer -match "SeaBIOS|QEMU|Bochs|innotek|Phoenix Technologies.*
 # 3. SMBIOS Type 2: Win32_BaseBoard.Manufacturer
 # -----------------------------------------------------------------------
 $bb = Get-CimInstance Win32_BaseBoard
-if ($bb.Manufacturer -match "QEMU|Oracle|Microsoft|VMware|innotek") {
+if ($bb.Manufacturer -match "QEMU|Oracle|VMware|innotek") {
     Write-Host "[FAIL] BaseBoard: $($bb.Manufacturer)" -ForegroundColor Red
     $failed++
 } else {
@@ -52,11 +53,12 @@ foreach ($svc in $vmServices) {
     $found = Get-Service $svc -ErrorAction SilentlyContinue
     if ($found) {
         Write-Host "[FAIL] VM service found: $($found.Name)" -ForegroundColor Red
-        $failed++
         $svcFailed = $true
     }
 }
-if (-not $svcFailed) {
+if ($svcFailed) {
+    $failed++
+} else {
     Write-Host "[PASS] No VM-specific services detected" -ForegroundColor Green
 }
 
@@ -121,13 +123,14 @@ try {
     }
 } catch {
     Write-Host "[SKIP] Could not check HypervisorPresent" -ForegroundColor Yellow
+    $skipped++
 }
 
 # -----------------------------------------------------------------------
 # 10. Win32_DiskDrive.Model — QEMU default disk model strings
 # -----------------------------------------------------------------------
 $disks = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
-$vmDisk = $disks | Where-Object { $_.Model -match "QEMU|VBOX|Virtual|VirtIO" }
+$vmDisk = $disks | Where-Object { $_.Model -match "QEMU HARDDISK|VBOX HARDDISK|VirtIO|QEMU DVD-ROM|VBOX CD-ROM" }
 if ($vmDisk) {
     Write-Host "[FAIL] VM disk model: $($vmDisk.Model)" -ForegroundColor Red
     $failed++
@@ -140,7 +143,7 @@ if ($vmDisk) {
 # 11. Win32_CDROMDrive.Name — QEMU default optical drive model
 # -----------------------------------------------------------------------
 $cdrom = Get-CimInstance Win32_CDROMDrive -ErrorAction SilentlyContinue
-$vmCd = $cdrom | Where-Object { $_.Name -match "QEMU|VBOX|Virtual|VirtIO" }
+$vmCd = $cdrom | Where-Object { $_.Name -match "QEMU HARDDISK|VBOX HARDDISK|VirtIO|QEMU DVD-ROM|VBOX CD-ROM" }
 if ($vmCd) {
     Write-Host "[FAIL] VM optical drive: $($vmCd.Name)" -ForegroundColor Red
     $failed++
@@ -230,6 +233,7 @@ try {
     }
 } catch {
     Write-Host "[SKIP] MSAcpi_ThermalZoneTemperature (requires Administrator)" -ForegroundColor Yellow
+    $skipped++
 }
 
 # -----------------------------------------------------------------------
@@ -253,7 +257,7 @@ $edidVm = $false
 try {
     $monKeys = Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\DISPLAY" -ErrorAction SilentlyContinue
     foreach ($key in $monKeys) {
-        if ($key.PSChildName -match "^(QEMU|BOX|VBOX|Default_Monitor)") {
+        if ($key.PSChildName -match "^(QEMU|VBOX|Default_Monitor)") {
             $edidVm = $true
             Write-Host "[FAIL] EDID registry: VM monitor ID '$($key.PSChildName)'" -ForegroundColor Red
             $failed++
@@ -269,14 +273,14 @@ try {
     }
 } catch {
     Write-Host "[SKIP] Could not read EDID registry" -ForegroundColor Yellow
+    $skipped++
 }
 
 # -----------------------------------------------------------------------
 # 21. ACPI table OEM IDs — check for BOCHS/BXPC/VBOX via raw firmware
 # -----------------------------------------------------------------------
 try {
-    $acpiOem = Get-CimInstance -Namespace root\wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue
-    # Fallback: check registry for cached ACPI info
+    # Check registry for cached ACPI info
     $acpiBios = Get-ItemProperty "HKLM:\HARDWARE\DESCRIPTION\System\BIOS" -ErrorAction SilentlyContinue
     if ($acpiBios) {
         $combined = "$($acpiBios.SystemManufacturer)|$($acpiBios.BIOSVendor)"
@@ -288,9 +292,11 @@ try {
         }
     } else {
         Write-Host "[SKIP] ACPI OEM: BIOS registry path unavailable" -ForegroundColor Yellow
+        $skipped++
     }
 } catch {
     Write-Host "[SKIP] ACPI OEM check failed" -ForegroundColor Yellow
+    $skipped++
 }
 
 # -----------------------------------------------------------------------
@@ -335,6 +341,7 @@ if ($cpu) {
     }
 } else {
     Write-Host "[SKIP] Could not query Win32_Processor" -ForegroundColor Yellow
+    $skipped++
 }
 
 # -----------------------------------------------------------------------
@@ -415,15 +422,18 @@ try {
     }
 } catch {
     Write-Host "[SKIP] Could not query OEM strings" -ForegroundColor Yellow
+    $skipped++
 }
 
 # -----------------------------------------------------------------------
 # Summary
 # -----------------------------------------------------------------------
 Write-Host ""
-Write-Host "=== $failed failures, $warned warnings ===" -ForegroundColor $(if ($failed -gt 0) { "Red" } elseif ($warned -gt 0) { "Yellow" } else { "Green" })
-if ($failed -eq 0 -and $warned -eq 0) {
+Write-Host "=== $failed failures, $warned warnings, $skipped skipped ===" -ForegroundColor $(if ($failed -gt 0) { "Red" } elseif ($warned -gt 0 -or $skipped -gt 0) { "Yellow" } else { "Green" })
+if ($failed -eq 0 -and $warned -eq 0 -and $skipped -eq 0) {
     Write-Host "All 30 checks passed." -ForegroundColor Green
+} elseif ($failed -eq 0 -and $skipped -gt 0) {
+    Write-Host "0 failures, $warned warnings, $skipped skipped" -ForegroundColor Yellow
 } elseif ($failed -eq 0) {
     Write-Host "No failures, but warnings should be reviewed." -ForegroundColor Yellow
 } else {

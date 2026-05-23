@@ -30,7 +30,7 @@ fetch_latest() {
       echo "$RESULT"
       return 0
     fi
-    log "Retry $i/$retries (waiting ${delay}s)..."
+    echo "==> Retry $i/$retries (waiting ${delay}s)..." >&2
     sleep $delay
     delay=$((delay * 2))
   done
@@ -96,6 +96,11 @@ fi
 log "Step 3/3: ELF verification"
 nix build .#default
 FOUND=$(find result/bin/ \( -type f -o -type l \) -executable 2>/dev/null | head -1)
+if [ -z "$FOUND" ]; then
+  err "No executable found in build output"
+  output "error_type" "verification-error"
+  exit 1
+fi
 if [ -n "$FOUND" ]; then
   file "$FOUND" | grep -q ELF || { err "Not an ELF binary: $FOUND"; output "error_type" "verification-error"; exit 1; }
 fi

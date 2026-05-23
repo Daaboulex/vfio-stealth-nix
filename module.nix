@@ -1,9 +1,4 @@
 {
-  autovirt,
-  better-timing,
-  vfio-stealth,
-}:
-{
   config,
   lib,
   pkgs,

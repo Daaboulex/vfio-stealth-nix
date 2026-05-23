@@ -5,7 +5,7 @@
  * - MSAcpi_ThermalZoneTemperature (via additional thermal zone)
  * - Realistic CPU temperature readings
  */
-DefinitionBlock ("sensor-probes.aml", "SSDT", 2, "_ASUS_", "Sensors ", 0x00001000)
+DefinitionBlock ("sensor-probes.aml", "SSDT", 2, "ALASKA", "A M I   ", 0x00001000)
 {
     External (\_SB, DeviceObj)
 
