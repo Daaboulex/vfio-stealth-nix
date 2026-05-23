@@ -15,6 +15,7 @@ let
   # These are shell script strings (postPatch fragments), not .patch files.
   timingPatchScript = import ./kernel/timing-patch.nix;
   cpuidPatchScript = import ./kernel/cpuid-patch.nix;
+  cpuidDisableScript = import ./kernel/cpuid-disable.nix;
 in
 {
   _class = "nixos";
@@ -38,7 +39,15 @@ in
       enable = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "CPUID leaf 0 spoofing via Hypervisor-Phantom technique. Defeats anti-cheat that checks the hypervisor-present CPUID bit (leaf 1, bit 31) and hypervisor vendor string (leaf 0x40000000).";
+        description = "CPUID leaf 0 spoofing via Hypervisor-Phantom technique. Defeats anti-cheat that checks the hypervisor-present CPUID bit (leaf 1, bit 31) and hypervisor vendor string (leaf 0x40000000). Skipped when cpuidPassthrough.enable is true.";
+      };
+    };
+
+    cpuidPassthrough = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Disable CPUID interception entirely. Guest executes CPUID at native hardware speed (zero VM exit). Defeats software-counter timing attacks (VMAware TIMER 95pts, SINGLE_STEP 100pts). Requires AMD host with host-passthrough CPU mode. When enabled, cpuidSpoof is skipped (passthrough takes precedence). Side effect: Hyper-V enlightenments are invisible to guest (Windows uses TSC directly).";
       };
     };
 
@@ -417,7 +426,8 @@ in
     internal = true;
     default =
       lib.optionalString cfg.timing.enable timingPatchScript
-      + lib.optionalString cfg.cpuidSpoof.enable cpuidPatchScript;
+      + lib.optionalString (cfg.cpuidSpoof.enable && !cfg.cpuidPassthrough.enable) cpuidPatchScript
+      + lib.optionalString cfg.cpuidPassthrough.enable cpuidDisableScript;
     description = "Combined kernel postPatch script. Apply via kernel overrideAttrs in host config.";
   };
 }
