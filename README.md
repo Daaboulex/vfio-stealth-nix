@@ -46,6 +46,7 @@ For long-form references beyond the quick start below, see:
 |---|---|---|
 | CPUID hypervisor bit | Cleared via `kvm.hidden` + Hyper-V vendor_id spoofing | `lib.nix` (libvirt features) |
 | CPUID leaf 0 vendor string | Hypervisor-Phantom: intercept at SVM level, spoof AuthenticAMD, re-enter guest without full exit | `kernel/cpuid-patch.nix` |
+| CPUID interception timing | Disabled entirely via cpuidPassthrough — guest CPUID runs at native speed | `kernel/cpuid-disable.nix` |
 | RDTSC/RDTSCP timing | BetterTiming: track cumulative VM-exit time, subtract from TSC reads (RDTSC + RDTSCP handlers with compensated values) | `kernel/timing-patch.nix` |
 | MSR_IA32_TSC reads | Compensated TSC value returned via patched `kvm_get_msr_common` | `kernel/timing-patch.nix` |
 | IA32_APERF/MPERF MSR | Passthrough via `kvm-disable-exits=aperfmperf` (defeats IET-based detection) | `lib.nix` (QEMU args) |
@@ -94,7 +95,7 @@ For long-form references beyond the quick start below, see:
 | EAC | Likely | Requires full BetterTiming + RDTSCP handler + APERF/MPERF passthrough + kvm-pv-enforce-cpuid. Timing checks tightened March 2026; current patch set covers known vectors. |
 | BattlEye | Likely | Requires full stack: BetterTiming, CPUID spoofing, SMBIOS, fw_cfg probe fix, hypercall #UD injection. Previous intermittent failures traced to missing vectors now covered. |
 | Vanguard | Blocked | Hardware attestation via TPM 2.0 + Secure Boot chain. Cannot be bypassed by software spoofing. |
-| FACEIT | Unknown | Detects any hypervisor regardless of hiding. Exit-less CPUID spoofing (Phase 4) may address the detection method; untested. |
+| FACEIT | Unknown | Detects any hypervisor regardless of hiding. Enable `cpuidPassthrough.enable = true` to disable CPUID interception entirely; untested. |
 | nProtect | Works | CPUID + SMBIOS spoofing sufficient for GameGuard. |
 
 ## Quick Start
@@ -140,6 +141,7 @@ All options live under `myModules.vfio.stealth`.
 | `spoofMac` | `bool` | `true` | Spoof guest NIC MAC address with a realistic OUI prefix | MAC address OUI reveals VM NIC vendor |
 | `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for spoofed MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
 | `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
+| `hypervVendorId` | `str` (1-12 chars) | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv) | Hyper-V vendor_id fingerprinting |
 
 ### Kernel
 
@@ -147,6 +149,7 @@ All options live under `myModules.vfio.stealth`.
 |---|---|---|---|---|
 | `timing.enable` | `bool` | `true` | Apply BetterTiming TSC compensation kernel patch | RDTSC/RDTSCP timing attacks |
 | `cpuidSpoof.enable` | `bool` | `true` | Apply CPUID leaf 0 spoofing via Hypervisor-Phantom technique | CPUID vendor string + hypervisor bit |
+| `cpuidPassthrough.enable` | `bool` | `false` | Disable CPUID interception entirely — guest executes at native speed. Defeats TIMER + SINGLE_STEP. Requires AMD host-passthrough. When enabled, cpuidSpoof is skipped. | RDTSC software-counter timing, #DB exception timing |
 | `kernelParams.maxCState` | `int` | `1` | `processor.max_cstate` kernel parameter value | TSC stability (deep C-states cause drift) |
 | `kernelParams.tscReliable` | `bool` | `true` | Pass `tsc=reliable` on kernel command line | TSC source selection |
 
@@ -233,13 +236,13 @@ CPU identity is passed per-VM via `mkStealthFeatures` in `lib.nix`, not as modul
 
 ### Cache (SMBIOS Type 7)
 
-Cache entries are hardcoded in `lib.nix` QEMU args with realistic L1/L2/L3 sizes. They populate `Win32_CacheMemory`, which is empty by default on VMs and used as a detection signal.
+Cache entries are configurable via `smbios.cache.*` options. They populate `Win32_CacheMemory`, which is empty by default on VMs and used as a detection signal.
 
-| Level | Designation | Size |
-|---|---|---|
-| L1 | L1 Cache | 512 KB |
-| L2 | L2 Cache | 8192 KB |
-| L3 | L3 Cache | 32768 KB |
+| Option | Type | Default | Description | Detection Vector |
+|---|---|---|---|---|
+| `smbios.cache.l1` | `int` | `512` | L1 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
+| `smbios.cache.l2` | `int` | `8192` | L2 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
+| `smbios.cache.l3` | `int` | `32768` | L3 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
 
 ## Example Configurations
 
@@ -427,6 +430,14 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 - Advances RIP and re-enters guest via `goto reenter_guest_fast` (no full VM exit)
 - Clears RDTSC/RDTSCP interception bits (BetterTiming re-enables RDTSC if active)
 
+**CPUID passthrough** (`kernel/cpuid-disable.nix`) — Exit-less CPUID:
+
+- Clears `INTERCEPT_CPUID` in `init_vmcb` and `pre_svm_run`
+- Guest executes CPUID at native hardware speed (zero VM exit)
+- AMD SVM loads guest XCR0 from VMCB — leaf 0xD naturally consistent
+- Hardware returns AuthenticAMD with no hypervisor bit (synthetic, absent in real CPUID)
+- Side effect: Hyper-V enlightenments invisible to guest (Windows uses TSC directly)
+
 ## Upstream Tracking
 
 Two upstream projects are tracked and auto-updated daily via GitHub Actions (`update.yml`):
@@ -455,7 +466,7 @@ These detection methods **cannot be bypassed** by software-level spoofing:
 | **Secure Boot chain verification** | Anti-cheat that validates the full Secure Boot chain (bootloader signatures, kernel signing) will detect a patched kernel. The kernel patches modify KVM source, breaking any signature chain. |
 | **#DB exception timing** | Single-step debug exception timing is a low-level detection vector that operates below the TSC compensation layer. No known mitigation exists for SVM. |
 | **AI behavioral analysis** | Machine-learning models that analyze gameplay patterns, input timing distributions, and performance variance can flag VMs based on behavior rather than system fingerprints. No hardware spoofing addresses this. |
-| **FACEIT virtualization check** | FACEIT's anti-cheat detects any hypervisor regardless of hiding. Exit-less CPUID spoofing (Phase 4) may address the detection method but is untested. |
+| **FACEIT virtualization check** | FACEIT's anti-cheat detects any hypervisor regardless of hiding. Enable `cpuidPassthrough.enable = true` to disable CPUID interception entirely; untested. |
 
 ## License
 

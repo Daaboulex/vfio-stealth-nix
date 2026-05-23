@@ -28,7 +28,9 @@ vfio-stealth-nix/
 ├── kernel/
 │   ├── timing-patch.nix     # BetterTiming TSC compensation
 │   │                        # → exposed via _kernelPostPatch
-│   └── cpuid-patch.nix      # Hypervisor-Phantom CPUID leaf 0 spoof
+│   ├── cpuid-patch.nix      # Hypervisor-Phantom CPUID leaf 0 spoof
+│   │                        # → exposed via _kernelPostPatch
+│   └── cpuid-disable.nix    # Exit-less CPUID passthrough (AMD SVM)
 │                            # → exposed via _kernelPostPatch
 ├── smbios/
 │   └── extract-tool.nix     # smbios-extract — host SMBIOS dump +
@@ -58,7 +60,7 @@ vfio-stealth-nix/
 | `ovmf-stealth` (ovmf/package.nix) | inherited via overlay — no module options | OVMF SMBIOS Type 0 (VirtualMachine bit), Red Hat PCI vendor IDs (1AF4/1B36→1022, 1234→1002), ACPI OEM fields, BGRT table (TianoCore CRC fingerprint) |
 | `module.nix` `smbios.*` | `myModules.vfio.stealth.smbios.*` | SMBIOS Types 1, 2, 4, 7, 8, 9, 11, 17, 26, 27, 28, 29, 41 (system, baseboard incl. version/serial/asset/location, processor, cache, port connector, system slots, OEM strings, memory, voltage/cooling/temperature/current probes, onboard devices) |
 | `module.nix` `acpiSsdt.*` | `myModules.vfio.stealth.acpiSsdt.*` | ACPI SSDT (EC, fan, thermal zone with fluctuation, battery, buttons, timers) |
-| `module.nix` `kernel.*` (timing + cpuidSpoof) | `myModules.vfio.stealth.{timing,cpuidSpoof}.*` | RDTSC/RDTSCP timing, CPUID vendor string + hypervisor bit |
+| `module.nix` `kernel.*` (timing + cpuidSpoof + cpuidPassthrough) | `myModules.vfio.stealth.{timing,cpuidSpoof,cpuidPassthrough}.*` | RDTSC/RDTSCP timing, CPUID vendor string + hypervisor bit, CPUID interception timing |
 | `module.nix` `kernelParams.*` | `myModules.vfio.stealth.kernelParams.{maxCState,tscReliable}` | TSC stability, TSC source selection, SVM params (kvm_amd.vls=0, kvm_amd.vgif=0) |
 | `module.nix` `aperfMperf` | `myModules.vfio.stealth.aperfMperf` | IA32_APERF/MPERF MSR passthrough (defeats IET) |
 | `module.nix` `stripVirtio` / `spoofMac` / `macPrefix` | top-level toggles | VirtIO PCI vendor ID, MAC OUI (default: D8:BB:C1, Realtek) |
@@ -93,6 +95,15 @@ separate patch sets compose into this single hook:
      (no full VM exit)
    - Clears RDTSC/RDTSCP interception bits (BetterTiming re-enables
      RDTSC if active)
+
+3. **CPUID passthrough** (`kernel/cpuid-disable.nix`) — Exit-less CPUID
+   - Clears `INTERCEPT_CPUID` in `init_vmcb` and `pre_svm_run`
+   - Guest executes CPUID at native hardware speed (zero VM exit)
+   - AMD SVM loads guest XCR0 from VMCB — leaf 0xD naturally consistent
+   - Hardware returns AuthenticAMD with no hypervisor bit (synthetic,
+     absent in real CPUID)
+   - Side effect: Hyper-V enlightenments invisible to guest (Windows
+     uses TSC directly)
 
 Patches target function signatures and symbol names, not line numbers,
 for resilience across kernel versions. Currently validated against

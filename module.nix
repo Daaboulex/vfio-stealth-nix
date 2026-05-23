@@ -355,13 +355,13 @@ in
     disk = {
       model = lib.mkOption {
         type = lib.types.str;
-        default = "WDC WD10EZEX-00W          ";
-        description = "Emulated disk model string (24 chars padded with spaces). Defeats Win32_DiskDrive.Model checks.";
+        default = "WDC WD10EZEX-00WN4A0     ";
+        description = "Emulated disk model string (25 chars, space-padded). Defeats Win32_DiskDrive.Model checks. Set to your real disk model.";
       };
       opticalModel = lib.mkOption {
         type = lib.types.str;
-        default = "HL-DT-ST DVDRAM GH24NSC0  ";
-        description = "Emulated optical drive model (24 chars padded). Defeats Win32_CDROMDrive.Name checks.";
+        default = "HL-DT-ST DVDRAM GH24NSC0 ";
+        description = "Emulated optical drive model (25 chars, space-padded). Defeats Win32_CDROMDrive.Name checks.";
       };
     };
 

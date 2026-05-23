@@ -33,7 +33,7 @@
   # spec_ctrl_restore_host call. We anchor on the line after the enter_exit call.
   #
   # The code checks if exit_code == SVM_EXIT_CPUID and leaf (RAX) == 0.
-  # If so, it spoofs AuthenticAMD vendor string, caps max leaf at 0x16,
+  # If so, it spoofs AuthenticAMD vendor string, caps max leaf at 0x20,
   # advances RIP, and jumps back to re-enter the guest.
   if grep -q 'svm_vcpu_enter_exit(vcpu, spec_ctrl_intercepted);' arch/x86/kvm/svm/svm.c; then
     sed -i '/^\tsvm_vcpu_enter_exit(vcpu, spec_ctrl_intercepted);$/a\\n\t/*\n\t * CPUID leaf 0 spoofing — Hypervisor-Phantom technique.\n\t * Intercept at lowest level, spoof vendor, re-enter without full exit.\n\t * Required kernel cmdline: mitigations=off idle=poll processor.max_cstate=1 tsc=reliable\n\t */\n\tif (unlikely(svm->vmcb->control.exit_code == SVM_EXIT_CPUID)) {\n\t\tif (svm->vmcb->save.rax == 0) {\n\t\t\tsvm->vmcb->save.rax = 0x20;\n\n\t\t\tvcpu->arch.regs[VCPU_REGS_RBX] = 0x68747541; /* Auth */\n\t\t\tvcpu->arch.regs[VCPU_REGS_RCX] = 0x444d4163; /* cAMD */\n\t\t\tvcpu->arch.regs[VCPU_REGS_RDX] = 0x69746e65; /* enti */\n\n\t\t\t{\n\t\t\t\tu64 next_rip = svm->vmcb->control.next_rip;\n\t\t\t\tif (!next_rip)\n\t\t\t\t\tnext_rip = svm->vmcb->save.rip + svm->vmcb->control.insn_len;\n\t\t\t\tsvm->vmcb->save.rip = next_rip;\n\t\t\t\tvcpu->arch.regs[VCPU_REGS_RIP] = next_rip;\n\t\t\t}\n\n\t\t\tgoto reenter_guest_fast;\n\t\t}\n\t}' arch/x86/kvm/svm/svm.c

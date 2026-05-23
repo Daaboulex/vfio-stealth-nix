@@ -18,6 +18,7 @@ README is the canonical home, this page is the deep-link target.
 | `spoofMac` | `bool` | `true` | Spoof guest NIC MAC address with a realistic OUI prefix | MAC OUI reveals VM NIC vendor |
 | `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for spoofed MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
 | `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
+| `hypervVendorId` | `str` (1-12 chars) | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv) | Hyper-V vendor_id fingerprinting |
 
 ## Kernel
 
@@ -25,6 +26,7 @@ README is the canonical home, this page is the deep-link target.
 |---|---|---|---|---|
 | `timing.enable` | `bool` | `true` | Apply BetterTiming TSC compensation kernel patch | RDTSC/RDTSCP timing attacks |
 | `cpuidSpoof.enable` | `bool` | `true` | Apply CPUID leaf 0 spoof via Hypervisor-Phantom technique | CPUID vendor string + hypervisor bit |
+| `cpuidPassthrough.enable` | `bool` | `false` | Disable CPUID interception entirely — guest executes at native speed. Defeats TIMER + SINGLE_STEP. Requires AMD host-passthrough. When enabled, cpuidSpoof is skipped. | RDTSC software-counter timing, #DB exception timing |
 | `kernelParams.maxCState` | `int` | `1` | `processor.max_cstate` kernel parameter | TSC stability (deep C-states cause drift) |
 | `kernelParams.tscReliable` | `bool` | `true` | Pass `tsc=reliable` on kernel command line | TSC source selection |
 
@@ -51,6 +53,9 @@ README is the canonical home, this page is the deep-link target.
 | `smbios.memory.count` | `int` | `2` | Number of DIMMs to report (Type 17) | `Win32_PhysicalMemory` count |
 | `smbios.oemStrings` | `listOf str` | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator | `Win32_ComputerSystem.OEMStringArray` |
 | `smbios.onboardDevices` | `listOf submodule` | Ethernet + SATA controller | Onboard devices for Type 41 (submodule: designation, kind, instance). Prevents empty Win32_OnBoardDevice | `Win32_OnBoardDevice` |
+| `smbios.cache.l1` | `int` | `512` | L1 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
+| `smbios.cache.l2` | `int` | `8192` | L2 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
+| `smbios.cache.l3` | `int` | `32768` | L3 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
 
 ## ACPI SSDT
 

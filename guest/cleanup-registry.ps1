@@ -160,7 +160,7 @@ $clearedLogs = 0
 foreach ($log in $logNames) {
     try {
         $vmEvents = Get-WinEvent -LogName $log -ErrorAction SilentlyContinue | Where-Object {
-            $_.Message -match "QEMU|VirtIO|KVM|Red Hat|viostor|vioscsi|netkvm"
+            $_.Message -match "QEMU|VirtIO|KVM|Red Hat|Hyper-V|Virtual|hypervisor|viostor|vioscsi|netkvm"
         }
         if ($vmEvents -and $vmEvents.Count -gt 0) {
             # Cannot selectively delete events; clear entire log if contaminated

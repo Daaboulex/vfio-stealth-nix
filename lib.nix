@@ -276,19 +276,13 @@
           "-smbios"
           "type=41,designation=${dev.designation},kind=${dev.kind},instance=${toString dev.instance}"
         ]) smbios.onboardDevices
-        # KVM paravirt MSR enforcement — with kvm.hidden=on, ensure
-        # guest_pv_has() rejects all KVM feature MSR access (#GP instead
-        # of returning valid pvclock/steal-time data that reveals KVM).
+        # KVM paravirt MSR enforcement + APERF/MPERF passthrough.
+        # Consolidated into a single -cpu arg — multiple -cpu flags can
+        # override each other. Property-only form appends to libvirt's
+        # existing -cpu host without re-specifying the model.
         ++ [
           "-cpu"
-          "kvm-pv-enforce-cpuid=on"
-        ]
-        # APERF/MPERF passthrough (defeats IET-based VM detection, kernel 6.18+)
-        # Use standalone -cpu property form to append to libvirt's existing -cpu host
-        # rather than re-specifying the model (which would conflict/reset features).
-        ++ lib.optionals aperfMperf [
-          "-cpu"
-          "kvm-disable-exits=aperfmperf"
+          ("kvm-pv-enforce-cpuid=on" + lib.optionalString aperfMperf ",kvm-disable-exits=aperfmperf")
         ];
 
       # Devices the consuming module should remove when stripVirtio is true.
