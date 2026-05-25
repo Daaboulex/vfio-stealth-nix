@@ -353,6 +353,11 @@ in
         default = "WDC WD10EZEX-00WN4A0     ";
         description = "Emulated disk model string (25 chars, space-padded). Defeats Win32_DiskDrive.Model checks. Set to your real disk model.";
       };
+      serial = lib.mkOption {
+        type = lib.types.str;
+        default = "Default string";
+        description = "IDE/SCSI disk serial string. Defeats Win32_DiskDrive.SerialNumber checks. Set to your real disk serial from smartctl.";
+      };
       opticalModel = lib.mkOption {
         type = lib.types.str;
         default = "HL-DT-ST DVDRAM GH24NSC0 ";
@@ -398,6 +403,43 @@ in
         description = "CPU current speed in MHz for SMBIOS type 4. null = omit.";
       };
     };
+
+    # --- TPM identity hardening ---
+    # swtpm defaults report manufacturer=IBM, model=swtpm — trivially
+    # fingerprinted via Win32_Tpm WMI class and Get-Tpm PowerShell cmdlet.
+
+    tpm = {
+      harden = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Configure swtpm to report realistic hardware TPM identity. Affects EK/platform certificates (swtpm-localca.options) and protocol-level properties (libtpms patch).";
+      };
+      manufacturer = lib.mkOption {
+        type = lib.types.strMatching "^[a-zA-Z0-9:]+$";
+        default = "id:49465800";
+        description = "TPM manufacturer ID (8 hex digits). id:49465800=Infineon, id:414D4400=AMD fTPM, id:494E5443=Intel PTT.";
+      };
+      model = lib.mkOption {
+        type = lib.types.strMatching "^[a-zA-Z0-9 _-]+$";
+        default = "SLB9672";
+        description = "TPM model string. Common: SLB9672 (Infineon discrete), AMD (fTPM).";
+      };
+      firmwareVersion = lib.mkOption {
+        type = lib.types.strMatching "^[a-zA-Z0-9:]+$";
+        default = "id:000F0018";
+        description = "TPM firmware version (8 hex digits). 0x000F0018 = FW 15.24 (Infineon SLB9672).";
+      };
+      platformManufacturer = lib.mkOption {
+        type = lib.types.str;
+        default = "ASUSTeK COMPUTER INC.";
+        description = "Platform manufacturer for TPM platform certificate. Should match SMBIOS manufacturer.";
+      };
+      platformModel = lib.mkOption {
+        type = lib.types.str;
+        default = "System Product Name";
+        description = "Platform model for TPM platform certificate.";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -412,6 +454,48 @@ in
       "kvm_amd.vgif=0" # Force STGI/CLGI interception (prevents vGIF behavior fingerprint)
     ]
     ++ lib.optionals cfg.kernelParams.tscReliable [ "tsc=reliable" ];
+
+    # swtpm certificate hardening: custom swtpm-localca.options so EK/platform
+    # certificates report realistic hardware identity instead of "QEMU"/"swtpm".
+    environment.etc = lib.mkIf cfg.tpm.harden {
+      "swtpm-localca.options" = {
+        text = lib.concatStringsSep "\n" [
+          "--platform-manufacturer \"${cfg.tpm.platformManufacturer}\""
+          "--platform-model \"${cfg.tpm.platformModel}\""
+          "--platform-version \"1.0\""
+          "--tpm-manufacturer \"${cfg.tpm.manufacturer}\""
+          "--tpm-model \"${cfg.tpm.model}\""
+          "--tpm-version \"${cfg.tpm.firmwareVersion}\""
+        ];
+      };
+    };
+  };
+
+  # Expose libtpms identity patch for host-level integration.
+  # Apply via: libtpms.overrideAttrs (old: { postPatch = (old.postPatch or "") + cfg._libtpmsIdentityPatch; });
+  options.myModules.vfio.stealth._libtpmsIdentityPatch = lib.mkOption {
+    type = lib.types.str;
+    readOnly = true;
+    internal = true;
+    default = lib.optionalString (cfg.enable && cfg.tpm.harden) ''
+      echo "=== libtpms identity patch: ${cfg.tpm.manufacturer} / ${cfg.tpm.model} ==="
+      if grep -q '"manufacturer":"id:00001014"' src/tpm_tpm2_interface.c; then
+        sed -i 's/"manufacturer":"id:00001014"/"manufacturer":"${cfg.tpm.manufacturer}"/g' src/tpm_tpm2_interface.c
+        echo "[OK] libtpms: manufacturer patched to ${cfg.tpm.manufacturer}"
+      else
+        echo "[FAIL] libtpms: manufacturer anchor not found in tpm_tpm2_interface.c"
+        exit 1
+      fi
+      if grep -q '"model":"swtpm"' src/tpm_tpm2_interface.c; then
+        sed -i 's/"model":"swtpm"/"model":"${cfg.tpm.model}"/g' src/tpm_tpm2_interface.c
+        echo "[OK] libtpms: model patched to ${cfg.tpm.model}"
+      else
+        echo "[FAIL] libtpms: model anchor not found in tpm_tpm2_interface.c"
+        exit 1
+      fi
+      echo "=== libtpms identity patch complete ==="
+    '';
+    description = "libtpms postPatch script that replaces hardcoded IBM/swtpm identity. Apply via libtpms.overrideAttrs in host config.";
   };
 
   # Expose patch scripts for host-level kernel integration

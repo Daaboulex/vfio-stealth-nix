@@ -187,6 +187,103 @@ if [[ -n "${XML:-}" ]]; then
 fi
 
 # -----------------------------------------------------------------------
+# 9. BetterTiming — RDTSC interception handler in kallsyms
+# -----------------------------------------------------------------------
+if grep -q "handle_rdtsc_interception" /proc/kallsyms 2>/dev/null; then
+    pass "BetterTiming: handle_rdtsc_interception registered"
+else
+    fail "BetterTiming: handle_rdtsc_interception not in kallsyms (patch not applied?)"
+fi
+
+# -----------------------------------------------------------------------
+# 10. BetterTiming — stealth exit_reason wrappers
+# -----------------------------------------------------------------------
+STEALTH_WRAPPERS=0
+for sym in stealth_cpuid_interception stealth_wbinvd_interception stealth_xsetbv_interception stealth_invd_interception; do
+    if grep -q "$sym" /proc/kallsyms 2>/dev/null; then
+        STEALTH_WRAPPERS=$((STEALTH_WRAPPERS + 1))
+    fi
+done
+if [[ $STEALTH_WRAPPERS -eq 4 ]]; then
+    pass "BetterTiming: all 4 stealth exit wrappers present"
+elif [[ $STEALTH_WRAPPERS -gt 0 ]]; then
+    warn "BetterTiming: only $STEALTH_WRAPPERS/4 stealth exit wrappers found"
+else
+    fail "BetterTiming: no stealth exit wrappers in kallsyms"
+fi
+
+# -----------------------------------------------------------------------
+# 11. Kernel boot params: kvm_amd.vls=0 + vgif=0
+# -----------------------------------------------------------------------
+CMDLINE=$(cat /proc/cmdline)
+if echo "$CMDLINE" | grep -q "kvm_amd.vls=0"; then
+    pass "Kernel param: kvm_amd.vls=0"
+else
+    fail "Kernel param: kvm_amd.vls=0 missing"
+fi
+if echo "$CMDLINE" | grep -q "kvm_amd.vgif=0"; then
+    pass "Kernel param: kvm_amd.vgif=0"
+else
+    fail "Kernel param: kvm_amd.vgif=0 missing"
+fi
+
+# -----------------------------------------------------------------------
+# 12. Kernel boot params: tsc=reliable
+# -----------------------------------------------------------------------
+if echo "$CMDLINE" | grep -q "tsc=reliable"; then
+    pass "Kernel param: tsc=reliable"
+else
+    warn "Kernel param: tsc=reliable not set"
+fi
+
+# -----------------------------------------------------------------------
+# 13. KVM ignore_msrs=0 (bare-metal #GP on unknown MSRs)
+# -----------------------------------------------------------------------
+KVM_IGNORE_MSRS=$(cat /sys/module/kvm/parameters/ignore_msrs 2>/dev/null || echo "unknown")
+case "$KVM_IGNORE_MSRS" in
+    N|0) pass "KVM: ignore_msrs=0 (#GP on unknown MSRs)" ;;
+    Y|1) fail "KVM: ignore_msrs=1 (unknown MSRs silently succeed — detectable)" ;;
+    *) warn "KVM: could not read ignore_msrs parameter" ;;
+esac
+
+# -----------------------------------------------------------------------
+# 14. QEMU binary is qemu-stealth
+# -----------------------------------------------------------------------
+if [[ -n "${XML:-}" ]]; then
+    QEMU_PATH=$(echo "$XML" | grep -oP '/nix/store/[^<"]+qemu-system-x86_64' | head -1 || true)
+    if [[ -n "$QEMU_PATH" ]]; then
+        QEMU_STORE=$(readlink -f "$QEMU_PATH" 2>/dev/null || echo "$QEMU_PATH")
+        if echo "$QEMU_STORE" | grep -q "qemu-stealth"; then
+            pass "QEMU: using qemu-stealth"
+        else
+            fail "QEMU: stock QEMU, not qemu-stealth"
+        fi
+    fi
+fi
+
+# -----------------------------------------------------------------------
+# 15. SMBIOS binary tables present in domain XML
+# -----------------------------------------------------------------------
+if [[ -n "${XML:-}" ]]; then
+    SMBIOS_DIR=$(echo "$XML" | grep -oP '/nix/store/[^"]+/share/smbios' | head -1 || true)
+    if [[ -n "$SMBIOS_DIR" && -d "$SMBIOS_DIR" ]]; then
+        MISSING=0
+        for tbl in type7-l1.bin type7-l2.bin type7-l3.bin type26.bin type27.bin type28.bin type29.bin; do
+            if [[ ! -s "$SMBIOS_DIR/$tbl" ]]; then
+                MISSING=$((MISSING + 1))
+            fi
+        done
+        if [[ $MISSING -eq 0 ]]; then
+            pass "SMBIOS tables: all 7 binary tables present"
+        else
+            fail "SMBIOS tables: $MISSING of 7 missing in $SMBIOS_DIR"
+        fi
+    else
+        warn "SMBIOS tables: no smbios store path in domain XML"
+    fi
+fi
+
+# -----------------------------------------------------------------------
 # Summary
 # -----------------------------------------------------------------------
 echo ""

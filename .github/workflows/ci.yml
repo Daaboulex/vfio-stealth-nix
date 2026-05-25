@@ -48,7 +48,7 @@ jobs:
         run: |
           # Skip build for module-only repos (no packages output)
           if nix eval .#packages.x86_64-linux.default --apply 'x: true' 2>/dev/null; then
-            nix build .#default .#ovmf-stealth .#acpi-ssdt-stealth .#smbios-extract --no-link --print-build-logs
+            nix build .#default .#ovmf-stealth .#acpi-ssdt-stealth .#smbios-extract .#smbios-stealth-tables --no-link --print-build-logs
           else
             echo "No default package — skipping build (module-only repo)"
           fi
@@ -91,3 +91,32 @@ jobs:
             FOUND=$(find result/bin/ \( -type f -o -type l \) 2>/dev/null | head -1)
             [ -n "$FOUND" ] && [ -x "$FOUND" ] || { echo "::error::No executable wrapper found"; exit 1; }
           fi
+
+  kernel-patch-check:
+    runs-on: ubuntu-latest
+    needs: no-ai-files
+    strategy:
+      fail-fast: false
+      matrix:
+        kernel:
+          - name: nixpkgs-latest
+            src: "nixpkgs#linuxPackages_latest.kernel.src"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25  # v22 (node24)
+
+      - name: Fetch ${{ matrix.kernel.name }} kernel source
+        id: fetch
+        run: |
+          SRC_PATH=$(nix build '${{ matrix.kernel.src }}' --no-link --print-out-paths 2>&1 | tail -1)
+          # Kernel source may be a tarball — unpack if so
+          if [ -f "$SRC_PATH" ]; then
+            UNPACK_DIR=$(mktemp -d)
+            tar xf "$SRC_PATH" -C "$UNPACK_DIR"
+            SRC_PATH=$(find "$UNPACK_DIR" -maxdepth 1 -type d -name 'linux-*' | head -1)
+          fi
+          echo "src_path=$SRC_PATH" >> "$GITHUB_OUTPUT"
+          echo "Kernel source: $SRC_PATH"
+
+      - name: Validate kernel patch anchors
+        run: bash scripts/check-kernel-patches.sh "${{ steps.fetch.outputs.src_path }}"

@@ -1,4 +1,4 @@
-# vfio-stealth verification — checks 30 detection vectors from inside the Windows guest
+# vfio-stealth verification — checks 38 detection vectors from inside the Windows guest
 #
 # Usage: .\verify-stealth.ps1
 # Run inside the VM after applying host-side vfio-stealth-nix config + guest cleanup.
@@ -8,7 +8,7 @@ $failed = 0
 $warned = 0
 $skipped = 0
 
-Write-Host "=== vfio-stealth detection check (30 vectors) ===" -ForegroundColor Cyan
+Write-Host "=== vfio-stealth detection check (38 vectors) ===" -ForegroundColor Cyan
 Write-Host ""
 
 # -----------------------------------------------------------------------
@@ -426,12 +426,140 @@ try {
 }
 
 # -----------------------------------------------------------------------
+# 31. SMBIOS Type 8: Win32_PortConnector — port connector records
+# -----------------------------------------------------------------------
+$ports = Get-CimInstance Win32_PortConnector -ErrorAction SilentlyContinue
+if ($ports -and $ports.Count -ge 1) {
+    Write-Host "[PASS] PortConnector: $($ports.Count) entries" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] No PortConnector entries (SMBIOS type 8 missing)" -ForegroundColor Yellow
+    $warned++
+}
+
+# -----------------------------------------------------------------------
+# 32. SMBIOS Type 27: CIM_CoolingDevice — cooling device records
+# -----------------------------------------------------------------------
+$cooling = Get-CimInstance CIM_CoolingDevice -ErrorAction SilentlyContinue
+if ($cooling) {
+    Write-Host "[PASS] CoolingDevice: $($cooling.Count) device(s)" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] No CIM_CoolingDevice (SMBIOS type 27 missing)" -ForegroundColor Yellow
+    $warned++
+}
+
+# -----------------------------------------------------------------------
+# 33. SMBIOS Type 41: Win32_OnBoardDevice — onboard device records
+# -----------------------------------------------------------------------
+$onboard = Get-CimInstance Win32_OnBoardDevice -ErrorAction SilentlyContinue
+if ($onboard) {
+    Write-Host "[PASS] OnBoardDevice: $($onboard.Count) device(s)" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] No OnBoardDevice entries (SMBIOS type 41 missing)" -ForegroundColor Yellow
+    $warned++
+}
+
+# -----------------------------------------------------------------------
+# 34. Disk serial — Win32_DiskDrive.SerialNumber plausibility
+# -----------------------------------------------------------------------
+$diskSerial = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue | ForEach-Object { $_.SerialNumber } | Where-Object { $_ }
+$vmSerial = $diskSerial | Where-Object { $_ -match "^QM\d|^VBOX|^drive-|^QEMU" }
+if ($vmSerial) {
+    Write-Host "[FAIL] VM disk serial: $($vmSerial -join ', ')" -ForegroundColor Red
+    $failed++
+} elseif ($diskSerial) {
+    $shortSerial = $diskSerial | Where-Object { $_.Length -lt 8 }
+    if ($shortSerial) {
+        Write-Host "[WARN] Disk serial suspiciously short: $($shortSerial -join ', ')" -ForegroundColor Yellow
+        $warned++
+    } else {
+        Write-Host "[PASS] Disk serial: $($diskSerial[0])" -ForegroundColor Green
+    }
+} else {
+    Write-Host "[WARN] No disk serial returned" -ForegroundColor Yellow
+    $warned++
+}
+
+# -----------------------------------------------------------------------
+# 35. MAC OUI prefix — first 3 octets of physical adapter MAC
+# -----------------------------------------------------------------------
+$vmOuis = @("52:54:00", "08:00:27", "00:0C:29", "00:50:56", "00:15:5D", "00:16:3E")
+$physNics = Get-CimInstance Win32_NetworkAdapter -ErrorAction SilentlyContinue |
+    Where-Object { $_.PhysicalAdapter -eq $true -and $_.MACAddress }
+$ouiFailed = $false
+foreach ($nic in $physNics) {
+    $oui = ($nic.MACAddress -split ":")[0..2] -join ":"
+    if ($vmOuis -contains $oui) {
+        Write-Host "[FAIL] VM MAC OUI $oui on $($nic.Description)" -ForegroundColor Red
+        $ouiFailed = $true
+    }
+}
+if ($ouiFailed) {
+    $failed++
+} elseif ($physNics) {
+    $firstOui = ($physNics[0].MACAddress -split ":")[0..2] -join ":"
+    Write-Host "[PASS] MAC OUI: $firstOui ($($physNics[0].Description))" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] No physical adapters with MAC address" -ForegroundColor Yellow
+    $warned++
+}
+
+# -----------------------------------------------------------------------
+# 36. OVMF boot logo / BGRT ACPI table
+# -----------------------------------------------------------------------
+try {
+    $bgrt = Get-CimInstance -Namespace root\wmi -ClassName MSAcpi_BGRTTable -ErrorAction Stop
+    if ($bgrt) {
+        Write-Host "[PASS] ACPI BGRT table present" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] No ACPI BGRT (OVMF omits boot logo table by default)" -ForegroundColor Yellow
+        $warned++
+    }
+} catch [Microsoft.Management.Infrastructure.CimException] {
+    Write-Host "[WARN] ACPI BGRT class unavailable (no firmware boot logo)" -ForegroundColor Yellow
+    $warned++
+} catch {
+    Write-Host "[SKIP] BGRT check (requires Administrator for root\wmi)" -ForegroundColor Yellow
+    $skipped++
+}
+
+# -----------------------------------------------------------------------
+# 37. VMware VMPort indicators (registry + process proxy)
+# -----------------------------------------------------------------------
+$vmportDetected = $false
+$vmtoolsReg = Get-ItemProperty "HKLM:\SOFTWARE\VMware, Inc.\VMware Tools" -ErrorAction SilentlyContinue
+if ($vmtoolsReg) {
+    Write-Host "[FAIL] VMware Tools registry key present" -ForegroundColor Red
+    $vmportDetected = $true
+    $failed++
+}
+if (-not $vmportDetected) {
+    $vmtoolsd = Get-Process "vmtoolsd" -ErrorAction SilentlyContinue
+    if ($vmtoolsd) {
+        Write-Host "[FAIL] vmtoolsd process running" -ForegroundColor Red
+        $failed++
+    } else {
+        Write-Host "[PASS] No VMPort indicators" -ForegroundColor Green
+    }
+}
+
+# -----------------------------------------------------------------------
+# 38. SMBIOS Type 29: Win32_CurrentProbe presence
+# -----------------------------------------------------------------------
+$curProbe = Get-CimInstance Win32_CurrentProbe -ErrorAction SilentlyContinue
+if ($curProbe) {
+    Write-Host "[PASS] CurrentProbe: $($curProbe.Count) probe(s)" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] No CurrentProbe (SMBIOS type 29 missing)" -ForegroundColor Yellow
+    $warned++
+}
+
+# -----------------------------------------------------------------------
 # Summary
 # -----------------------------------------------------------------------
 Write-Host ""
 Write-Host "=== $failed failures, $warned warnings, $skipped skipped ===" -ForegroundColor $(if ($failed -gt 0) { "Red" } elseif ($warned -gt 0 -or $skipped -gt 0) { "Yellow" } else { "Green" })
 if ($failed -eq 0 -and $warned -eq 0 -and $skipped -eq 0) {
-    Write-Host "All 30 checks passed." -ForegroundColor Green
+    Write-Host "All 38 checks passed." -ForegroundColor Green
 } elseif ($failed -eq 0 -and $skipped -gt 0) {
     Write-Host "0 failures, $warned warnings, $skipped skipped" -ForegroundColor Yellow
 } elseif ($failed -eq 0) {

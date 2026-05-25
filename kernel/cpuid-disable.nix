@@ -57,9 +57,9 @@
   # Ensures INTERCEPT_CPUID stays clear even if a future kernel path
   # (nested SVM, vCPU reset, intercept recalculation) re-enables it.
   # pre_svm_run runs before every VMRUN — last-writer-wins.
-  if grep -q 'static void pre_svm_run(struct vcpu_svm \*svm)' arch/x86/kvm/svm/svm.c; then
-    sed -i '/^static void pre_svm_run(struct vcpu_svm \*svm)/,/^}/ {
-      /^}/ i\\n\t/* CPUID passthrough: ensure interception stays clear across\n\t * any recalculation path (nested exits, resets, etc.).\n\t * Skip in nested guest mode to preserve L1 hypervisor security. */\n\tif (!is_guest_mode(\&svm->vcpu))\n\t\tsvm_clr_intercept(svm, INTERCEPT_CPUID);
+  if grep -q 'static int pre_svm_run(struct kvm_vcpu \*vcpu)' arch/x86/kvm/svm/svm.c; then
+    sed -i '/^static int pre_svm_run(struct kvm_vcpu \*vcpu)/,/^}/ {
+      /^}/ i\\n\t/* CPUID passthrough: ensure interception stays clear across\n\t * any recalculation path (nested exits, resets, etc.).\n\t * Skip in nested guest mode to preserve L1 hypervisor security. */\n\tif (!is_guest_mode(vcpu))\n\t\tsvm_clr_intercept(to_svm(vcpu), INTERCEPT_CPUID);
     }' arch/x86/kvm/svm/svm.c
     echo "[OK] svm.c: added CPUID clear in pre_svm_run (belt-and-suspenders)"
   else

@@ -106,7 +106,8 @@
         arch/x86/kvm/svm/svm.c
       echo "[OK] svm.c: enabled RDTSC+RDTSCP interception in init_vmcb"
     else
-      echo "[WARN] svm.c: could not find INTERCEPT_RSM anchor for RDTSC/RDTSCP interception"
+      echo "[FAIL] svm.c: could not find INTERCEPT_RSM anchor for RDTSC/RDTSCP interception"
+      exit 1
     fi
 
     # ---------- 6b. Add handle_rdtscp_interception handler ----------
@@ -175,7 +176,8 @@
         arch/x86/kvm/svm/svm.c
       echo "[OK] svm.c: registered SVM_EXIT_RDTSC handler"
     else
-      echo "[WARN] svm.c: could not find AVIC_UNACCELERATED_ACCESS entry for RDTSC registration"
+      echo "[FAIL] svm.c: could not find AVIC_UNACCELERATED_ACCESS entry for RDTSC registration"
+      exit 1
     fi
 
     # ---------- 7b. Register RDTSCP handler in svm_exit_handlers table ----------
@@ -185,7 +187,8 @@
         arch/x86/kvm/svm/svm.c
       echo "[OK] svm.c: registered SVM_EXIT_RDTSCP handler"
     else
-      echo "[WARN] svm.c: could not find SVM_EXIT_RDTSCP entry for handler registration"
+      echo "[FAIL] svm.c: could not find SVM_EXIT_RDTSCP entry for handler registration"
+      exit 1
     fi
 
     # ---------- 8. Tag exit_reason=0xDEAD on CPUID, WBINVD, XSETBV, INVD ----------
@@ -240,7 +243,8 @@
         arch/x86/kvm/x86.c
       echo "[OK] x86.c: disabled hypercall instruction patching (always inject #UD)"
     else
-      echo "[WARN] x86.c: could not find KVM_X86_QUIRK_FIX_HYPERCALL_INSN check"
+      echo "[FAIL] x86.c: could not find KVM_X86_QUIRK_FIX_HYPERCALL_INSN check"
+      exit 1
     fi
 
     echo "=== BetterTiming: patch complete ==="

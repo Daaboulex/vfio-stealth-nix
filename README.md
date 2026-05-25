@@ -92,10 +92,10 @@ For long-form references beyond the quick start below, see:
 | Anti-Cheat | Status | Notes |
 |---|---|---|
 | VAC | Works | Light detection, user-mode only. CPUID + SMBIOS spoofing sufficient. |
-| EAC | Likely | Requires full BetterTiming + RDTSCP handler + APERF/MPERF passthrough + kvm-pv-enforce-cpuid. Timing checks tightened March 2026; current patch set covers known vectors. |
-| BattlEye | Likely | Requires full stack: BetterTiming, CPUID spoofing, SMBIOS, fw_cfg probe fix, hypercall #UD injection. Previous intermittent failures traced to missing vectors now covered. |
-| Vanguard | Blocked | Hardware attestation via TPM 2.0 + Secure Boot chain. Cannot be bypassed by software spoofing. |
-| FACEIT | Unknown | Detects any hypervisor regardless of hiding. Enable `cpuidPassthrough.enable = true` to disable CPUID interception entirely; untested. |
+| EAC | Likely | Requires full BetterTiming + RDTSCP handler + APERF/MPERF passthrough + kvm-pv-enforce-cpuid. Timing checks tightened March 2026; current patch set covers known vectors. `cpuidPassthrough` recommended. |
+| BattlEye | Likely | Requires full stack: BetterTiming, CPUID spoofing, SMBIOS, fw_cfg probe fix, hypercall #UD injection. May 2024 update improved timing detection; `cpuidPassthrough` recommended to eliminate timing surface. |
+| Vanguard | Blocked | Kernel-mode driver with boot-time loading detects hypervisors via multiple vectors beyond CPUID. swtpm satisfies TPM 2.0 presence check, but VM detection is independent of TPM state. No known working VM configuration. |
+| FACEIT | Blocked | Multi-layer enforcement: TPM 2.0 + Secure Boot + IOMMU + VBS (Virtualization-Based Security) + `hypervisorlaunchtype=auto`. The VBS requirement is incompatible with standard KVM guests. |
 | nProtect | Works | CPUID + SMBIOS spoofing sufficient for GameGuard. |
 
 ## Quick Start
@@ -408,7 +408,7 @@ Read-only verification script that checks detection vectors from inside the Wind
 
 The module exposes `myModules.vfio.stealth._kernelPostPatch` -- a shell script string that patches the kernel source tree via sed/awk. It combines BetterTiming (TSC compensation) and CPUID spoofing (Hypervisor-Phantom) based on your config.
 
-The patches target function signatures and symbol names, not line numbers, for resilience across kernel versions. Currently validated against kernel 6.19.x.
+The patches target function signatures and symbol names, not line numbers, for resilience across kernel versions. CI validates anchors against nixpkgs latest kernel on every push.
 
 ### With CachyOS kernel
 
@@ -478,15 +478,15 @@ nix fmt                      # format with treefmt
 
 ## Known Limitations
 
-These detection methods **cannot be bypassed** by software-level spoofing:
+These represent current boundaries of software-level VM stealth:
 
 | Limitation | Reason |
 |---|---|
-| **TPM 2.0 hardware attestation** | The TPM chip cryptographically attests the boot chain. A VM cannot forge hardware-rooted attestation without a physical TPM passthrough, which defeats the purpose if the host also needs TPM. |
-| **Secure Boot chain verification** | Anti-cheat that validates the full Secure Boot chain (bootloader signatures, kernel signing) will detect a patched kernel. The kernel patches modify KVM source, breaking any signature chain. |
-| **#DB exception timing** | Single-step debug exception timing is a low-level detection vector that operates below the TSC compensation layer. No known mitigation exists for SVM. |
-| **AI behavioral analysis** | Machine-learning models that analyze gameplay patterns, input timing distributions, and performance variance can flag VMs based on behavior rather than system fingerprints. No hardware spoofing addresses this. |
-| **FACEIT virtualization check** | FACEIT's anti-cheat detects any hypervisor regardless of hiding. Enable `cpuidPassthrough.enable = true` to disable CPUID interception entirely; untested. |
+| **Vanguard (Riot Games)** | Kernel-mode driver loads at boot and detects hypervisors via multiple vectors beyond CPUID. swtpm satisfies TPM 2.0 presence check, but VM detection is independent of TPM state. No confirmed working VM configuration as of 2026. |
+| **FACEIT Anti-Cheat** | Multi-layer enforcement: TPM 2.0, Secure Boot, IOMMU/DMA Protection, VBS (Virtualization-Based Security), and `hypervisorlaunchtype=auto`. The VBS requirement means Windows must run under its own Hyper-V hypervisor — incompatible with standard KVM guests. |
+| **AI behavioral analysis** | ML models analyzing gameplay patterns (movement, aim, reaction time) can flag statistical anomalies. The VM-relevant subset is performance variance detection (frame-time jitter from VM exits), which BetterTiming + cpuidPassthrough substantially reduce but cannot guarantee identical distributions. |
+| **XSAVE state fingerprinting (emerging)** | VMAware v2.7+ researches detection of CPUID interception bypass via XCR0/XSS size discrepancies. On AMD SVM, VMRUN loads guest XCR0 from the VMCB, making leaf 0xD naturally consistent — but this is an active arms race. |
+| **NPT page-walk latency** | Nested Page Table translation adds ~10-20ns per TLB miss. Detectable in theory via microbenchmarks, but high noise floor makes it impractical for anti-cheat false-positive rates. No known anti-cheat uses this. |
 
 ## License
 

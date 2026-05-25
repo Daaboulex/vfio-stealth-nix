@@ -41,6 +41,7 @@ Each package output produces a verifiable artifact:
 | `ovmf-stealth` | ELF + size sanity check on `OVMF_CODE.fd` |
 | `acpi-ssdt-stealth` | `iasl -d ./result/spoofed-devices.aml` round-trips cleanly |
 | `smbios-extract` | `./result/bin/smbios-extract --help` |
+| `smbios-stealth-tables` | `python3 generate-tables.py --verify` (runs during build) |
 
 ## Pre-commit hooks
 
@@ -59,7 +60,7 @@ ruleset — fix the violation and re-commit.
 This repo's tests are eval-level. There is no live VM smoke test (would
 require KVM in CI), so the verification chain is:
 
-```
+```text
 eval check   →   build all packages   →   ELF / AML sanity   →   ldd check on qemu-stealth
 ```
 
@@ -96,7 +97,7 @@ push to `main`.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `nix build` fails with `cannot resolve goto reenter_guest_fast` | Kernel newer than the patch target | Pin kernel to a tested version (currently 6.19.x) or update `kernel/cpuid-patch.nix` to match the new symbol name |
+| `nix build` fails with `cannot resolve goto reenter_guest_fast` | Kernel newer than the patch target | Run `scripts/check-kernel-patches.sh` against the kernel source to identify broken anchors, then update the patch file |
 | Eval error: `option myModules.vfio.stealth.kernel.timing.enable already declared` | Loaded both this flake's module and an outdated copy from another flake | Drop the duplicate `imports` entry — only one stealth module per system |
 | `iasl` complains about ACPI SSDT compilation in `acpi-ssdt-stealth` | Outdated `iasl` (older than 20240927) | Bump nixpkgs input or `inputs.nixpkgs.follows = "nixpkgs";` to use the host's nixpkgs |
 | Guest still detected as VM despite `myModules.vfio.stealth.enable = true` | One of the kernel patches not applied | Confirm `boot.kernelPackages` is wired to a kernel built with `_kernelPostPatch` appended (see README §Kernel Integration) |

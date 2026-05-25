@@ -33,10 +33,13 @@ vfio-stealth-nix/
 │   └── cpuid-disable.nix    # Exit-less CPUID passthrough (AMD SVM)
 │                            # → exposed via _kernelPostPatch
 ├── smbios/
-│   └── extract-tool.nix     # smbios-extract — host SMBIOS dump +
-│                            # anonymization helper
+│   ├── package.nix          # smbios-extract — host SMBIOS dump +
+│   │                        # anonymization helper
+│   ├── tables-package.nix   # smbios-stealth-tables — binary SMBIOS
+│   │                        # table generator (types 7, 26-29)
+│   └── generate-tables.py   # Python script generating raw SMBIOS binaries
 ├── guest/
-│   ├── verify-stealth.ps1   # 30-vector detection check (run inside VM)
+│   ├── verify-stealth.ps1   # 38-vector detection check (run inside VM)
 │   ├── cleanup-registry.ps1 # Registry artifact removal (admin, run once)
 │   └── verify-host.sh       # Host-side sanity checks
 ├── scripts/
@@ -66,7 +69,8 @@ vfio-stealth-nix/
 | `module.nix` `stripVirtio` / `spoofMac` / `macPrefix` | top-level toggles | VirtIO PCI vendor ID, MAC OUI (default: D8:BB:C1, Realtek) |
 | `lib.nix` (libvirt rewriter) | applied to `services.virtualisation.vms.<name>` | KVM hidden bit, Hyper-V vendor_id spoof, fake-battery wiring, HPET present=true, KVM MSR enforce (kvm-pv-enforce-cpuid=on), hypercall patching disable |
 | `acpi/*.dsl` | compiled AML embedded in `acpi-ssdt-stealth` | ACPI SSDT runtime fingerprints |
-| `smbios-extract` (smbios/extract-tool.nix) | CLI tool, not a module option | Host SMBIOS dump for VM injection |
+| `smbios-extract` (smbios/package.nix) | CLI tool, not a module option | Host SMBIOS dump for VM injection |
+| `smbios-stealth-tables` (smbios/tables-package.nix) | build-time args (`cacheL1`, `cacheL2`, `cacheL3`) | SMBIOS Types 7, 26, 27, 28, 29 (cache, probes — binary injection via `-smbios file=`) |
 
 ## Kernel-integration layering
 
@@ -106,8 +110,9 @@ separate patch sets compose into this single hook:
      uses TSC directly)
 
 Patches target function signatures and symbol names, not line numbers,
-for resilience across kernel versions. Currently validated against
-kernel 6.19.x. See README §Kernel Integration for the wiring snippets
+for resilience across kernel versions. Validated via CI against
+nixpkgs latest kernel (see `scripts/check-kernel-patches.sh`).
+See README §Kernel Integration for the wiring snippets
 (CachyOS + stock kernel variants).
 
 ## Detection-vector catalogue

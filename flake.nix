@@ -45,6 +45,7 @@
           ovmf-stealth = pkgs.callPackage ./ovmf/package.nix { };
           acpi-ssdt-stealth = pkgs.callPackage ./acpi/package.nix { };
           smbios-extract = pkgs.callPackage ./smbios/package.nix { };
+          smbios-stealth-tables = pkgs.callPackage ./smbios/tables-package.nix { };
         }
       );
 
@@ -55,6 +56,7 @@
         ovmf-stealth = self.packages.${final.system}.ovmf-stealth;
         acpi-ssdt-stealth = self.packages.${final.system}.acpi-ssdt-stealth;
         smbios-extract = self.packages.${final.system}.smbios-extract;
+        smbios-stealth-tables = self.packages.${final.system}.smbios-stealth-tables;
       };
 
       nixosModules.default = import ./module.nix;

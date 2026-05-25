@@ -52,7 +52,8 @@
       arch/x86/kvm/svm/svm.c
     echo "[OK] svm.c: cleared RDTSC/RDTSCP interception in init_vmcb"
   else
-    echo "[WARN] svm.c: could not find INTERCEPT_RSM anchor for clearing RDTSC"
+    echo "[FAIL] svm.c: could not find INTERCEPT_RSM anchor for clearing RDTSC"
+    exit 1
   fi
 
   echo "=== CPUID Spoofing: patch complete ==="
