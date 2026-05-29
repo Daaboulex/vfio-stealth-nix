@@ -3,10 +3,17 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
     git-hooks = {
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    std = {
+      url = "github:Daaboulex/nix-packaging-standard?ref=v2.2.3";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.git-hooks.follows = "git-hooks";
+    };
+
     autovirt = {
       url = "github:Scrut1ny/AutoVirt";
       flake = false;
@@ -18,81 +25,40 @@
   };
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      git-hooks,
-      autovirt,
-      better-timing,
-    }:
-    let
-      supportedSystems = [ "x86_64-linux" ];
-      forAllSystems =
-        fn:
-        nixpkgs.lib.genAttrs supportedSystems (
-          system:
-          fn {
-            pkgs = import nixpkgs { localSystem.system = system; };
-            inherit system;
-          }
-        );
-    in
-    {
-      packages = forAllSystems (
-        { pkgs, ... }:
-        {
-          default = pkgs.callPackage ./qemu/package.nix { inherit autovirt; };
-          ovmf-stealth = pkgs.callPackage ./ovmf/package.nix { };
-          acpi-ssdt-stealth = pkgs.callPackage ./acpi/package.nix { };
-          smbios-extract = pkgs.callPackage ./smbios/package.nix { };
-          smbios-stealth-tables = pkgs.callPackage ./smbios/tables-package.nix { };
-        }
-      );
+    inputs@{ flake-parts, self, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [ "x86_64-linux" ];
 
-      # Consumers can customize hardware strings:
-      # pkgs.qemu-stealth.override { edidManufacturer = "DEL"; diskModel = "..."; }
-      overlays.default = final: prev: {
-        qemu-stealth = self.packages.${final.system}.default;
-        ovmf-stealth = self.packages.${final.system}.ovmf-stealth;
-        acpi-ssdt-stealth = self.packages.${final.system}.acpi-ssdt-stealth;
-        smbios-extract = self.packages.${final.system}.smbios-extract;
-        smbios-stealth-tables = self.packages.${final.system}.smbios-stealth-tables;
+      imports = [ inputs.std.flakeModules.base ];
+
+      flake.overlays.default = final: _prev: {
+        qemu-stealth = self.packages.${final.stdenv.hostPlatform.system}.default;
+        ovmf-stealth = self.packages.${final.stdenv.hostPlatform.system}.ovmf-stealth;
+        acpi-ssdt-stealth = self.packages.${final.stdenv.hostPlatform.system}.acpi-ssdt-stealth;
+        smbios-extract = self.packages.${final.stdenv.hostPlatform.system}.smbios-extract;
+        smbios-stealth-tables = self.packages.${final.stdenv.hostPlatform.system}.smbios-stealth-tables;
       };
 
-      nixosModules.default = import ./module.nix;
+      flake.nixosModules.default = import ./module.nix;
 
-      lib = import ./lib.nix { inherit (nixpkgs) lib; };
+      flake.lib = import ./lib.nix { inherit (inputs.nixpkgs) lib; };
 
-      formatter = forAllSystems ({ pkgs, ... }: pkgs.nixfmt);
-
-      checks = forAllSystems (
-        { system, ... }:
+      perSystem =
+        { pkgs, ... }:
         {
-          pre-commit-check = git-hooks.lib.${system}.run {
-            src = self;
-            hooks.nixfmt-rfc-style.enable = true;
-            hooks.typos.enable = true;
-            hooks.rumdl.enable = true;
-            hooks.check-readme-sections = {
-              enable = true;
-              name = "check-readme-sections";
-              entry = "bash scripts/check-readme-sections.sh";
-              files = "README\.md$";
-              language = "system";
-            };
-          };
-        }
-      );
+          packages.default = pkgs.callPackage ./qemu/package.nix { inherit (inputs) autovirt; };
+          packages.ovmf-stealth = pkgs.callPackage ./ovmf/package.nix { };
+          packages.acpi-ssdt-stealth = pkgs.callPackage ./acpi/package.nix { };
+          packages.smbios-extract = pkgs.callPackage ./smbios/package.nix { };
+          packages.smbios-stealth-tables = pkgs.callPackage ./smbios/tables-package.nix { };
 
-      devShells = forAllSystems (
-        { pkgs, system }:
-        {
-          default = pkgs.mkShell {
-            inherit (self.checks.${system}.pre-commit-check) shellHook;
-            buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
-            packages = with pkgs; [ nil ];
+          checks.module-eval-nixos = inputs.std.lib.nixosModuleCheck {
+            inherit (inputs) nixpkgs;
+            inherit (pkgs.stdenv.hostPlatform) system;
+            overlays = [ self.overlays.default ];
+            module = ./module.nix;
+            config.myModules.vfio.stealth.enable = true;
           };
-        }
-      );
+        };
     };
 }
