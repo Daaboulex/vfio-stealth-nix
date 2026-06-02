@@ -61,4 +61,21 @@ jobs:
           fi
           # Substitution (cache.nixos.org) reuses every unmodified path for free;
           # --skip-cached builds ONLY what no substituter already has.
-          nix run nixpkgs#nix-fast-build -- --skip-cached --no-nom --flake ".#checks.$SYS"
+          build() {
+            nix run nixpkgs#nix-fast-build -- --skip-cached --no-nom --flake ".#checks.$SYS" 2>&1 | tee /tmp/build.log
+            return "${PIPESTATUS[0]}"
+          }
+          # A genuine compile failure fails fast. Transient EXTERNAL-fetch failures
+          # — crates.io rate-limiting bulk crate pulls (403/429), or a registry/CDN
+          # blip — are retried ONCE after a backoff so the rate-limit window passes.
+          # The marker grep keeps real build bugs from being silently retried.
+          if ! build; then
+            if grep -qiE 'crates\.io|error: cannot download|status code: (403|429)|curl: \(|couldn.t resolve host|connection reset by peer|temporary failure in name resolution|operation timed out' /tmp/build.log; then
+              echo "::warning::Transient external-fetch failure (likely crates.io rate-limit); retrying once in 60s."
+              sleep 60
+              build || { echo "::error::Build failed after transient-fetch retry."; exit 1; }
+            else
+              echo "::error::Build failed (no transient-fetch marker — not retrying)."
+              exit 1
+            fi
+          fi
