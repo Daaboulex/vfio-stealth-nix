@@ -45,6 +45,10 @@
           };
           runtime.state = true;
           reset.state = true;
+          vendor_id = {
+            state = true;
+            value = hypervVendorId;
+          };
           frequencies.state = true;
           reenlightenment.state = true;
           tlbflush.state = true;
