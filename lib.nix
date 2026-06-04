@@ -25,11 +25,11 @@
           name = "hypervisor";
         }
         {
-          policy = "require";
+          policy = "optional";
           name = "topoext";
         }
         {
-          policy = "require";
+          policy = "optional";
           name = "invtsc";
         }
       ];
@@ -43,18 +43,8 @@
             state = true;
             retries = 8191;
           };
-          vpindex.state = true;
           runtime.state = true;
-          synic.state = true;
-          stimer = {
-            state = true;
-            direct.state = true;
-          };
           reset.state = true;
-          vendor_id = {
-            state = true;
-            value = hypervVendorId;
-          };
           frequencies.state = true;
           reenlightenment.state = true;
           tlbflush.state = true;
