@@ -300,7 +300,7 @@
         # (already set above). When aperfMperf=false, omitted from -cpu.
         ++ [
           "-cpu"
-          ("kvm-pv-enforce-cpuid=on" + lib.optionalString aperfMperf ",aperfmperf=on")
+          ("host,kvm-pv-enforce-cpuid=on" + lib.optionalString aperfMperf ",aperfmperf=on")
         ];
 
       # Devices the consuming module should remove when stripVirtio is true.
