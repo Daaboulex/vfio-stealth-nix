@@ -178,11 +178,14 @@
         let
           acpiDir = "${acpiTables}/share/acpi";
           smbiosDir = "${smbiosTables}/share/smbios";
+          # QEMU QemuOpts parses -smbios values as comma-separated key=value
+          # pairs; a literal comma in a value must be doubled (,,) to escape it.
+          escapeSmbios = lib.replaceStrings [ "," ] [ ",," ];
         in
         # SMBIOS type 3 (chassis) — QEMU CLI arg works for this type
         [
           "-smbios"
-          "type=3,manufacturer=${smbios.manufacturer},version=1.0,serial=Default string,asset=Default string,sku=Default string"
+          "type=3,manufacturer=${escapeSmbios smbios.manufacturer},version=1.0,serial=Default string,asset=Default string,sku=Default string"
         ]
         # SMBIOS types 7, 26-29 — binary table injection via -smbios file=
         # QEMU's smbios_entry_add() only supports structured field parsing for
@@ -264,7 +267,7 @@
           "-global"
           "cpu.model-id=${cpuIdentity.modelId}"
           "-smbios"
-          "type=4,sock_pfx=${smbios.socketPrefix},manufacturer=Advanced Micro Devices\\, Inc.,version=${cpuIdentity.modelId}${
+          "type=4,sock_pfx=${smbios.socketPrefix},manufacturer=${escapeSmbios "Advanced Micro Devices, Inc."},version=${escapeSmbios cpuIdentity.modelId}${
             lib.optionalString (cpuIdentity.maxSpeed != null) ",max-speed=${toString cpuIdentity.maxSpeed}"
           }${
             lib.optionalString (
@@ -275,17 +278,17 @@
         # SMBIOS type 17 (physical memory / DIMMs)
         ++ lib.concatMap (i: [
           "-smbios"
-          "type=17,loc_pfx=DIMM_,bank=BANK ${toString i},speed=${toString smbios.memory.speed},part=${smbios.memory.partNumber},serial=0000000${toString i},manufacturer=${smbios.memory.manufacturer}"
+          "type=17,loc_pfx=DIMM_,bank=BANK ${toString i},speed=${toString smbios.memory.speed},part=${escapeSmbios smbios.memory.partNumber},serial=0000000${toString i},manufacturer=${escapeSmbios smbios.memory.manufacturer}"
         ]) (lib.range 0 (smbios.memory.count - 1))
         # SMBIOS type 11 (OEM strings) — prevents empty Win32_ComputerSystem.OEMStringArray
         ++ [
           "-smbios"
-          ("type=11" + lib.concatMapStrings (s: ",value=${s}") smbios.oemStrings)
+          ("type=11" + lib.concatMapStrings (s: ",value=${escapeSmbios s}") smbios.oemStrings)
         ]
         # SMBIOS type 41 (onboard devices extended) — prevents empty Win32_OnBoardDevice
         ++ lib.concatMap (dev: [
           "-smbios"
-          "type=41,designation=${dev.designation},kind=${dev.kind},instance=${toString dev.instance}"
+          "type=41,designation=${escapeSmbios dev.designation},kind=${escapeSmbios dev.kind},instance=${toString dev.instance}"
         ]) smbios.onboardDevices
         # KVM paravirt MSR enforcement + APERF/MPERF passthrough.
         # Property-only form appends to libvirt's existing -cpu host
