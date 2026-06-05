@@ -2,5 +2,7 @@
 # ACI = ASUS Computer International (3-letter EDID manufacturer code)
 ACI = "ACI"
 aci = "aci"
+# MCH = Memory Controller Hub (Intel Q35 chipset component)
+MCH = "MCH"
 # "ths" appears in "10ths" (tenths)
 ths = "ths"

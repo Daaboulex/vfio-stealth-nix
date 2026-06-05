@@ -40,15 +40,15 @@ let
           'INF MdeModulePkg/Logo/LogoDxe.inf' \
           '# stripped: LogoDxe' || true
 
-      # fw_cfg probe signature (4 bytes): match the QEMU-side change
-      # ("QEMU" -> "AMDK") so OVMF's QemuFwCfgLib recognizes the device.
-      # OVMF detects DMA availability via the FW_CFG_F_DMA version bit, not
-      # the 8-byte DMA signature, so only the 4-byte probe needs patching.
-      for f in OvmfPkg/Library/QemuFwCfgLib/*.c; do
-        if [ -f "$f" ]; then
-          sed -i "s/SIGNATURE_32 *( *'Q' *, *'E' *, *'M' *, *'U' *)/SIGNATURE_32 ('A', 'M', 'D', 'K')/g" "$f"
-        fi
-      done
+      # Revert AutoVirt's Q35 MCH device ID change (0x14d8 -> 0x29C0).
+      # With 0x14d8, OVMF enters the Q35-specific PEI init path which
+      # hits a fatal assertion. With 0x29C0, OVMF does not recognize
+      # the AutoVirt-patched MCH and uses generic platform init instead.
+      # Proven functional: stock QEMU 10.2.2 (MCH=0x29c0 vs OVMF=0x14d8)
+      # boots identically — PCI enumerates, GPU passthrough works,
+      # Windows boots. The QEMU-side MCH remains 0x14d8 (stealth).
+      sed -i 's/define INTEL_Q35_MCH_DEVICE_ID.*$/define INTEL_Q35_MCH_DEVICE_ID    0x29C0/' \
+        OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
     '';
   });
 in
