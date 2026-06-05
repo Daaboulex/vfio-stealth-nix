@@ -488,15 +488,18 @@ in
     internal = true;
     default = lib.optionalString (cfg.enable && cfg.tpm.harden) ''
       echo "=== libtpms identity patch: ${cfg.tpm.manufacturer} / ${cfg.tpm.model} ==="
-      if grep -q '"manufacturer":"id:00001014"' src/tpm_tpm2_interface.c; then
-        sed -i 's/"manufacturer":"id:00001014"/"manufacturer":"${cfg.tpm.manufacturer}"/g' src/tpm_tpm2_interface.c
+      # The C source uses backslash-escaped quotes inside string literals,
+      # so patterns must include the backslash.  grep -F treats the pattern
+      # as a fixed string; sed uses \\ to match a literal backslash.
+      if grep -Fq '\"manufacturer\":\"id:00001014\"' src/tpm_tpm2_interface.c; then
+        sed -i 's/\\"manufacturer\\":\\"id:00001014\\"/\\"manufacturer\\":\\"${cfg.tpm.manufacturer}\\"/g' src/tpm_tpm2_interface.c
         echo "[OK] libtpms: manufacturer patched to ${cfg.tpm.manufacturer}"
       else
         echo "[FAIL] libtpms: manufacturer anchor not found in tpm_tpm2_interface.c"
         exit 1
       fi
-      if grep -q '"model":"swtpm"' src/tpm_tpm2_interface.c; then
-        sed -i 's/"model":"swtpm"/"model":"${cfg.tpm.model}"/g' src/tpm_tpm2_interface.c
+      if grep -Fq '\"model\":\"swtpm\"' src/tpm_tpm2_interface.c; then
+        sed -i 's/\\"model\\":\\"swtpm\\"/\\"model\\":\\"${cfg.tpm.model}\\"/g' src/tpm_tpm2_interface.c
         echo "[OK] libtpms: model patched to ${cfg.tpm.model}"
       else
         echo "[FAIL] libtpms: model anchor not found in tpm_tpm2_interface.c"
