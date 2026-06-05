@@ -47,8 +47,17 @@ let
       # Proven functional: stock QEMU 10.2.2 (MCH=0x29c0 vs OVMF=0x14d8)
       # boots identically — PCI enumerates, GPU passthrough works,
       # Windows boots. The QEMU-side MCH remains 0x14d8 (stealth).
+      echo "=== Reverting MCH device ID in Q35MchIch9.h ==="
+      echo "Before: $(grep 'INTEL_Q35_MCH_DEVICE_ID' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h)"
       sed -i 's/define INTEL_Q35_MCH_DEVICE_ID.*$/define INTEL_Q35_MCH_DEVICE_ID    0x29C0/' \
         OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
+      echo "After:  $(grep 'INTEL_Q35_MCH_DEVICE_ID' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h)"
+      if ! grep -q 'INTEL_Q35_MCH_DEVICE_ID.*0x29C0' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
+        echo "FATAL: MCH device ID revert failed — INTEL_Q35_MCH_DEVICE_ID not set to 0x29C0"
+        echo "File contents:"
+        grep -n 'MCH_DEVICE_ID\|0x14[dD]8\|0x29[cC]0' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h || true
+        exit 1
+      fi
     '';
   });
 in
