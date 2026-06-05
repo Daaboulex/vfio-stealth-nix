@@ -1,5 +1,5 @@
 # vfio-stealth guest cleanup — run ONCE as Administrator in PowerShell
-# Removes QEMU/KVM/VirtIO registry artifacts that anti-cheat systems scan
+# Removes QEMU/KVM/VirtIO registry artifacts that game security software scans
 #
 # Usage: Right-click PowerShell -> Run as Administrator
 #   .\cleanup-registry.ps1

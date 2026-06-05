@@ -11,7 +11,7 @@ vfio-stealth-nix/
 ├── flake.nix                # packages, overlays.default, nixosModules.default
 ├── module.nix               # myModules.vfio.stealth.* options + assertions
 ├── lib.nix                  # libvirt domain rewriter (NixVirt int typing,
-│                            # vendor_id, kvm-hidden, fake-battery wiring)
+│                            # vendor_id, kvm-hidden, emulated-battery wiring)
 ├── qemu/
 │   └── package.nix          # qemu-stealth — patched QEMU + AutoVirt patches
 │                            # + EDID + ACPI OEM + disk/optical model overrides
@@ -20,7 +20,7 @@ vfio-stealth-nix/
 │                            # SMBIOS Type 0 VirtualMachine bit cleared,
 │                            # Red Hat PCI vendor IDs replaced
 ├── acpi/
-│   ├── spoofed-devices.dsl  # ACPI SSDT: fake EC, fan, thermal zone,
+│   ├── spoofed-devices.dsl  # ACPI SSDT: emulated EC, fan, thermal zone,
 │   │                        # power/sleep buttons, timers
 │   ├── sensor-probes.dsl    # CPU/VRM thermal zones + temperature probes
 │   ├── fake-battery.dsl     # Control Method Battery (PNP0C0A)
@@ -28,7 +28,7 @@ vfio-stealth-nix/
 ├── kernel/
 │   ├── timing-patch.nix     # BetterTiming TSC compensation
 │   │                        # → exposed via _kernelPostPatch
-│   ├── cpuid-patch.nix      # Hypervisor-Phantom CPUID leaf 0 spoof
+│   ├── cpuid-patch.nix      # Hypervisor-Phantom CPUID leaf 0 override
 │   │                        # → exposed via _kernelPostPatch
 │   └── cpuid-disable.nix    # Exit-less CPUID passthrough (AMD SVM)
 │                            # → exposed via _kernelPostPatch
@@ -59,17 +59,17 @@ vfio-stealth-nix/
 
 | Component | Option prefix | Detection vectors covered |
 |---|---|---|
-| `qemu-stealth` (qemu/package.nix) | build-time args (`edid*`, `disk*`, `optical*`, `acpiOem*`) — overlay or `callPackage` | EDID display identity, disk/optical model strings, disk serial, ACPI OEM IDs, fw_cfg 4-byte probe signature |
-| `ovmf-stealth` (ovmf/package.nix) | inherited via overlay — no module options | OVMF SMBIOS Type 0 (VirtualMachine bit), Red Hat PCI vendor IDs (1AF4/1B36→1022, 1234→1002), ACPI OEM fields, BGRT table (TianoCore CRC fingerprint) |
+| `qemu-stealth` (qemu/package.nix) | build-time args (`edid*`, `disk*`, `optical*`, `acpiOem*`) — overlay or `callPackage` | EDID display identity, disk/optical model strings, disk serial, ACPI OEM IDs, fw_cfg 4-byte probe |
+| `ovmf-stealth` (ovmf/package.nix) | inherited via overlay — no module options | OVMF SMBIOS Type 0 (VirtualMachine bit), Red Hat PCI vendor IDs (1AF4/1B36→1022, 1234→1002), ACPI OEM fields, BGRT table (TianoCore CRC identifier) |
 | `module.nix` `smbios.*` | `myModules.vfio.stealth.smbios.*` | SMBIOS Types 1, 2, 4, 7, 8, 9, 11, 17, 26, 27, 28, 29, 41 (system, baseboard incl. version/serial/asset/location, processor, cache, port connector, system slots, OEM strings, memory, voltage/cooling/temperature/current probes, onboard devices) |
 | `module.nix` `acpiSsdt.*` | `myModules.vfio.stealth.acpiSsdt.*` | ACPI SSDT (EC, fan, thermal zone with fluctuation, battery, buttons, timers) |
-| `module.nix` `kernel.*` (timing + cpuidSpoof + cpuidPassthrough) | `myModules.vfio.stealth.{timing,cpuidSpoof,cpuidPassthrough}.*` | RDTSC/RDTSCP timing, CPUID vendor string + hypervisor bit, CPUID interception timing |
+| `module.nix` `kernel.*` (timing + cpuidSpoof + cpuidPassthrough) | `myModules.vfio.stealth.{timing,cpuidSpoof,cpuidPassthrough}.*` | RDTSC/RDTSCP timing, CPUID vendor string + hypervisor bit, CPUID execution timing |
 | `module.nix` `kernelParams.*` | `myModules.vfio.stealth.kernelParams.{maxCState,tscReliable}` | TSC stability, TSC source selection, SVM params (kvm_amd.vls=0, kvm_amd.vgif=0) |
-| `module.nix` `aperfMperf` | `myModules.vfio.stealth.aperfMperf` | IA32_APERF/MPERF MSR passthrough (defeats IET) |
-| `module.nix` `stripVirtio` / `spoofMac` / `macPrefix` | top-level toggles | VirtIO PCI vendor ID, MAC OUI (default: D8:BB:C1, Realtek) |
-| `lib.nix` (libvirt rewriter) | applied to `services.virtualisation.vms.<name>` | KVM hidden bit, Hyper-V vendor_id spoof, fake-battery wiring, HPET present=true, KVM MSR enforce (kvm-pv-enforce-cpuid=on), hypercall patching disable |
-| `acpi/*.dsl` | compiled AML embedded in `acpi-ssdt-stealth` | ACPI SSDT runtime fingerprints |
-| `smbios-extract` (smbios/package.nix) | CLI tool, not a module option | Host SMBIOS dump for VM injection |
+| `module.nix` `aperfMperf` | `myModules.vfio.stealth.aperfMperf` | IA32_APERF/MPERF MSR passthrough (covers IET) |
+| `module.nix` `stripVirtio` / `spoofMac` / `macPrefix` | top-level toggles | VirtIO PCI vendor ID, MAC OUI customization (default: D8:BB:C1, Realtek) |
+| `lib.nix` (libvirt rewriter) | applied to `services.virtualisation.vms.<name>` | KVM hidden bit, Hyper-V vendor_id override, emulated-battery wiring, HPET present=true, KVM MSR enforce (kvm-pv-enforce-cpuid=on), hypercall patching disable |
+| `acpi/*.dsl` | compiled AML embedded in `acpi-ssdt-stealth` | ACPI SSDT runtime indicators |
+| `smbios-extract` (smbios/package.nix) | CLI tool, not a module option | Host SMBIOS dump for VM identity customization |
 | `smbios-stealth-tables` (smbios/tables-package.nix) | build-time args (`cacheL1`, `cacheL2`, `cacheL3`) | SMBIOS Types 7, 26, 27, 28, 29 (cache, probes — binary injection via `-smbios file=`) |
 
 ## Kernel-integration layering
@@ -91,10 +91,10 @@ separate patch sets compose into this single hook:
    - Disables KVM hypercall instruction patching (forces `#UD` on
      VMCALL/VMMCALL instead of `#PF`, matching bare-metal behavior)
 
-2. **CPUID spoofing** (`kernel/cpuid-patch.nix`) — Hypervisor-Phantom
+2. **CPUID emulation** (`kernel/cpuid-patch.nix`) — Hypervisor-Phantom
    - Intercepts CPUID leaf 0 inside `svm_vcpu_run` after
      `svm_vcpu_enter_exit` returns
-   - Spoofs vendor string to `AuthenticAMD` with max leaf `0x20`
+   - Overrides vendor string to `AuthenticAMD` with max leaf `0x20`
    - Advances RIP and re-enters guest via `goto reenter_guest_fast`
      (no full VM exit)
    - Clears RDTSC/RDTSCP interception bits (BetterTiming re-enables

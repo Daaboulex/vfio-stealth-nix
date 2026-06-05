@@ -1,5 +1,5 @@
 /*
- * sensor-probes.dsl — Additional sensor probes for anti-detection.
+ * sensor-probes.dsl — Additional sensor probes for hardware emulation.
  *
  * Populates WMI classes that are empty in default QEMU VMs:
  * - MSAcpi_ThermalZoneTemperature (via additional thermal zone)

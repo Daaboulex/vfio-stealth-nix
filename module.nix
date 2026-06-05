@@ -16,17 +16,17 @@ in
   _class = "nixos";
 
   options.myModules.vfio.stealth = {
-    enable = lib.mkEnableOption "VFIO stealth anti-detection stack";
+    enable = lib.mkEnableOption "VFIO hardware emulation stack";
 
     # --- Kernel-level patches ---
-    # These compile directly into the host kernel to defeat low-level
-    # hypervisor detection (timing side-channels, CPUID enumeration).
+    # These compile directly into the host kernel to handle low-level
+    # hypervisor indicators (timing side-channels, CPUID enumeration).
 
     timing = {
       enable = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "BetterTiming TSC compensation (hides VM exit timing from guests). Defeats timing-based VM detection that measures RDTSC deltas across CPUID/VMCALL.";
+        description = "BetterTiming TSC compensation (hides VM exit timing from guests). Compensates RDTSC timing deltas from VM exits across CPUID/VMCALL.";
       };
     };
 
@@ -34,7 +34,7 @@ in
       enable = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "CPUID leaf 0 spoofing via Hypervisor-Phantom technique. Defeats anti-cheat that checks the hypervisor-present CPUID bit (leaf 1, bit 31) and hypervisor vendor string (leaf 0x40000000). Skipped when cpuidPassthrough.enable is true.";
+        description = "CPUID leaf 0 emulation via Hypervisor-Phantom technique. Covers the hypervisor-present CPUID bit (leaf 1, bit 31) and hypervisor vendor string (leaf 0x40000000). Skipped when cpuidPassthrough.enable is true.";
       };
     };
 
@@ -42,7 +42,7 @@ in
       enable = lib.mkOption {
         type = lib.types.bool;
         default = false;
-        description = "Disable CPUID interception entirely. Guest executes CPUID at native hardware speed (zero VM exit). Defeats software-counter timing attacks (VMAware TIMER 95pts, SINGLE_STEP 100pts). Requires AMD host with host-passthrough CPU mode. When enabled, cpuidSpoof is skipped (passthrough takes precedence). Side effect: Hyper-V enlightenments are invisible to guest (Windows uses TSC directly).";
+        description = "Disable CPUID interception entirely. Guest executes CPUID at native hardware speed (zero VM exit). Addresses software-counter timing checks (VMAware TIMER 95pts, SINGLE_STEP 100pts). Requires AMD host with host-passthrough CPU mode. When enabled, cpuidSpoof is skipped (passthrough takes precedence). Side effect: Hyper-V enlightenments are invisible to guest (Windows uses TSC directly).";
       };
     };
 
@@ -59,40 +59,40 @@ in
       tscReliable = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "Pass tsc=reliable on the kernel command line. Prevents kernel from falling back to HPET/ACPI PM timer, which anti-cheat can detect.";
+        description = "Pass tsc=reliable on the kernel command line. Prevents kernel from falling back to HPET/ACPI PM timer, which detection software can flag.";
       };
     };
 
     # --- SMBIOS identity ---
-    # Populates DMI/SMBIOS tables so the guest looks like real hardware.
-    # Anti-cheat queries Win32_BaseBoard, Win32_BIOS, Win32_ComputerSystem,
+    # Populates DMI/SMBIOS tables so the guest presents realistic hardware values.
+    # Detection software queries Win32_BaseBoard, Win32_BIOS, Win32_ComputerSystem,
     # Win32_PhysicalMemory, and Win32_CacheMemory via WMI.
 
     smbios = {
       manufacturer = lib.mkOption {
         type = lib.types.str;
         default = "To Be Filled By O.E.M.";
-        description = "SMBIOS system manufacturer string. Defeats WMI Win32_ComputerSystem.Manufacturer checks.";
+        description = "SMBIOS system manufacturer string. Populates WMI Win32_ComputerSystem.Manufacturer.";
       };
       product = lib.mkOption {
         type = lib.types.str;
         default = "To Be Filled By O.E.M.";
-        description = "SMBIOS product name string. Defeats WMI Win32_ComputerSystem.Model checks.";
+        description = "SMBIOS product name string. Populates WMI Win32_ComputerSystem.Model.";
       };
       biosVendor = lib.mkOption {
         type = lib.types.str;
         default = "American Megatrends Inc.";
-        description = "SMBIOS BIOS vendor string. Defeats WMI Win32_BIOS.Manufacturer checks.";
+        description = "SMBIOS BIOS vendor string. Populates WMI Win32_BIOS.Manufacturer.";
       };
       biosVersion = lib.mkOption {
         type = lib.types.str;
         default = "1001";
-        description = "SMBIOS BIOS version string. Defeats WMI Win32_BIOS.SMBIOSBIOSVersion checks.";
+        description = "SMBIOS BIOS version string. Populates WMI Win32_BIOS.SMBIOSBIOSVersion.";
       };
       biosDate = lib.mkOption {
         type = lib.types.str;
         default = "01/01/2025";
-        description = "BIOS release date (MM/DD/YYYY format). Defeats Win32_BIOS.ReleaseDate checks. OVMF defaults to 02/02/2022 which is a generic VM date. Set to your board's actual BIOS date.";
+        description = "BIOS release date (MM/DD/YYYY format). Populates Win32_BIOS.ReleaseDate. OVMF defaults to 02/02/2022 which is a generic VM date. Set to your board's actual BIOS date.";
       };
       biosRelease = lib.mkOption {
         type = lib.types.str;
@@ -102,12 +102,12 @@ in
       serial = lib.mkOption {
         type = lib.types.str;
         default = "System Serial Number";
-        description = "SMBIOS system serial number. Defeats WMI Win32_ComputerSystemProduct.IdentifyingNumber checks.";
+        description = "SMBIOS system serial number. Populates WMI Win32_ComputerSystemProduct.IdentifyingNumber.";
       };
       baseBoardVersion = lib.mkOption {
         type = lib.types.str;
         default = "Rev 1.xx";
-        description = "Baseboard version string (SMBIOS Type 2). Defeats Win32_BaseBoard.Version checks.";
+        description = "Baseboard version string (SMBIOS Type 2). Populates Win32_BaseBoard.Version.";
       };
       baseBoardSerial = lib.mkOption {
         type = lib.types.str;
@@ -127,7 +127,7 @@ in
       socketPrefix = lib.mkOption {
         type = lib.types.str;
         default = "AM5";
-        description = "SMBIOS processor socket designator prefix (type 4). Defeats WMI Win32_Processor.SocketDesignation checks.";
+        description = "SMBIOS processor socket designator prefix (type 4). Populates WMI Win32_Processor.SocketDesignation.";
       };
 
       # SMBIOS type 17 — physical memory / DIMMs.
@@ -136,17 +136,17 @@ in
         manufacturer = lib.mkOption {
           type = lib.types.str;
           default = "Unknown";
-          description = "DIMM manufacturer for SMBIOS type 17. Defeats WMI Win32_PhysicalMemory.Manufacturer checks. Set to your real RAM vendor.";
+          description = "DIMM manufacturer for SMBIOS type 17. Populates WMI Win32_PhysicalMemory.Manufacturer. Set to your real RAM vendor.";
         };
         partNumber = lib.mkOption {
           type = lib.types.str;
           default = "Unknown";
-          description = "DIMM part number. Defeats WMI Win32_PhysicalMemory.PartNumber checks. Set to your real DIMM part number.";
+          description = "DIMM part number. Populates WMI Win32_PhysicalMemory.PartNumber. Set to your real DIMM part number.";
         };
         speed = lib.mkOption {
           type = lib.types.int;
           default = 4800;
-          description = "Memory speed in MT/s. Defeats WMI Win32_PhysicalMemory.Speed checks.";
+          description = "Memory speed in MT/s. Populates WMI Win32_PhysicalMemory.Speed.";
         };
         size = lib.mkOption {
           type = lib.types.int;
@@ -227,34 +227,34 @@ in
     };
 
     # --- MSR passthrough ---
-    # Defeats instruction-execution-timing (IET) VM detection that reads
+    # Addresses instruction-execution-timing (IET) checks that read
     # IA32_APERF/MPERF MSRs to measure actual vs. requested CPU frequency.
     # VMs normally trap these, adding measurable latency.
 
     aperfMperf = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Pass through IA32_APERF/MPERF MSRs to guest (defeats IET-based VM detection). Requires kernel 6.18+.";
+      description = "Pass through IA32_APERF/MPERF MSRs to guest (addresses IET-based VM indicators). Requires kernel 6.18+.";
     };
 
     # --- Network identity ---
-    # Anti-cheat checks the NIC MAC OUI prefix. QEMU's default 52:54:00
-    # is a well-known KVM fingerprint.
+    # Detection software checks the NIC MAC OUI prefix. QEMU's default 52:54:00
+    # is a well-known KVM identifier.
 
     spoofMac = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Spoof guest NIC MAC address with a realistic OUI prefix. Defeats MAC OUI-based VM detection.";
+      description = "Override guest NIC MAC address with a realistic OUI prefix. Covers MAC OUI-based VM indicators.";
     };
 
     macPrefix = lib.mkOption {
       type = lib.types.str;
       default = "D8:BB:C1";
-      description = "OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard LAN.";
+      description = "OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard NIC.";
     };
 
     # --- Hyper-V vendor_id ---
-    # The vendor_id exposed via Hyper-V enlightenments. Anti-cheat may flag
+    # The vendor_id exposed via Hyper-V enlightenments. Detection software may flag
     # well-known VM values like "AMDisbetter!" or "Microsoft Hv".
 
     hypervVendorId = lib.mkOption {
@@ -269,44 +269,44 @@ in
         "hidden"
       ];
       default = "enlightened";
-      description = "Hyper-V enlightenment strategy for stealth VMs. \"enlightened\" exposes the hypervisor + full Hyper-V enlightenments (paravirt perf; blends in with VBS-enabled Windows 11). \"hidden\" conceals the hypervisor and emits no enlightenments. Per-VM overridable via vms.<name>.hypervMode";
+      description = "Hyper-V enlightenment strategy for hardened VMs. \"enlightened\" exposes the hypervisor + full Hyper-V enlightenments (paravirt perf; blends in with VBS-enabled Windows 11). \"hidden\" conceals the hypervisor and emits no enlightenments. Per-VM overridable via vms.<name>.hypervMode";
     };
 
     # --- VirtIO device stripping ---
-    # VirtIO PCI vendor/device IDs (1af4:10xx) are trivially fingerprinted.
+    # VirtIO PCI vendor/device IDs (1af4:10xx) are well-known VM indicators.
 
     stripVirtio = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Remove VirtIO balloon, RNG, and tablet devices from VM config when stealth is enabled. Defeats PCI device enumeration checks.";
+      description = "Remove VirtIO balloon, RNG, and tablet devices from VM config when hardware emulation is enabled. Covers PCI device enumeration checks.";
     };
 
     # --- ACPI SSDT tables ---
-    # Injects fake ACPI devices (USB controllers, embedded controllers,
-    # battery) so the ACPI namespace looks like a real motherboard.
+    # Injects emulated ACPI devices (USB controllers, embedded controllers,
+    # battery) so the ACPI namespace presents realistic hardware entries.
     # Empty ACPI namespace is a strong VM indicator.
 
     acpiSsdt = {
       spoofedDevices = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "Include spoofed ACPI device entries in the SSDT table. Defeats ACPI namespace enumeration checks.";
+        description = "Include emulated ACPI device entries in the SSDT table. Covers ACPI namespace enumeration checks.";
       };
       fakeBattery = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "Include a fake ACPI battery device in the SSDT table. Defeats 'no battery = server/VM' heuristic.";
+        description = "Include an emulated ACPI battery device in the SSDT table. Covers the 'no battery = server/VM' heuristic.";
       };
       sensorProbes = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "Include CPU and VRM thermal zone probes (defeats MSAcpi_ThermalZoneTemperature WMI detection).";
+        description = "Include CPU and VRM thermal zone probes (covers MSAcpi_ThermalZoneTemperature WMI checks).";
       };
     };
 
     # --- EDID monitor identity ---
     # QEMU's default EDID exposes generic/patched monitor strings.
-    # Anti-cheat can query the monitor EDID blob via SetupAPI/WMI and
+    # Detection software can query the monitor EDID blob via SetupAPI/WMI and
     # flag non-existent manufacturer/model combinations.
 
     edid = {
@@ -353,46 +353,46 @@ in
     };
 
     # --- Disk model strings ---
-    # QEMU/IDE exposes default drive model strings that anti-cheat
+    # QEMU/IDE exposes default drive model strings that detection software
     # cross-references against known virtual disk identifiers.
 
     disk = {
       model = lib.mkOption {
         type = lib.types.str;
         default = "WDC WD10EZEX-00WN4A0     ";
-        description = "Emulated disk model string (25 chars, space-padded). Defeats Win32_DiskDrive.Model checks. Set to your real disk model.";
+        description = "Emulated disk model string (25 chars, space-padded). Populates Win32_DiskDrive.Model. Set to your real disk model.";
       };
       serial = lib.mkOption {
         type = lib.types.str;
         default = "Default string";
-        description = "IDE/SCSI disk serial string. Defeats Win32_DiskDrive.SerialNumber checks. Set to your real disk serial from smartctl.";
+        description = "IDE/SCSI disk serial string. Populates Win32_DiskDrive.SerialNumber. Set to your real disk serial from smartctl.";
       };
       opticalModel = lib.mkOption {
         type = lib.types.str;
         default = "HL-DT-ST DVDRAM GH24NSC0 ";
-        description = "Emulated optical drive model (25 chars, space-padded). Defeats Win32_CDROMDrive.Name checks.";
+        description = "Emulated optical drive model (25 chars, space-padded). Populates Win32_CDROMDrive.Name.";
       };
     };
 
     # --- ACPI OEM identity ---
     # QEMU's default ACPI tables use "BOCHS"/"BXPC" as OEM ID/Table ID.
-    # Anti-cheat scans raw ACPI table headers for these known VM strings.
+    # Detection software scans raw ACPI table headers for these known VM strings.
 
     acpiOem = {
       id = lib.mkOption {
         type = lib.types.str;
         default = "ALASKA";
-        description = "6-char ACPI OEM ID (padded with spaces). Defeats ACPI table header OEM ID checks.";
+        description = "6-char ACPI OEM ID (padded with spaces). Populates ACPI table header OEM ID field.";
       };
       tableId = lib.mkOption {
         type = lib.types.str;
         default = "A M I   ";
-        description = "8-char ACPI OEM Table ID (padded with spaces). Defeats ACPI table header OEM Table ID checks.";
+        description = "8-char ACPI OEM Table ID (padded with spaces). Populates ACPI table header OEM Table ID field.";
       };
     };
 
     # --- CPU identity ---
-    # Anti-cheat queries SMBIOS type 4 and CPUID brand string.
+    # Detection software queries SMBIOS type 4 and CPUID brand string.
     # Mismatched or missing CPU identity is a VM indicator.
 
     cpuIdentity = {
@@ -414,8 +414,8 @@ in
     };
 
     # --- TPM identity hardening ---
-    # swtpm defaults report manufacturer=IBM, model=swtpm — trivially
-    # fingerprinted via Win32_Tpm WMI class and Get-Tpm PowerShell cmdlet.
+    # swtpm defaults report manufacturer=IBM, model=swtpm — easily
+    # identified via Win32_Tpm WMI class and Get-Tpm PowerShell cmdlet.
 
     tpm = {
       harden = lib.mkOption {
@@ -459,8 +459,8 @@ in
 
     boot.kernelParams = [
       "processor.max_cstate=${toString cfg.kernelParams.maxCState}"
-      "kvm_amd.vls=0" # Force VMLOAD/VMSAVE interception (prevents SVM instruction fingerprint)
-      "kvm_amd.vgif=0" # Force STGI/CLGI interception (prevents vGIF behavior fingerprint)
+      "kvm_amd.vls=0" # Force VMLOAD/VMSAVE interception (prevents SVM instruction indicator)
+      "kvm_amd.vgif=0" # Force STGI/CLGI interception (prevents vGIF behavior indicator)
     ]
     ++ lib.optionals cfg.kernelParams.tscReliable [ "tsc=reliable" ];
 

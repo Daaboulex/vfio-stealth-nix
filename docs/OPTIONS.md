@@ -13,20 +13,20 @@ README is the canonical home, this page is the deep-link target.
 
 | Option | Type | Default | Description | Detection vector |
 |---|---|---|---|---|
-| `enable` | `bool` | `false` | Enable the VFIO stealth anti-detection stack | -- |
-| `stripVirtio` | `bool` | `true` | Remove VirtIO balloon, RNG, tablet devices from VM config | VirtIO PCI vendor ID fingerprinting |
-| `spoofMac` | `bool` | `true` | Spoof guest NIC MAC address with a realistic OUI prefix | MAC OUI reveals VM NIC vendor |
-| `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for spoofed MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
+| `enable` | `bool` | `false` | Enable the VFIO stealth hardware emulation stack | -- |
+| `stripVirtio` | `bool` | `true` | Remove VirtIO balloon, RNG, tablet devices from VM config | VirtIO PCI vendor ID identification |
+| `spoofMac` | `bool` | `true` | Override guest NIC MAC address with a realistic OUI prefix | MAC OUI reveals VM NIC vendor |
+| `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for overridden MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
 | `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
-| `hypervVendorId` | `str` (1-12 chars) | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv) | Hyper-V vendor_id fingerprinting |
+| `hypervVendorId` | `str` (1-12 chars) | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv) | Hyper-V vendor_id identification |
 
 ## Kernel
 
 | Option | Type | Default | Description | Detection vector |
 |---|---|---|---|---|
 | `timing.enable` | `bool` | `true` | Apply BetterTiming TSC compensation kernel patch | RDTSC/RDTSCP timing attacks |
-| `cpuidSpoof.enable` | `bool` | `true` | Apply CPUID leaf 0 spoof via Hypervisor-Phantom technique | CPUID vendor string + hypervisor bit |
-| `cpuidPassthrough.enable` | `bool` | `false` | Disable CPUID interception entirely — guest executes at native speed. Defeats TIMER + SINGLE_STEP. Requires AMD host-passthrough. When enabled, cpuidSpoof is skipped. | RDTSC software-counter timing, #DB exception timing |
+| `cpuidSpoof.enable` | `bool` | `true` | Apply CPUID leaf 0 override via Hypervisor-Phantom technique | CPUID vendor string + hypervisor bit |
+| `cpuidPassthrough.enable` | `bool` | `false` | Disable CPUID interception entirely — guest executes at native speed. Handles TIMER + SINGLE_STEP. Requires AMD host-passthrough. When enabled, cpuidSpoof is skipped. | RDTSC software-counter timing, #DB exception timing |
 | `kernelParams.maxCState` | `int` | `1` | `processor.max_cstate` kernel parameter | TSC stability (deep C-states cause drift) |
 | `kernelParams.tscReliable` | `bool` | `true` | Pass `tsc=reliable` on kernel command line | TSC source selection |
 
@@ -61,8 +61,8 @@ README is the canonical home, this page is the deep-link target.
 
 | Option | Type | Default | Description | Detection vector |
 |---|---|---|---|---|
-| `acpiSsdt.spoofedDevices` | `bool` | `true` | Include EC, fan, thermal zone, power/sleep buttons, timers | Missing EC/fan/thermal = VM fingerprint |
-| `acpiSsdt.fakeBattery` | `bool` | `true` | Include fake ACPI battery (PNP0C0A) in SSDT | Missing battery flags VM detection |
+| `acpiSsdt.spoofedDevices` | `bool` | `true` | Include EC, fan, thermal zone, power/sleep buttons, timers | Missing EC/fan/thermal = VM indicator |
+| `acpiSsdt.fakeBattery` | `bool` | `true` | Include emulated ACPI battery (PNP0C0A) in SSDT | Missing battery is a VM indicator |
 | `acpiSsdt.sensorProbes` | `bool` | `true` | Include CPU + VRM thermal zones with Timer()-based dynamic fluctuation | Static/missing thermal data flags VM |
 
 ## Network
@@ -90,7 +90,7 @@ nixpkgs.overlays = [
 
 | Argument | Default | Description | Detection vector |
 |---|---|---|---|
-| `edidManufacturer` | `"ACI"` | 3-letter EDID manufacturer ID | Monitor manufacturer fingerprint |
+| `edidManufacturer` | `"ACI"` | 3-letter EDID manufacturer ID | Monitor manufacturer identifier |
 | `edidModelAbbrev` | `"ACI     "` | 8-char padded manufacturer abbreviation | EDID block manufacturer field |
 | `edidModel` | `"ASUS VG248      "` | 16-char padded monitor model string | EDID block model field |
 | `edidSerial` | `"VG248QE"` | Monitor serial string | EDID serial number |
@@ -118,4 +118,4 @@ nixpkgs.overlays = [
 
 | Attribute | Type | Description |
 |---|---|---|
-| `_kernelPostPatch` | shell-script string | Append to `boot.kernelPackages.kernel.overrideAttrs.postPatch` to apply BetterTiming + CPUID-spoof to the kernel build. See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §Kernel-integration layering for the full layering. |
+| `_kernelPostPatch` | shell-script string | Append to `boot.kernelPackages.kernel.overrideAttrs.postPatch` to apply BetterTiming + CPUID emulation to the kernel build. See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §Kernel-integration layering for the full layering. |

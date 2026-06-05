@@ -26,7 +26,7 @@ stdenvNoCC.mkDerivation {
   '';
 
   meta = {
-    description = "ACPI SSDT tables for VM anti-detection (fake EC, fan, thermal zone, battery)";
+    description = "ACPI SSDT tables for VM hardware emulation (emulated EC, fan, thermal zone, battery)";
     license = lib.licenses.gpl2Only;
     platforms = [ "x86_64-linux" ];
   };

@@ -1,5 +1,5 @@
 {
-  description = "VM anti-detection stack for NixOS — QEMU, OVMF, ACPI, SMBIOS, timing";
+  description = "VM hardware emulation stack for NixOS — QEMU, OVMF, ACPI, SMBIOS, timing";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -58,6 +58,19 @@
             overlays = [ self.overlays.default ];
             module = ./module.nix;
             config.myModules.vfio.stealth.enable = true;
+          };
+
+          checks.boot-smoke = pkgs.testers.runNixOSTest {
+            name = "qemu-stealth-boot-smoke";
+            nodes.machine =
+              { lib, ... }:
+              {
+                virtualisation.qemu.package = lib.mkForce self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+                virtualisation.useEFIBoot = true;
+              };
+            testScript = ''
+              machine.wait_for_unit("multi-user.target", timeout=300)
+            '';
           };
         };
     };

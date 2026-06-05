@@ -10,7 +10,7 @@
 # execution, so CPUID leaf 0xD returns XSAVE sizes consistent with
 # the guest's active XCR0. No XCR0 synchronization is needed.
 #
-# Defeats VMAware TIMER (95pts) and SINGLE_STEP (100pts) techniques:
+# Handles VMAware TIMER (95pts) and SINGLE_STEP (100pts) techniques:
 # both measure CPUID execution timing via software counters or #DB
 # traps. Without a VM exit, CPUID runs at native speed — identical
 # to bare metal.
@@ -23,7 +23,7 @@
 #   expose hypervisor). KVM MSR enforcement still works via
 #   kvm-pv-enforce-cpuid=on (uses internal CPUID table, not interception).
 # - The Hypervisor-Phantom patch (cpuid-patch.nix) becomes a no-op if
-#   both are applied — CPUID never exits, so the spoof never fires.
+#   both are applied — CPUID never exits, so the override never fires.
 #
 # Stability: init_vmcb sets intercepts once for non-nested operation.
 # Nested SVM (enter_svm_guest_mode) can re-set intercepts, but a
@@ -45,7 +45,7 @@
   # sed /a inserts in LIFO order — this clear lands closest to the anchor,
   # before timing-patch's RDTSC/RDTSCP sets (which is fine — they're independent).
   if grep -q 'svm_set_intercept(svm, INTERCEPT_RSM);' arch/x86/kvm/svm/svm.c; then
-    sed -i '/svm_set_intercept(svm, INTERCEPT_RSM);/a\\n\t/* CPUID passthrough: disable interception so guest reads hardware\n\t * CPUID at native speed. AuthenticAMD + no hypervisor bit natively.\n\t * Defeats timing-based VM detection (TIMER, SINGLE_STEP). */\n\tsvm_clr_intercept(svm, INTERCEPT_CPUID);' \
+    sed -i '/svm_set_intercept(svm, INTERCEPT_RSM);/a\\n\t/* CPUID passthrough: disable interception so guest reads hardware\n\t * CPUID at native speed. AuthenticAMD + no hypervisor bit natively.\n\t * Handles timing-based VM detection (TIMER, SINGLE_STEP). */\n\tsvm_clr_intercept(svm, INTERCEPT_CPUID);' \
       arch/x86/kvm/svm/svm.c
     echo "[OK] svm.c: cleared INTERCEPT_CPUID in init_vmcb (native CPUID execution)"
   else

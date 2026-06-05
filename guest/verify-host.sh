@@ -48,14 +48,14 @@ else
 fi
 
 # -----------------------------------------------------------------------
-# 2. CPUID spoofing patch — check for Hypervisor-Phantom marker
+# 2. CPUID emulation patch — check for Hypervisor-Phantom marker
 # -----------------------------------------------------------------------
 if grep -q "cpuid_leaf0_spoof" /proc/kallsyms 2>/dev/null; then
-    pass "CPUID spoof: cpuid_leaf0_spoof symbol found"
+    pass "CPUID override: cpuid_leaf0_spoof symbol found"
 elif grep -q "reenter_guest_fast" /proc/kallsyms 2>/dev/null; then
-    pass "CPUID spoof: reenter_guest_fast symbol found"
+    pass "CPUID override: reenter_guest_fast symbol found"
 else
-    warn "CPUID spoof: no Hypervisor-Phantom symbols in kallsyms"
+    warn "CPUID override: no Hypervisor-Phantom symbols in kallsyms"
 fi
 
 # -----------------------------------------------------------------------

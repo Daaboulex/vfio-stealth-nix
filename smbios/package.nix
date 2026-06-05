@@ -30,7 +30,7 @@ stdenvNoCC.mkDerivation {
   '';
 
   meta = {
-    description = "Dump and anonymize host SMBIOS tables for VM injection";
+    description = "Dump and anonymize host SMBIOS tables for VM identity customization";
     license = lib.licenses.gpl2Only;
     platforms = [ "x86_64-linux" ];
     mainProgram = "smbios-extract";

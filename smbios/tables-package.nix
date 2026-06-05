@@ -12,7 +12,7 @@ runCommand "smbios-stealth-tables"
     nativeBuildInputs = [ python3 ];
 
     meta = {
-      description = "Raw SMBIOS binary tables for VM anti-detection (cache, voltage, cooling, thermal, current)";
+      description = "Raw SMBIOS binary tables for VM hardware emulation (cache, voltage, cooling, thermal, current)";
       license = lib.licenses.gpl2Only;
       platforms = [ "x86_64-linux" ];
     };

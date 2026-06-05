@@ -57,22 +57,27 @@ ruleset — fix the violation and re-commit.
 
 ## Tests
 
-This repo's tests are eval-level. There is no live VM smoke test (would
-require KVM in CI), so the verification chain is:
+The verification chain is:
 
 ```text
-eval check   →   build all packages   →   ELF / AML sanity   →   ldd check on qemu-stealth
+eval check  →  build all packages  →  ELF / AML sanity  →  boot-smoke NixOS test
 ```
 
+The `boot-smoke` check (`checks.boot-smoke`) boots a NixOS VM with
+qemu-stealth + EFI firmware under TCG and waits for `multi-user.target`.
+This catches QEMU/OVMF regressions that cause firmware hangs (e.g., the
+QEMU 10.2.2 OVMF hang). It runs without KVM (TCG-only) so it works on
+standard CI runners.
+
 CI wires this in `.github/workflows/ci.yml`. Each step fails the job on
-non-zero exit. No "passing eval" without a clean build.
+non-zero exit. No "passing eval" without a clean build and a booting VM.
 
 ## Update contract — `scripts/update.sh`
 
 The update workflow tracks two upstreams:
 
 - [Scrut1ny/AutoVirt](https://github.com/Scrut1ny/AutoVirt) (QEMU AMD
-  patch + EDK2 anti-detection patches)
+  patch + EDK2 hardware emulation patches)
 - [SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming)
   (TSC compensation kernel patch reference)
 
@@ -89,9 +94,9 @@ Outputs (read by the workflow):
 - `updated`, `new_version`, `old_version`, `package_name`,
   `error_type`, `upstream_url`
 
-Verification chain is identical to CI's — eval → build → binary verify
-→ ldd check. **Never false-positive**: every step must pass before
-push to `main`.
+Verification chain: eval → build → ELF binary check on
+`qemu-system-x86_64`. **Never false-positive**: every step must pass
+before push to `main`.
 
 ## Troubleshooting
 
@@ -102,7 +107,7 @@ push to `main`.
 | `iasl` complains about ACPI SSDT compilation in `acpi-ssdt-stealth` | Outdated `iasl` (older than 20240927) | Bump nixpkgs input or `inputs.nixpkgs.follows = "nixpkgs";` to use the host's nixpkgs |
 | Guest still detected as VM despite `myModules.vfio.stealth.enable = true` | One of the kernel patches not applied | Confirm `boot.kernelPackages` is wired to a kernel built with `_kernelPostPatch` appended (see README §Kernel Integration) |
 | `services.virtualisation.vms.<vm>` rewrites missing `kvm-hidden` | `lib.nix` rewriter not applied | The module hooks into NixVirt; ensure `services.virtualisation.libvirt.swtpm.enable = true` and the VM is declared via NixVirt, not raw libvirt XML |
-| FACEIT / TPM-attesting anti-cheat still rejects | Software spoofing cannot defeat hardware-rooted attestation | See README §Known Limitations — there is no software-only fix |
+| FACEIT / TPM-attesting game security software still rejects | Software emulation cannot address hardware-rooted attestation | See README §Known Limitations — there is no software-only fix |
 
 For other issues, attach the failing nix log + the relevant module
 config snippet to a GitHub Issue.

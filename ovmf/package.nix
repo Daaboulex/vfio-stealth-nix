@@ -9,7 +9,7 @@ let
   # - Clears VirtualMachine bit in SMBIOS Type 0
   # - Replaces Red Hat PCI vendor IDs with AMD/Intel
   # - Renames VMM-prefixed variables
-  # - Spoofs ACPI OEM fields
+  # - Overrides ACPI OEM fields
   autovirtPatch = fetchurl {
     url = "https://raw.githubusercontent.com/Scrut1ny/Hypervisor-Phantom/bd326182066fccc10ffa4b98047981d1abf6383e/patches/EDK2/AMD-edk2-stable202602.patch";
     hash = "sha256-lNWxQFgkDNapoiLZ4XOFhYQi+t0WR9O3H6CrwPNLrCg=";
@@ -26,7 +26,7 @@ let
       substituteInPlace OvmfPkg/OvmfPkgX64.dsc \
         --replace-warn 'L"EDK II"' 'L"American Megatrends Inc."' || true
 
-      # Strip TianoCore boot logo + BGRT table (VMAware CRC fingerprint 0x110350C5)
+      # Strip TianoCore boot logo + BGRT table (VMAware CRC identifier 0x110350C5)
       # Many real desktops have no BGRT, so absence is normal.
       substituteInPlace OvmfPkg/OvmfPkgX64.dsc \
         --replace-warn \
@@ -51,6 +51,6 @@ in
   (old: {
     pname = "OVMF-stealth";
     meta = (old.meta or { }) // {
-      description = "OVMF firmware with AutoVirt anti-detection patches";
+      description = "OVMF firmware with AutoVirt hardware emulation patches";
     };
   })

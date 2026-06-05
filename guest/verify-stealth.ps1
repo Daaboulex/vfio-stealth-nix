@@ -1,4 +1,4 @@
-# vfio-stealth verification — checks 38 detection vectors from inside the Windows guest
+# vfio-stealth verification — checks 38 VM indicators from inside the Windows guest
 #
 # Usage: .\verify-stealth.ps1
 # Run inside the VM after applying host-side vfio-stealth-nix config + guest cleanup.
@@ -565,5 +565,5 @@ if ($failed -eq 0 -and $warned -eq 0 -and $skipped -eq 0) {
 } elseif ($failed -eq 0) {
     Write-Host "No failures, but warnings should be reviewed." -ForegroundColor Yellow
 } else {
-    Write-Host "Fix failures before running anti-cheat software." -ForegroundColor Red
+    Write-Host "Fix failures before running game security software." -ForegroundColor Red
 }
