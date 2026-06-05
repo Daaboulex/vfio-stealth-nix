@@ -19,6 +19,7 @@ README is the canonical home, this page is the deep-link target.
 | `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for overridden MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
 | `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
 | `hypervVendorId` | `str` (1-12 chars) | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv) | Hyper-V vendor_id identification |
+| `hypervMode` | `enum ["enlightened" "hidden"]` | `"enlightened"` | "enlightened" exposes hypervisor + full Hyper-V enlightenments. "hidden" conceals the hypervisor and emits no enlightenments | Hyper-V presence detection |
 
 ## Kernel
 
@@ -52,7 +53,7 @@ README is the canonical home, this page is the deep-link target.
 | `smbios.memory.size` | `int` | `16384` | DIMM size in MB per module (Type 17) | `Win32_PhysicalMemory.Capacity` |
 | `smbios.memory.count` | `int` | `2` | Number of DIMMs to report (Type 17) | `Win32_PhysicalMemory` count |
 | `smbios.oemStrings` | `listOf str` | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator | `Win32_ComputerSystem.OEMStringArray` |
-| `smbios.onboardDevices` | `listOf submodule` | Ethernet + SATA controller | Onboard devices for Type 41 (submodule: designation, kind, instance). Prevents empty Win32_OnBoardDevice | `Win32_OnBoardDevice` |
+| `smbios.onboardDevices` | `listOf submodule` | `[ ]` | Onboard devices for Type 41 (submodule: designation, kind, instance). Set to match your board. Empty = no Type 41 entries | `Win32_OnBoardDevice` |
 | `smbios.cache.l1` | `int` | `512` | L1 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
 | `smbios.cache.l2` | `int` | `8192` | L2 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
 | `smbios.cache.l3` | `int` | `32768` | L3 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
@@ -79,7 +80,7 @@ nixpkgs.overlays = [
   (final: prev: {
     qemu-stealth = prev.qemu-stealth.override {
       edidManufacturer = "ASU";
-      edidModel = "ASUS PG279Q       ";
+      edidSerial = "PG279Q";
       diskModel = "Samsung SSD 990 PRO 2TB ";
     };
   })
@@ -91,13 +92,13 @@ nixpkgs.overlays = [
 | Argument | Default | Description | Detection vector |
 |---|---|---|---|
 | `edidManufacturer` | `"ACI"` | 3-letter EDID manufacturer ID | Monitor manufacturer identifier |
-| `edidModelAbbrev` | `"ACI     "` | 8-char padded manufacturer abbreviation | EDID block manufacturer field |
-| `edidModel` | `"ASUS VG248      "` | 16-char padded monitor model string | EDID block model field |
 | `edidSerial` | `"VG248QE"` | Monitor serial string | EDID serial number |
 | `edidProductCode` | `"0x2480"` | EDID product code (hex) | EDID product code field |
 | `edidDpi` | `91` | Monitor DPI | EDID physical size calculation |
 | `edidWeek` | `22` | Manufacture week (1-52) | EDID manufacture date |
 | `edidYear` | `2020` | Manufacture year | EDID manufacture date |
+| `edidResX` | `1920` | Default EDID horizontal resolution | EDID preferred timing |
+| `edidResY` | `1080` | Default EDID vertical resolution | EDID preferred timing |
 
 ### Disk / optical
 
@@ -106,6 +107,8 @@ nixpkgs.overlays = [
 | `diskModel` | `"WDC WD10EZEX-00WN4A0     "` | IDE/SCSI disk model string (25 chars, space-padded) | Disk model reveals QEMU default |
 | `diskSerial` | `"Default string"` | IDE disk serial string (replaces AutoVirt blank serial) | Blank disk serial is a VM indicator |
 | `opticalModel` | `"HL-DT-ST DVDRAM GH24NSC0 "` | IDE/ATAPI optical drive model string (25 chars) | Optical drive model reveals QEMU |
+| `scsiVendor` | `"WDC"` | SCSI INQUIRY vendor string (8-char T10 format, auto-padded) | SCSI vendor reveals QEMU default |
+| `scsiTargetProduct` | `"SCSI Disk       "` | SCSI target product for dead-LUN INQUIRY fallback (16-char padded) | SCSI target product reveals QEMU |
 
 ### ACPI OEM
 
@@ -114,8 +117,28 @@ nixpkgs.overlays = [
 | `acpiOemId` | `"ALASKA"` | 6-char ACPI OEM ID | ACPI table OEM ID reveals QEMU |
 | `acpiOemTableId` | `"A M I   "` | 8-char padded ACPI OEM Table ID | ACPI table OEM Table ID |
 
+## CPU Identity
+
+| Option | Type | Default | Description | Detection vector |
+|---|---|---|---|---|
+| `cpuIdentity.modelId` | `nullOr str` | `null` | CPU model string for SMBIOS Type 4 + QEMU `-global cpu.model-id`. null = use host CPU | `Win32_Processor.Name` |
+| `cpuIdentity.maxSpeed` | `nullOr int` | `null` | Max CPU speed in MHz (Type 4). null = omit | `Win32_Processor.MaxClockSpeed` |
+| `cpuIdentity.currentSpeed` | `nullOr int` | `null` | Current CPU speed in MHz (Type 4). null = omit | `Win32_Processor.CurrentClockSpeed` |
+
+## TPM Identity
+
+| Option | Type | Default | Description | Detection vector |
+|---|---|---|---|---|
+| `tpm.harden` | `bool` | `true` | Configure swtpm to report realistic hardware TPM identity | swtpm defaults report IBM/swtpm |
+| `tpm.manufacturer` | `str` | `"id:49465800"` | TPM manufacturer ID (8 hex digits). id:49465800=Infineon | Win32_Tpm manufacturer |
+| `tpm.model` | `str` | `"SLB9672"` | TPM model string. SLB9672 = Infineon discrete TPM | Win32_Tpm model |
+| `tpm.firmwareVersion` | `str` | `"id:000F0018"` | TPM firmware version. 0x000F0018 = FW 15.24 (Infineon SLB9672) | Win32_Tpm firmware version |
+| `tpm.platformManufacturer` | `str` | `"ASUSTeK COMPUTER INC."` | Platform manufacturer for TPM platform certificate | TPM platform certificate |
+| `tpm.platformModel` | `str` | `"System Product Name"` | Platform model for TPM platform certificate | TPM platform certificate |
+
 ## Read-only outputs
 
 | Attribute | Type | Description |
 |---|---|---|
-| `_kernelPostPatch` | shell-script string | Append to `boot.kernelPackages.kernel.overrideAttrs.postPatch` to apply BetterTiming + CPUID emulation to the kernel build. See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §Kernel-integration layering for the full layering. |
+| `_kernelPostPatch` | shell-script string | Append to `boot.kernelPackages.kernel.overrideAttrs.postPatch` to apply BetterTiming + CPUID emulation/passthrough to the kernel build. See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §Kernel-integration layering. |
+| `_libtpmsIdentityPatch` | shell-script string | Append to `libtpms.overrideAttrs.postPatch` to replace hardcoded IBM/swtpm identity with configured TPM manufacturer/model. |

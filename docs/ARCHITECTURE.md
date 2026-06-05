@@ -35,6 +35,7 @@ vfio-stealth-nix/
 ├── smbios/
 │   ├── package.nix          # smbios-extract — host SMBIOS dump +
 │   │                        # anonymization helper
+│   ├── extract.sh           # Shell script wrapped by package.nix
 │   ├── tables-package.nix   # smbios-stealth-tables — binary SMBIOS
 │   │                        # table generator (types 7, 26-29)
 │   └── generate-tables.py   # Python script generating raw SMBIOS binaries
@@ -43,12 +44,12 @@ vfio-stealth-nix/
 │   ├── cleanup-registry.ps1 # Registry artifact removal (admin, run once)
 │   └── verify-host.sh       # Host-side sanity checks
 ├── scripts/
-│   └── update.sh            # AutoVirt + BetterTiming flake-input bumper
+│   ├── update.sh            # AutoVirt + BetterTiming flake-input bumper
+│   └── check-kernel-patches.sh  # Validate kernel patch anchors
 ├── .github/
 │   ├── workflows/{ci,update,maintenance}.yml
 │   ├── update.json
 │   └── dependabot.yml
-├── flake.nix
 ├── README.md
 ├── docs/                    # this folder
 ├── LICENSE
@@ -76,8 +77,8 @@ vfio-stealth-nix/
 
 The module exposes `myModules.vfio.stealth._kernelPostPatch` — a shell
 script string that patches kernel sources via `sed`/`awk`. It is meant
-to be appended to `linux*.kernel.overrideAttrs`'s `postPatch`. Two
-separate patch sets compose into this single hook:
+to be appended to `linux*.kernel.overrideAttrs`'s `postPatch`. Up to three
+patch sets compose into this single hook:
 
 1. **BetterTiming** (`kernel/timing-patch.nix`) — TSC compensation
    - Adds `last_exit_start` and `total_exit_time` fields to `struct kvm_vcpu`
@@ -87,7 +88,7 @@ separate patch sets compose into this single hook:
    - Adds `handle_rdtsc_interception` returning compensated TSC
    - Adds `handle_rdtscp_interception` returning compensated TSC + TSC_AUX in ECX
    - Wraps CPUID, WBINVD, XSETBV, INVD exit handlers to tag
-     `exit_reason=123` for timing compensation
+     `exit_reason=0xDEAD` for timing compensation
    - Disables KVM hypercall instruction patching (forces `#UD` on
      VMCALL/VMMCALL instead of `#PF`, matching bare-metal behavior)
 

@@ -35,9 +35,10 @@ For long-form references beyond the quick start below, see:
 
 | Package | Description |
 |---|---|
-| **qemu-stealth** | Patched QEMU with AutoVirt AMD hardware-emulation patches + configurable hardware identifiers (EDID, ACPI OEM, disk/optical models, disk serial customization, fw_cfg probe fix) |
-| **ovmf-stealth** | Patched EDK2/OVMF firmware: clears VirtualMachine bit in SMBIOS Type 0, replaces Red Hat PCI vendor IDs, overrides ACPI OEM fields, strips BGRT boot logo (VMAware indicator) |
+| **qemu-stealth** | Patched QEMU with AutoVirt AMD hardware-emulation patches + configurable hardware identifiers (EDID, ACPI OEM, disk/optical models, SCSI vendor, disk serial customization, fw_cfg probe fix) |
+| **ovmf-stealth** | Patched EDK2/OVMF firmware: clears VirtualMachine bit in SMBIOS Type 0, replaces Red Hat PCI vendor IDs, overrides ACPI OEM fields, strips BGRT boot logo (VMAware indicator). Overridable: `secureBoot`, `msVarsTemplate`, `tpmSupport` |
 | **acpi-ssdt-stealth** | Compiled ACPI SSDT tables providing emulated embedded controller, fan, thermal zone, battery, power/sleep buttons, timers |
+| **smbios-stealth-tables** | Binary SMBIOS tables for types QEMU cannot build via CLI (Type 7 cache, Types 26-29 probes) |
 | **smbios-extract** | Host SMBIOS dump + anonymization tool for extracting real hardware strings to inject into VM config |
 
 ## Detection Vectors Covered
@@ -73,7 +74,7 @@ For long-form references beyond the quick start below, see:
 | Hyper-V enlightenments | Full enlightenment set (relaxed, vapic, spinlocks, stimer, frequencies, etc.) with vendor_id override | `lib.nix` features |
 | KVM feature hiding | `kvm.hidden`, `hint-dedicated`, `poll-control` | `lib.nix` features |
 | VMPort | Disabled | `lib.nix` features |
-| Clock/timer emulation | kvmclock disabled, hypervclock + native TSC enabled, HPET present (ACPI table retained, not used as clocksource) | `lib.nix` clock config |
+| Clock/timer emulation | kvmclock disabled, hypervclock enabled (enlightened mode) or disabled (hidden mode), native TSC, HPET present | `lib.nix` clock config |
 | OVMF VirtualMachine bit | Cleared in SMBIOS Type 0 via EDK2 patch | `ovmf/package.nix` |
 | OVMF PCI vendor IDs | Red Hat IDs replaced with AMD/Intel | `ovmf/package.nix` |
 | VirtIO device identifiers | Balloon, RNG, tablet devices stripped from VM config | `lib.nix` devicesToRemove |
@@ -142,6 +143,7 @@ All options live under `myModules.vfio.stealth`.
 | `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for overridden MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
 | `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
 | `hypervVendorId` | `str` (1-12 chars) | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv) | Hyper-V vendor_id detection |
+| `hypervMode` | `enum ["enlightened" "hidden"]` | `"enlightened"` | "enlightened" exposes hypervisor + full Hyper-V enlightenments (paravirt perf). "hidden" conceals the hypervisor and emits no enlightenments | Hyper-V presence detection |
 
 ### Kernel
 
@@ -175,32 +177,34 @@ All options live under `myModules.vfio.stealth`.
 | `smbios.memory.size` | `int` | `16384` | DIMM size in MB per module (Type 17) | Win32_PhysicalMemory.Capacity |
 | `smbios.memory.count` | `int` | `2` | Number of DIMMs to report (Type 17) | Win32_PhysicalMemory count |
 | `smbios.oemStrings` | `listOf str` | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator | Win32_ComputerSystem.OEMStringArray |
-| `smbios.onboardDevices` | `listOf submodule` | Ethernet + SATA controller | Onboard devices for Type 41 (submodule with designation, kind, instance). Prevents empty Win32_OnBoardDevice | Win32_OnBoardDevice |
+| `smbios.onboardDevices` | `listOf submodule` | `[ ]` | Onboard devices for Type 41 (submodule with designation, kind, instance). Set to match your board. Empty = no Type 41 entries | Win32_OnBoardDevice |
 
 ### EDID (Display Identity)
 
-These are build-time arguments to `qemu-stealth` (passed via overlay or `callPackage`), not NixOS module options.
+Module options under `myModules.vfio.stealth.edid.*` document the target values. The corresponding build-time arguments to `qemu-stealth` (passed via overlay or `callPackage`) compile them into the QEMU binary.
 
 | Argument | Default | Description | Detection Vector |
 |---|---|---|---|
 | `edidManufacturer` | `"ACI"` | 3-letter EDID manufacturer ID | Monitor manufacturer identifier |
-| `edidModelAbbrev` | `"ACI     "` | 8-char padded manufacturer abbreviation | EDID block manufacturer field |
-| `edidModel` | `"ASUS VG248      "` | 16-char padded monitor model string | EDID block model field |
 | `edidSerial` | `"VG248QE"` | Monitor serial string | EDID serial number |
 | `edidProductCode` | `"0x2480"` | EDID product code (hex) | EDID product code field |
 | `edidDpi` | `91` | Monitor DPI | EDID physical size calculation |
 | `edidWeek` | `22` | Manufacture week (1-52) | EDID manufacture date |
 | `edidYear` | `2020` | Manufacture year | EDID manufacture date |
+| `edidResX` | `1920` | Default EDID horizontal resolution | EDID preferred timing |
+| `edidResY` | `1080` | Default EDID vertical resolution | EDID preferred timing |
 
-### Disk
+### Disk / SCSI
 
-Build-time arguments to `qemu-stealth`:
+Module options under `myModules.vfio.stealth.disk.*` document the target values. Build-time arguments to `qemu-stealth`:
 
 | Argument | Default | Description | Detection Vector |
 |---|---|---|---|
 | `diskModel` | `"WDC WD10EZEX-00WN4A0     "` | IDE/SCSI disk model string (25 chars, space-padded) | Disk model reveals QEMU default |
 | `diskSerial` | `"Default string"` | IDE disk serial string (replaces AutoVirt blank serial) | Blank disk serial is a VM indicator |
 | `opticalModel` | `"HL-DT-ST DVDRAM GH24NSC0 "` | IDE/ATAPI optical drive model string (25 chars) | Optical drive model reveals QEMU |
+| `scsiVendor` | `"WDC"` | SCSI INQUIRY vendor string (8-char T10 format, auto-padded) | SCSI vendor reveals QEMU default |
+| `scsiTargetProduct` | `"SCSI Disk       "` | SCSI target product for dead-LUN INQUIRY fallback (16-char padded) | SCSI target product reveals QEMU |
 
 ### ACPI
 
@@ -210,7 +214,7 @@ Build-time arguments to `qemu-stealth`:
 | `acpiSsdt.fakeBattery` | `bool` | `true` | Include emulated ACPI battery device in SSDT | Missing battery can flag VM detection |
 | `acpiSsdt.sensorProbes` | `bool` | `true` | Include CPU + VRM thermal zones with Timer()-based dynamic fluctuation | Static/missing thermal data flags VM |
 
-Build-time arguments to `qemu-stealth` for ACPI OEM strings:
+Module options under `myModules.vfio.stealth.acpiOem.*`. Build-time arguments to `qemu-stealth`:
 
 | Argument | Default | Description | Detection Vector |
 |---|---|---|---|
@@ -226,7 +230,7 @@ Build-time arguments to `qemu-stealth` for ACPI OEM strings:
 
 ### CPU Identity
 
-CPU identity is passed per-VM via `mkStealthFeatures` in `lib.nix`, not as module options:
+Module options under `myModules.vfio.stealth.cpuIdentity.*`. Passed per-VM via `mkStealthFeatures` in `lib.nix`:
 
 | Argument | Description | Detection Vector |
 |---|---|---|
@@ -243,6 +247,17 @@ Cache entries are configurable via `smbios.cache.*` options. They populate `Win3
 | `smbios.cache.l1` | `int` | `512` | L1 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
 | `smbios.cache.l2` | `int` | `8192` | L2 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
 | `smbios.cache.l3` | `int` | `32768` | L3 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
+
+### TPM Identity
+
+| Option | Type | Default | Description | Detection Vector |
+|---|---|---|---|---|
+| `tpm.harden` | `bool` | `true` | Configure swtpm to report realistic hardware TPM identity | swtpm defaults report IBM/swtpm |
+| `tpm.manufacturer` | `str` | `"id:49465800"` | TPM manufacturer ID (8 hex digits). id:49465800=Infineon | Win32_Tpm manufacturer |
+| `tpm.model` | `str` | `"SLB9672"` | TPM model string. SLB9672 = Infineon discrete TPM | Win32_Tpm model |
+| `tpm.firmwareVersion` | `str` | `"id:000F0018"` | TPM firmware version (8 hex digits). 0x000F0018 = FW 15.24 | Win32_Tpm firmware version |
+| `tpm.platformManufacturer` | `str` | `"ASUSTeK COMPUTER INC."` | Platform manufacturer for TPM platform certificate | TPM platform certificate |
+| `tpm.platformModel` | `str` | `"System Product Name"` | Platform model for TPM platform certificate | TPM platform certificate |
 
 ## Example Configurations
 
@@ -293,8 +308,6 @@ nixpkgs.overlays = [
   (final: prev: {
     qemu-stealth = prev.qemu-stealth.override {
       edidManufacturer = "BNQ";
-      edidModelAbbrev = "BNQ     ";
-      edidModel = "BenQ EX2780Q     ";
       edidSerial = "EX2780Q";
       edidProductCode = "0x8532";
       edidDpi = 109;
@@ -342,8 +355,6 @@ nixpkgs.overlays = [
   (final: prev: {
     qemu-stealth = prev.qemu-stealth.override {
       edidManufacturer = "GSM";
-      edidModelAbbrev = "GSM     ";
-      edidModel = "LG ULTRAGEAR     ";
       edidSerial = "27GP850";
       edidProductCode = "0x5bbf";
       edidDpi = 109;
@@ -440,7 +451,7 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 - Enables RDTSC + RDTSCP interception in SVM `init_vmcb`
 - Adds `handle_rdtsc_interception` handler that returns compensated TSC
 - Adds `handle_rdtscp_interception` handler returning compensated TSC + TSC_AUX in ECX
-- Wraps CPUID, WBINVD, XSETBV, INVD exit handlers to tag `exit_reason=123` for timing compensation
+- Wraps CPUID, WBINVD, XSETBV, INVD exit handlers to tag `exit_reason=0xDEAD` for timing compensation
 - Disables KVM hypercall instruction patching (`emulator_fix_hypercall` always injects #UD)
 
 **CPUID emulation** (`cpuid-patch.nix`):

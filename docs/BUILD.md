@@ -26,7 +26,7 @@ The dev shell provides:
 ```bash
 nix flake check --no-build        # eval-only check (cheap, ~5 s)
 nix fmt                           # format all .nix
-nix build .#qemu-stealth          # patched QEMU
+nix build .#default               # patched QEMU (qemu-stealth)
 nix build .#ovmf-stealth          # patched EDK2/OVMF
 nix build .#acpi-ssdt-stealth     # compiled ACPI SSDT tables
 nix build .#smbios-extract        # host SMBIOS dump tool
@@ -64,10 +64,11 @@ eval check  →  build all packages  →  ELF / AML sanity  →  boot-smoke NixO
 ```
 
 The `boot-smoke` check (`checks.boot-smoke`) boots a NixOS VM with
-qemu-stealth + EFI firmware under TCG and waits for `multi-user.target`.
-This catches QEMU/OVMF regressions that cause firmware hangs (e.g., the
-QEMU 10.2.2 OVMF hang). It runs without KVM (TCG-only) so it works on
-standard CI runners.
+qemu-stealth + ovmf-stealth (secureBoot=false, stealth patches present)
+under TCG and waits for `multi-user.target`. This catches QEMU/OVMF
+regressions that cause firmware hangs (e.g., the QEMU 10.2.2 OVMF hang).
+Secure Boot is disabled because the NixOS test kernel is unsigned.
+It runs without KVM (TCG-only) so it works on standard CI runners.
 
 CI wires this in `.github/workflows/ci.yml`. Each step fails the job on
 non-zero exit. No "passing eval" without a clean build and a booting VM.
