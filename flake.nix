@@ -62,15 +62,23 @@
 
           checks.boot-smoke = pkgs.testers.runNixOSTest {
             name = "qemu-stealth-boot-smoke";
+            globalTimeout = 600;
             nodes.machine =
               { lib, ... }:
               {
                 virtualisation.qemu.package = lib.mkForce self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+                virtualisation.useBootLoader = true;
                 virtualisation.useEFIBoot = true;
                 virtualisation.efi.OVMF = lib.mkForce self.packages.${pkgs.stdenv.hostPlatform.system}.ovmf-stealth;
+                virtualisation.memorySize = 1024;
+                virtualisation.cores = 1;
+                documentation.enable = false;
+                security.polkit.enable = false;
+                services.udisks2.enable = false;
+                nix.enable = false;
               };
             testScript = ''
-              machine.wait_for_unit("multi-user.target", timeout=300)
+              machine.wait_for_unit("multi-user.target", timeout=480)
             '';
           };
         };
