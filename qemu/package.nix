@@ -129,12 +129,14 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemuBase.version)
       substituteInPlace hw/ide/core.c \
         --replace-fail 'HL-DT-ST BD-RE WH16NS60' '${opticalModel}'
 
-      # fw_cfg 4-byte probe signature: selector 0x0000 returns "QEMU"
-      sed -i 's|fw_cfg_add_bytes(s, FW_CFG_SIGNATURE, (char \*)"QEMU", 4)|fw_cfg_add_bytes(s, FW_CFG_SIGNATURE, (char *)"AMDK", 4)|g' hw/nvram/fw_cfg.c
-      if ! grep -q '"AMDK"' hw/nvram/fw_cfg.c; then
-        echo "FATAL: fw_cfg signature patch failed"
-        exit 1
-      fi
+      # fw_cfg 4-byte probe signature: intentionally LEFT as "QEMU".
+      # OVMF-stealth looks for "AMDK" — the deliberate mismatch disables
+      # fw_cfg detection. Without fw_cfg, OVMF skips the Q35-specific PEI
+      # init path (hits a debug trap due to AutoVirt PCI ID changes) and falls
+      # back to generic platform init. Guest OS never accesses fw_cfg
+      # (AutoVirt removes the ACPI DSDT node), so no detection penalty.
+      # UEFI boot from disk works without fw_cfg; only -kernel direct boot
+      # would need it (not used for Windows VMs).
 
       echo "=== Hardware identity customization complete ==="
     '';
