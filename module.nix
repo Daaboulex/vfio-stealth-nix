@@ -386,6 +386,11 @@ in
     # Mismatched or missing CPU identity is a VM indicator.
 
     cpuIdentity = {
+      manufacturer = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "CPU manufacturer for SMBIOS type 4. null = 'Advanced Micro Devices, Inc.' Set to your CPU vendor (e.g. 'GenuineIntel' for Intel hosts).";
+      };
       modelId = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;

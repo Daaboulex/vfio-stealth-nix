@@ -273,7 +273,9 @@
           "-global"
           "cpu.model-id=${cpuIdentity.modelId}"
           "-smbios"
-          "type=4,sock_pfx=${smbios.socketPrefix},manufacturer=${escapeSmbios "Advanced Micro Devices, Inc."},version=${escapeSmbios cpuIdentity.modelId}${
+          "type=4,sock_pfx=${smbios.socketPrefix},manufacturer=${
+            escapeSmbios (cpuIdentity.manufacturer or "Advanced Micro Devices, Inc.")
+          },version=${escapeSmbios cpuIdentity.modelId}${
             lib.optionalString (cpuIdentity.maxSpeed != null) ",max-speed=${toString cpuIdentity.maxSpeed}"
           }${
             lib.optionalString (
