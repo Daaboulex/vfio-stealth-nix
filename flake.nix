@@ -67,6 +67,7 @@
               {
                 virtualisation.qemu.package = lib.mkForce self.packages.${pkgs.stdenv.hostPlatform.system}.default;
                 virtualisation.useEFIBoot = true;
+                virtualisation.efi.OVMF = lib.mkForce self.packages.${pkgs.stdenv.hostPlatform.system}.ovmf-stealth;
               };
             testScript = ''
               machine.wait_for_unit("multi-user.target", timeout=300)

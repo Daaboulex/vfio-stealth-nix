@@ -93,7 +93,7 @@
           }
           {
             name = "hypervclock";
-            present = true;
+            present = (hypervMode == "enlightened");
           }
           {
             name = "tsc";
@@ -186,8 +186,14 @@
           # pairs; a literal comma in a value must be doubled (,,) to escape it.
           escapeSmbios = lib.replaceStrings [ "," ] [ ",," ];
         in
-        # SMBIOS type 3 (chassis) — QEMU CLI arg works for this type
+        # SMBIOS type 2 (baseboard) — NixVirt sysinfo doesn't emit type 2,
+        # so inject via QEMU CLI args to populate Win32_BaseBoard.
         [
+          "-smbios"
+          "type=2,manufacturer=${escapeSmbios smbios.manufacturer},product=${escapeSmbios smbios.product},version=${escapeSmbios smbios.baseBoardVersion},serial=${escapeSmbios smbios.baseBoardSerial},asset=${escapeSmbios smbios.baseBoardAsset},location=${escapeSmbios smbios.baseBoardLocation}"
+        ]
+        # SMBIOS type 3 (chassis)
+        ++ [
           "-smbios"
           "type=3,manufacturer=${escapeSmbios smbios.manufacturer},version=1.0,serial=Default string,asset=Default string,sku=Default string"
         ]

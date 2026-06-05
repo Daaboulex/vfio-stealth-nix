@@ -36,6 +36,14 @@ let
         --replace-warn \
           'INF MdeModulePkg/Logo/LogoDxe.inf' \
           '# stripped: LogoDxe' || true
+
+      # fw_cfg identity customization: match the QEMU-side signature change
+      # ("QEMU" -> "AMDK") so OVMF's QemuFwCfgLib recognizes the device.
+      for f in OvmfPkg/Library/QemuFwCfgLib/*.c; do
+        if [ -f "$f" ]; then
+          sed -i "s/SIGNATURE_32 *( *'Q' *, *'E' *, *'M' *, *'U' *)/SIGNATURE_32 ('A', 'M', 'D', 'K')/g" "$f"
+        fi
+      done
     '';
   });
 in
