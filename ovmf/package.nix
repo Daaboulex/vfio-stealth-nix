@@ -42,9 +42,16 @@ in
         --replace-warn 'L"EDK II"' 'L"American Megatrends Inc."' || true
 
       # Strip TianoCore boot logo + BGRT table (VMAware CRC identifier 0x110350C5)
+      # Must strip from BOTH DSC (build declaration) and FDF (firmware image
+      # inclusion) — EDK2 cross-validates and errors if FDF references a
+      # module not declared in DSC.
       substituteInPlace OvmfPkg/OvmfPkgX64.dsc \
         --replace-warn \
           'MdeModulePkg/Universal/Acpi/BootGraphicsResourceTableDxe/BootGraphicsResourceTableDxe.inf' \
+          '# stripped: BootGraphicsResourceTableDxe' || true
+      substituteInPlace OvmfPkg/OvmfPkgX64.fdf \
+        --replace-warn \
+          'INF MdeModulePkg/Universal/Acpi/BootGraphicsResourceTableDxe/BootGraphicsResourceTableDxe.inf' \
           '# stripped: BootGraphicsResourceTableDxe' || true
       substituteInPlace OvmfPkg/OvmfPkgX64.fdf \
         --replace-warn \
