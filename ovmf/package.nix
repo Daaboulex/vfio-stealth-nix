@@ -2,6 +2,7 @@
   lib,
   OVMF,
   fetchurl,
+  patchutils,
   secureBoot ? true,
   msVarsTemplate ? secureBoot,
   tpmSupport ? true,
@@ -17,23 +18,24 @@ let
     hash = "sha256-lNWxQFgkDNapoiLZ4XOFhYQi+t0WR9O3H6CrwPNLrCg=";
   };
 in
-# Apply patches directly to OVMF via overrideAttrs. The previous
-# approach (edk2.overrideAttrs → OVMF.override { edk2 = patched; })
-# was a no-op: nixpkgs OVMF uses edk2.src (the raw source attribute),
-# not the built edk2 output, so edk2's patches/postPatch never reached
-# the OVMF build. Applying via OVMF.overrideAttrs puts the patches
-# into OVMF's own patchPhase/postPatch, where they act on the actual
-# source that gets compiled into OVMF_CODE.fd.
+# Apply patches directly to OVMF via overrideAttrs — nixpkgs OVMF uses
+# edk2.src (the raw source), so patching edk2 via overrideAttrs is a
+# no-op. The AutoVirt patch includes a BaseTools hunk, but BaseTools is
+# a separate pre-built derivation symlinked into the OVMF build tree.
+# filterdiff strips that hunk so only OvmfPkg/MdeModulePkg/SecurityPkg
+# hunks are applied.
 (OVMF.override {
   inherit secureBoot msVarsTemplate tpmSupport;
 }).overrideAttrs
   (old: {
     pname = "OVMF-stealth";
 
-    patches = (old.patches or [ ]) ++ [ autovirtPatch ];
+    nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ patchutils ];
 
     postPatch = (old.postPatch or "") + ''
-      echo "=== OVMF-stealth postPatch ==="
+      echo "=== OVMF-stealth: applying AutoVirt EDK2 patch (BaseTools excluded) ==="
+      filterdiff -x '*/BaseTools/*' ${autovirtPatch} | patch -p1 --no-backup-if-mismatch
+      echo "=== OVMF-stealth: AutoVirt patch applied ==="
 
       # Replace default firmware vendor string with a realistic one
       substituteInPlace OvmfPkg/OvmfPkgX64.dsc \
