@@ -37,26 +37,31 @@ in
       filterdiff -x '*/BaseTools/*' ${autovirtPatch} | patch -p1 --no-backup-if-mismatch
       echo "=== OVMF-stealth: AutoVirt patch applied ==="
 
-      # Replace default firmware vendor string with a realistic one
-      substituteInPlace OvmfPkg/OvmfPkgX64.dsc \
-        --replace-warn 'L"EDK II"' 'L"American Megatrends Inc."' || true
+      # Replace firmware vendor string. The PCD default L"EDK II" lives in
+      # MdeModulePkg.dec (not the DSC). sed handles CRLF line endings.
+      sed -i 's|L"EDK II"|L"American Megatrends Inc."|g' \
+        MdeModulePkg/MdeModulePkg.dec OvmfPkg/OvmfPkgX64.dsc 2>/dev/null || true
+      if grep -rq 'L"EDK II"' MdeModulePkg/MdeModulePkg.dec OvmfPkg/OvmfPkgX64.dsc; then
+        echo "FATAL: firmware vendor string still contains L\"EDK II\""
+        exit 1
+      fi
 
-      # Strip TianoCore boot logo + BGRT table (VMAware CRC identifier 0x110350C5)
+      # Strip TianoCore boot logo + BGRT table (VMAware CRC identifier 0x110350C5).
       # Must strip from BOTH DSC (build declaration) and FDF (firmware image
       # inclusion) — EDK2 cross-validates and errors if FDF references a
-      # module not declared in DSC.
-      substituteInPlace OvmfPkg/OvmfPkgX64.dsc \
-        --replace-warn \
-          'MdeModulePkg/Universal/Acpi/BootGraphicsResourceTableDxe/BootGraphicsResourceTableDxe.inf' \
-          '# stripped: BootGraphicsResourceTableDxe' || true
-      substituteInPlace OvmfPkg/OvmfPkgX64.fdf \
-        --replace-warn \
-          'INF MdeModulePkg/Universal/Acpi/BootGraphicsResourceTableDxe/BootGraphicsResourceTableDxe.inf' \
-          '# stripped: BootGraphicsResourceTableDxe' || true
-      substituteInPlace OvmfPkg/OvmfPkgX64.fdf \
-        --replace-warn \
-          'INF MdeModulePkg/Logo/LogoDxe.inf' \
-          '# stripped: LogoDxe' || true
+      # module not declared in DSC. FDF uses CRLF + variable whitespace,
+      # so use sed substring match instead of exact-match substituteInPlace.
+      sed -i '/BootGraphicsResourceTableDxe/d' OvmfPkg/OvmfPkgX64.dsc OvmfPkg/OvmfPkgX64.fdf
+      sed -i '/LogoDxe/d' OvmfPkg/OvmfPkgX64.fdf
+      if grep -q 'BootGraphicsResourceTableDxe' OvmfPkg/OvmfPkgX64.dsc; then
+        echo "FATAL: BootGraphicsResourceTableDxe still in DSC"; exit 1
+      fi
+      if grep -q 'BootGraphicsResourceTableDxe' OvmfPkg/OvmfPkgX64.fdf; then
+        echo "FATAL: BootGraphicsResourceTableDxe still in FDF"; exit 1
+      fi
+      if grep -q 'LogoDxe' OvmfPkg/OvmfPkgX64.fdf; then
+        echo "FATAL: LogoDxe still in FDF"; exit 1
+      fi
 
       # Revert AutoVirt's Q35 MCH device ID change (0x14d8 -> 0x29C0).
       # With 0x14d8, OVMF enters the Q35-specific PEI init path which
