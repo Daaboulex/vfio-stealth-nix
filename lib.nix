@@ -34,7 +34,15 @@
             policy = "optional";
             name = "invtsc";
           }
-        ];
+          {
+            policy = "require";
+            name = "kvm-pv-enforce-cpuid";
+          }
+        ]
+        ++ lib.optional aperfMperf {
+          policy = "require";
+          name = "aperfmperf";
+        };
 
       features = {
         kvm = {
@@ -298,18 +306,7 @@
           "-smbios"
           "type=41,designation=${escapeSmbios dev.designation},kind=${escapeSmbios dev.kind},instance=${toString dev.instance}"
         ]) smbios.onboardDevices
-        # KVM paravirt MSR enforcement + APERF/MPERF passthrough.
-        # Intentional: libvirt emits its own -cpu host,... and this
-        # appends a second -cpu; QEMU merges them, last properties win.
-        # APERF/MPERF: covers IET-based VM detection by passing
-        # IA32_APERF/MPERF MSRs directly to guest. Requires kernel 6.18+
-        # (KVM_X86_DISABLE_EXITS_APERFMPERF) + QEMU 11+ APERF/MPERF support
-        # (native in AMD-v11.0.0.patch) + -overcommit cpu-pm=on
-        # (already set above). When aperfMperf=false, omitted from -cpu.
-        ++ [
-          "-cpu"
-          ("host,kvm-pv-enforce-cpuid=on" + lib.optionalString aperfMperf ",aperfmperf=on")
-        ];
+        ;
 
       # Devices the consuming module should remove when stripVirtio is true.
       # VirtIO device models are trivially identified by detection software;
