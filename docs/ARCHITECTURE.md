@@ -40,7 +40,7 @@ vfio-stealth-nix/
 │   │                        # table generator (types 7, 26-29)
 │   └── generate-tables.py   # Python script generating raw SMBIOS binaries
 ├── guest/
-│   ├── verify-stealth.ps1   # 38-vector detection check (run inside VM)
+│   ├── verify-stealth.ps1   # 37-vector detection check (run inside VM)
 │   ├── cleanup-registry.ps1 # Registry artifact removal (admin, run once)
 │   └── verify-host.sh       # Host-side sanity checks
 ├── scripts/
@@ -60,7 +60,7 @@ vfio-stealth-nix/
 
 | Component | Option prefix | Detection vectors covered |
 |---|---|---|
-| `qemu-stealth` (qemu/package.nix) | build-time args (`edid*`, `disk*`, `optical*`, `acpiOem*`) — overlay or `callPackage` | EDID display identity, disk/optical model strings, disk serial, ACPI OEM IDs, fw_cfg 4-byte probe |
+| `qemu-stealth` (qemu/package.nix) | build-time args (`edid*`, `disk*`, `optical*`, `acpiOem*`) — overlay or `callPackage` | EDID display identity, disk/optical model strings, disk serial, ACPI OEM IDs, fw_cfg DMA signature + ACPI device removal |
 | `ovmf-stealth` (ovmf/package.nix) | inherited via overlay — no module options | OVMF SMBIOS Type 0 (VirtualMachine bit), Red Hat PCI vendor IDs (1AF4/1B36→1022, 1234→1002), ACPI OEM fields, BGRT table (TianoCore CRC identifier) |
 | `module.nix` `smbios.*` | `myModules.vfio.stealth.smbios.*` | SMBIOS Types 1, 2, 4, 7, 8, 9, 11, 17, 26, 27, 28, 29, 41 (system, baseboard incl. version/serial/asset/location, processor, cache, port connector, system slots, OEM strings, memory, voltage/cooling/temperature/current probes, onboard devices) |
 | `module.nix` `acpiSsdt.*` | `myModules.vfio.stealth.acpiSsdt.*` | ACPI SSDT (EC, fan, thermal zone with fluctuation, battery, buttons, timers) |

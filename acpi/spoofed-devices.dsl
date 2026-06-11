@@ -150,19 +150,31 @@ DefinitionBlock ("", "SSDT", 1, "ALASKA", "A M I   ", 0x20250321)
                     PFAN
                 })
 
-                Method (_FST, 0, NotSerialized)
+                Name (FPKG, Package (3) { One, One, 0x04B0 })
+
+                // Fan speed: 1100-1300 RPM fluctuation using Timer() high bits
+                // >>29 gives ~54s granularity, decorrelated from thermal zones
+                Method (_FST, 0, Serialized)
                 {
-                    // Fan Speed Trip point: Revision 1, Control=1 (on), Speed=1200 RPM
-                    Return (Package (3) { One, One, 0x04B0 })
+                    Local0 = Timer
+                    Local1 = (Local0 >> 29) & 0xFF
+                    Local1 = Local1 % 201
+                    FPKG [2] = 1100 + Local1
+                    Return (FPKG)
                 }
             }
 
             ThermalZone (TZ0)
             {
-                // 40°C idle = 313.15K = 3132 tenths-of-Kelvin
-                Method (_TMP, 0, NotSerialized)  // _TMP: Temperature
+                // 38-44°C idle fluctuation using Timer() high bits
+                // >>26 gives ~7s granularity, decorrelated from CPUZ (>>27) and VRMT (>>28)
+                Method (_TMP, 0, Serialized)  // _TMP: Temperature
                 {
-                    Return (0x0C3C)
+                    Local0 = Timer
+                    Local1 = (Local0 >> 26) & 0x3F
+                    Local1 = Local1 % 61
+                    Local2 = 3112 + Local1
+                    Return (Local2)
                 }
 
                 // 55°C fan-on threshold

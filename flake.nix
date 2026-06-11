@@ -47,7 +47,7 @@
         { pkgs, ... }:
         {
           packages.default = pkgs.callPackage ./qemu/package.nix { inherit (inputs) autovirt; };
-          packages.ovmf-stealth = pkgs.callPackage ./ovmf/package.nix { };
+          packages.ovmf-stealth = pkgs.callPackage ./ovmf/package.nix { inherit (inputs) autovirt; };
           packages.acpi-ssdt-stealth = pkgs.callPackage ./acpi/package.nix { };
           packages.smbios-extract = pkgs.callPackage ./smbios/package.nix { };
           packages.smbios-stealth-tables = pkgs.callPackage ./smbios/tables-package.nix { };
@@ -67,9 +67,20 @@
               { lib, ... }:
               {
                 virtualisation.qemu.package = lib.mkForce self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-                # SeaBIOS boot (no OVMF): AutoVirt's Q35 PCI ID changes
-                # trigger an ASSERT in OVMF PlatformPei's Q35 init path.
-                # OVMF build correctness is verified by the package compiling.
+                # UEFI boot on Q35: the MCH revert (c730b41) fixed the
+                # OVMF PlatformPei ASSERT that originally forced SeaBIOS.
+                # Q35 is explicit because the test framework defaults to
+                # i440fx, which would skip the AutoVirt Q35 code paths.
+                virtualisation.useEFIBoot = true;
+                virtualisation.efi.OVMF =
+                  lib.mkForce
+                    (self.packages.${pkgs.stdenv.hostPlatform.system}.ovmf-stealth.override {
+                      secureBoot = false;
+                    }).fd;
+                virtualisation.qemu.options = [
+                  "-machine"
+                  "q35"
+                ];
               };
             testScript = ''
               machine.wait_for_unit("multi-user.target", timeout=300)

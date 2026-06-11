@@ -66,6 +66,8 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemuBase.version)
     ];
     postPatch = (old.postPatch or "") + ''
       echo "=== Applying EDK2/OVMF patch ==="
+      # nixpkgs builds OVMF separately; roms/edk2 is absent in the normal
+      # derivation, so this block is a no-op.  Kept for standalone builds.
       if [ -d roms/edk2 ]; then
         EDK2_PATCH=""
         for p in "${autovirt}"/patches/EDK2/AMD-edk2-stable*.patch; do
@@ -93,12 +95,36 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemuBase.version)
       substituteInPlace hw/display/edid-generate.c \
         --replace-fail '"QEMU Monitor"' '"${edidSerial}"'
       sed -i 's|0x1234|${edidProductCode}|g' hw/display/edid-generate.c
+      if ! grep -q '${edidProductCode}' hw/display/edid-generate.c; then
+        echo "FATAL: EDID product code replacement to ${edidProductCode} did not apply"
+        exit 1
+      fi
       sed -i 's|edid\[16\] = 42;|edid[16] = ${toString edidWeek};|g' hw/display/edid-generate.c
+      if ! grep -q 'edid\[16\] = ${toString edidWeek};' hw/display/edid-generate.c; then
+        echo "FATAL: EDID week replacement to ${toString edidWeek} did not apply"
+        exit 1
+      fi
       sed -i 's|2014 - 1990|${toString edidYear} - 1990|g' hw/display/edid-generate.c
+      if ! grep -q '${toString edidYear} - 1990' hw/display/edid-generate.c; then
+        echo "FATAL: EDID year replacement to ${toString edidYear} did not apply"
+        exit 1
+      fi
       sed -i 's|uint32_t dpi = 100;|uint32_t dpi = ${toString edidDpi};|g' hw/display/edid-generate.c
+      if ! grep -q 'uint32_t dpi = ${toString edidDpi};' hw/display/edid-generate.c; then
+        echo "FATAL: EDID DPI replacement to ${toString edidDpi} did not apply"
+        exit 1
+      fi
       # EDID default resolution
       sed -i 's|info->prefx = 1280;|info->prefx = ${toString edidResX};|g' hw/display/edid-generate.c
+      if ! grep -q 'info->prefx = ${toString edidResX};' hw/display/edid-generate.c; then
+        echo "FATAL: EDID resolution X replacement to ${toString edidResX} did not apply"
+        exit 1
+      fi
       sed -i 's|info->prefy = 800;|info->prefy = ${toString edidResY};|g' hw/display/edid-generate.c
+      if ! grep -q 'info->prefy = ${toString edidResY};' hw/display/edid-generate.c; then
+        echo "FATAL: EDID resolution Y replacement to ${toString edidResY} did not apply"
+        exit 1
+      fi
 
       # SCSI INQUIRY: replace stock QEMU vendor/product for dead-LUN fallback in scsi-bus.c
       substituteInPlace hw/scsi/scsi-bus.c \
@@ -116,7 +142,15 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemuBase.version)
 
       # ACPI OEM: replace values in aml-build.h
       sed -i 's|"ALASKA"|"${acpiOemId}"|g' include/hw/acpi/aml-build.h
+      if ! grep -q '"${acpiOemId}"' include/hw/acpi/aml-build.h; then
+        echo "FATAL: ACPI OEM ID replacement to ${acpiOemId} did not apply"
+        exit 1
+      fi
       sed -i 's|"A M I   "|"${acpiOemTableId}"|g' include/hw/acpi/aml-build.h
+      if ! grep -q '"${acpiOemTableId}"' include/hw/acpi/aml-build.h; then
+        echo "FATAL: ACPI OEM Table ID replacement did not apply"
+        exit 1
+      fi
 
       # IDE disk model: patch sets "Samsung SSD 980 500GB" (main) and "Hitachi HMS360404D5CF00" (CF)
       substituteInPlace hw/ide/core.c \
@@ -125,6 +159,10 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemuBase.version)
         --replace-fail 'Hitachi HMS360404D5CF00' '${diskModel}'
       # IDE serial: patch blanks it — set realistic serial
       sed -i "s|s->drive_serial_str\[0\] = '\\\\0';|pstrcpy(s->drive_serial_str, sizeof(s->drive_serial_str), \"${diskSerial}\");|g" hw/ide/core.c
+      if ! grep -q 'pstrcpy(s->drive_serial_str' hw/ide/core.c; then
+        echo "FATAL: IDE serial replacement did not apply"
+        exit 1
+      fi
       # IDE optical drive: patch sets "HL-DT-ST BD-RE WH16NS60" — replace with configured
       substituteInPlace hw/ide/core.c \
         --replace-fail 'HL-DT-ST BD-RE WH16NS60' '${opticalModel}'

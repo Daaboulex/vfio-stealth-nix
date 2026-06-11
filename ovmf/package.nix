@@ -1,7 +1,7 @@
 {
   lib,
   OVMF,
-  fetchurl,
+  autovirt,
   patchutils,
   secureBoot ? true,
   msVarsTemplate ? secureBoot,
@@ -13,10 +13,16 @@ let
   # - Replaces Red Hat PCI vendor IDs with AMD/Intel
   # - Renames VMM-prefixed variables
   # - Overrides ACPI OEM fields
-  autovirtPatch = fetchurl {
-    url = "https://raw.githubusercontent.com/Scrut1ny/Hypervisor-Phantom/bd326182066fccc10ffa4b98047981d1abf6383e/patches/EDK2/AMD-edk2-stable202602.patch";
-    hash = "sha256-lNWxQFgkDNapoiLZ4XOFhYQi+t0WR9O3H6CrwPNLrCg=";
-  };
+  autovirtPatch =
+    let
+      candidates = builtins.filter (n: lib.hasPrefix "AMD-edk2-stable" n && lib.hasSuffix ".patch" n) (
+        builtins.attrNames (builtins.readDir "${autovirt}/patches/EDK2")
+      );
+    in
+    assert lib.assertMsg (
+      candidates != [ ]
+    ) "ovmf-stealth: no AMD-edk2-stable*.patch found in autovirt/patches/EDK2";
+    "${autovirt}/patches/EDK2/${builtins.head (lib.sort (a: b: a > b) candidates)}";
 in
 # Apply patches directly to OVMF via overrideAttrs — nixpkgs OVMF uses
 # edk2.src (the raw source), so patching edk2 via overrideAttrs is a

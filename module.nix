@@ -148,11 +148,6 @@ in
           default = 4800;
           description = "Memory speed in MT/s. Populates WMI Win32_PhysicalMemory.Speed.";
         };
-        size = lib.mkOption {
-          type = lib.types.int;
-          default = 16384;
-          description = "DIMM size in MB (per module).";
-        };
         count = lib.mkOption {
           type = lib.types.int;
           default = 2;
@@ -248,7 +243,7 @@ in
     };
 
     macPrefix = lib.mkOption {
-      type = lib.types.str;
+      type = lib.types.strMatching "^[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}$";
       default = "D8:BB:C1";
       description = "OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard NIC.";
     };
@@ -447,10 +442,28 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Expose the postPatch scripts as an option so the host config can apply
-    # them to its own kernel (CachyOS, stock, etc.) via overrideAttrs.
-    # We do NOT set boot.kernelPackages here to avoid overriding the host's
-    # kernel choice (e.g., CachyOS LTO) and to prevent infinite recursion.
+    assertions = [
+      {
+        assertion = !(cfg.cpuidSpoof.enable && cfg.cpuidPassthrough.enable);
+        message = "cpuidSpoof and cpuidPassthrough are mutually exclusive — cpuidPassthrough intercepts all CPUID, making cpuidSpoof redundant";
+      }
+      {
+        assertion = !(cfg.cpuidPassthrough.enable && cfg.hypervMode == "enlightened");
+        message = "cpuidPassthrough disables CPUID interception — Hyper-V enlightenments (hypervMode=enlightened) will be invisible to the guest; set hypervMode to hidden";
+      }
+      {
+        assertion = builtins.stringLength cfg.disk.model == 25;
+        message = "disk.model must be exactly 25 characters (space-padded per ATA spec); got ${toString (builtins.stringLength cfg.disk.model)}";
+      }
+      {
+        assertion = builtins.stringLength cfg.acpiOem.id == 6;
+        message = "acpiOem.id must be exactly 6 characters; got ${toString (builtins.stringLength cfg.acpiOem.id)}";
+      }
+      {
+        assertion = builtins.stringLength cfg.acpiOem.tableId == 8;
+        message = "acpiOem.tableId must be exactly 8 characters; got ${toString (builtins.stringLength cfg.acpiOem.tableId)}";
+      }
+    ];
 
     boot.kernelParams = [
       "processor.max_cstate=${toString cfg.kernelParams.maxCState}"

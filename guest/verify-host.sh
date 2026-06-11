@@ -262,7 +262,64 @@ if [[ -n "${XML:-}" ]]; then
 fi
 
 # -----------------------------------------------------------------------
-# 15. SMBIOS binary tables present in domain XML
+# 15. QEMU binary identity strings — verify stealth replacements applied
+# -----------------------------------------------------------------------
+if [[ -n "${QEMU_PATH:-}" ]]; then
+    QEMU_BIN=$(readlink -f "$QEMU_PATH" 2>/dev/null || echo "$QEMU_PATH")
+    if [[ -x "$QEMU_BIN" ]]; then
+        # EDID manufacturer
+        if strings "$QEMU_BIN" | grep -q "RHT"; then
+            fail "EDID still contains RHT manufacturer"
+        else
+            pass "EDID: RHT manufacturer string replaced"
+        fi
+
+        # ACPI OEM IDs
+        if strings "$QEMU_BIN" | grep -q "BOCHS "; then
+            fail "ACPI still contains BOCHS OEM ID"
+        else
+            pass "ACPI: BOCHS OEM ID replaced"
+        fi
+        if strings "$QEMU_BIN" | grep -q "BXPC    "; then
+            fail "ACPI still contains BXPC table ID"
+        else
+            pass "ACPI: BXPC table ID replaced"
+        fi
+
+        # IDE/disk model strings
+        if strings "$QEMU_BIN" | grep -q "QEMU HARDDISK"; then
+            fail "IDE still contains QEMU HARDDISK"
+        else
+            pass "IDE: QEMU HARDDISK replaced"
+        fi
+        if strings "$QEMU_BIN" | grep -q "QEMU DVD-ROM"; then
+            fail "IDE still contains QEMU DVD-ROM"
+        else
+            pass "IDE: QEMU DVD-ROM replaced"
+        fi
+
+        # SCSI vendor identity
+        if strings "$QEMU_BIN" | grep -q "QEMU    "; then
+            fail "SCSI still contains QEMU vendor"
+        else
+            pass "SCSI: QEMU vendor string replaced"
+        fi
+
+        # USB HID identifiers
+        if strings "$QEMU_BIN" | grep -q "QEMU USB"; then
+            fail "USB HID still contains QEMU identifiers"
+        else
+            pass "USB: QEMU USB identifiers replaced"
+        fi
+    else
+        skip "QEMU binary not executable: $QEMU_BIN"
+    fi
+else
+    skip "QEMU binary path not found (domain not running or no XML)"
+fi
+
+# -----------------------------------------------------------------------
+# 16. SMBIOS binary tables present in domain XML
 # -----------------------------------------------------------------------
 if [[ -n "${XML:-}" ]]; then
     SMBIOS_DIR=$(echo "$XML" | grep -oP '/nix/store/[^"]+/share/smbios' | head -1 || true)

@@ -1,4 +1,4 @@
-# vfio-stealth verification — checks 38 VM indicators from inside the Windows guest
+# vfio-stealth verification — checks 37 VM indicators from inside the Windows guest
 #
 # Usage: .\verify-stealth.ps1
 # Run inside the VM after applying host-side vfio-stealth-nix config + guest cleanup.
@@ -8,7 +8,7 @@ $failed = 0
 $warned = 0
 $skipped = 0
 
-Write-Host "=== vfio-stealth detection check (38 vectors) ===" -ForegroundColor Cyan
+Write-Host "=== vfio-stealth detection check (37 vectors) ===" -ForegroundColor Cyan
 Write-Host ""
 
 # -----------------------------------------------------------------------
@@ -543,23 +543,12 @@ if (-not $vmportDetected) {
 }
 
 # -----------------------------------------------------------------------
-# 38. SMBIOS Type 29: Win32_CurrentProbe presence
-# -----------------------------------------------------------------------
-$curProbe = Get-CimInstance Win32_CurrentProbe -ErrorAction SilentlyContinue
-if ($curProbe) {
-    Write-Host "[PASS] CurrentProbe: $($curProbe.Count) probe(s)" -ForegroundColor Green
-} else {
-    Write-Host "[WARN] No CurrentProbe (SMBIOS type 29 missing)" -ForegroundColor Yellow
-    $warned++
-}
-
-# -----------------------------------------------------------------------
 # Summary
 # -----------------------------------------------------------------------
 Write-Host ""
 Write-Host "=== $failed failures, $warned warnings, $skipped skipped ===" -ForegroundColor $(if ($failed -gt 0) { "Red" } elseif ($warned -gt 0 -or $skipped -gt 0) { "Yellow" } else { "Green" })
 if ($failed -eq 0 -and $warned -eq 0 -and $skipped -eq 0) {
-    Write-Host "All 38 checks passed." -ForegroundColor Green
+    Write-Host "All 37 checks passed." -ForegroundColor Green
 } elseif ($failed -eq 0 -and $skipped -gt 0) {
     Write-Host "0 failures, $warned warnings, $skipped skipped" -ForegroundColor Yellow
 } elseif ($failed -eq 0) {

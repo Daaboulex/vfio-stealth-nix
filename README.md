@@ -35,7 +35,7 @@ For long-form references beyond the quick start below, see:
 
 | Package | Description |
 |---|---|
-| **qemu-stealth** | Patched QEMU with AutoVirt AMD hardware-emulation patches + configurable hardware identifiers (EDID, ACPI OEM, disk/optical models, SCSI vendor, disk serial customization, fw_cfg probe fix) |
+| **qemu-stealth** | Patched QEMU with AutoVirt AMD hardware-emulation patches + configurable hardware identifiers (EDID, ACPI OEM, disk/optical models, SCSI vendor, disk serial customization, fw_cfg DMA signature) |
 | **ovmf-stealth** | Patched EDK2/OVMF firmware: clears VirtualMachine bit in SMBIOS Type 0, replaces Red Hat PCI vendor IDs, overrides ACPI OEM fields, strips BGRT boot logo (VMAware indicator). Overridable: `secureBoot`, `msVarsTemplate`, `tpmSupport` |
 | **acpi-ssdt-stealth** | Compiled ACPI SSDT tables providing emulated embedded controller, fan, thermal zone, battery, power/sleep buttons, timers |
 | **smbios-stealth-tables** | Binary SMBIOS tables for types QEMU cannot build via CLI (Type 7 cache, Types 26-29 probes) |
@@ -81,7 +81,7 @@ For long-form references beyond the quick start below, see:
 | SMBIOS Type 11 (OEM Strings) | Populated with realistic entries (empty Type 11 is a VM indicator) | `module.nix` options, `lib.nix` QEMU args |
 | SMBIOS Type 41 (Onboard Devices) | Ethernet + SATA controller entries (prevents empty Win32_OnBoardDevice) | `module.nix` options, `lib.nix` QEMU args |
 | Disk serial string | IDE drive serial set to realistic WD format instead of AutoVirt blank | `qemu/package.nix` postPatch |
-| fw_cfg probe signature | 4-byte fw_cfg selector 0x0000 changed from "QEMU" to "AMDK" | `qemu/package.nix` postPatch |
+| fw_cfg DMA signature + ACPI device | 8-byte DMA signature changed from "QEMU CFG" to "QCOM CFG"; fw_cfg ACPI device node removed from DSDT (4-byte probe at selector 0x0000 still reads "QEMU") | AutoVirt patch via `qemu/package.nix` |
 | KVM paravirt MSR enforcement | `kvm-pv-enforce-cpuid=on` ensures guest_pv_has() rejects pvclock/steal-time MSRs when kvm.hidden=on | `lib.nix` QEMU args |
 | KVM hypercall patching | Disabled: emulator_fix_hypercall always injects #UD (bare-metal behavior on VMCALL/VMMCALL) | `kernel/timing-patch.nix` |
 | SVM instruction interception | `kvm_amd.vls=0` + `kvm_amd.vgif=0` force VMLOAD/VMSAVE/STGI/CLGI interception | `module.nix` kernel params |
