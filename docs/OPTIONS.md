@@ -50,7 +50,6 @@ README is the canonical home, this page is the deep-link target.
 | `smbios.memory.manufacturer` | `str` | `"Unknown"` | DIMM manufacturer (Type 17) | `Win32_PhysicalMemory.Manufacturer` |
 | `smbios.memory.partNumber` | `str` | `"Unknown"` | DIMM part number (Type 17) | `Win32_PhysicalMemory.PartNumber` |
 | `smbios.memory.speed` | `int` | `4800` | Memory speed MT/s (Type 17) | `Win32_PhysicalMemory.Speed` |
-| `smbios.memory.size` | `int` | `16384` | DIMM size in MB per module (Type 17) | `Win32_PhysicalMemory.Capacity` |
 | `smbios.memory.count` | `int` | `2` | Number of DIMMs to report (Type 17) | `Win32_PhysicalMemory` count |
 | `smbios.oemStrings` | `listOf str` | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator | `Win32_ComputerSystem.OEMStringArray` |
 | `smbios.onboardDevices` | `listOf submodule` | `[ ]` | Onboard devices for Type 41 (submodule: designation, kind, instance). Set to match your board. Empty = no Type 41 entries | `Win32_OnBoardDevice` |

@@ -50,7 +50,7 @@ For long-form references beyond the quick start below, see:
 | CPUID interception timing | Disabled entirely via cpuidPassthrough — guest CPUID runs at native speed | `kernel/cpuid-disable.nix` |
 | RDTSC/RDTSCP timing | BetterTiming: track cumulative VM-exit time, subtract from TSC reads (RDTSC + RDTSCP handlers with compensated values) | `kernel/timing-patch.nix` |
 | MSR_IA32_TSC reads | Compensated TSC value returned via patched `kvm_get_msr_common` | `kernel/timing-patch.nix` |
-| IA32_APERF/MPERF MSR | Passthrough via `kvm-disable-exits=aperfmperf` (covers IET-based detection) | `lib.nix` (QEMU args) |
+| IA32_APERF/MPERF MSR | Passthrough via `-cpu host,aperfmperf=on` (covers IET-based detection) | `lib.nix` (QEMU args) |
 | SMBIOS Type 0 (BIOS) | Vendor, version, date, release override | `module.nix` options, `lib.nix` sysinfo |
 | SMBIOS Type 1 (System) | Manufacturer, product, serial, family, UUID | `module.nix` options, `lib.nix` sysinfo |
 | SMBIOS Type 2 (Baseboard) | Manufacturer, product, version, serial, asset tag, location | `lib.nix` sysinfo |
@@ -174,7 +174,6 @@ All options live under `myModules.vfio.stealth`.
 | `smbios.memory.manufacturer` | `str` | `"Unknown"` | DIMM manufacturer (Type 17) | Win32_PhysicalMemory.Manufacturer |
 | `smbios.memory.partNumber` | `str` | `"Unknown"` | DIMM part number (Type 17) | Win32_PhysicalMemory.PartNumber |
 | `smbios.memory.speed` | `int` | `4800` | Memory speed in MT/s (Type 17) | Win32_PhysicalMemory.Speed |
-| `smbios.memory.size` | `int` | `16384` | DIMM size in MB per module (Type 17) | Win32_PhysicalMemory.Capacity |
 | `smbios.memory.count` | `int` | `2` | Number of DIMMs to report (Type 17) | Win32_PhysicalMemory count |
 | `smbios.oemStrings` | `listOf str` | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator | Win32_ComputerSystem.OEMStringArray |
 | `smbios.onboardDevices` | `listOf submodule` | `[ ]` | Onboard devices for Type 41 (submodule with designation, kind, instance). Set to match your board. Empty = no Type 41 entries | Win32_OnBoardDevice |
@@ -296,7 +295,6 @@ myModules.vfio.stealth = {
       manufacturer = "Corsair";
       partNumber = "CMK32GX5M2B5600C36";
       speed = 5600;
-      size = 16384;
       count = 2;
     };
   };
@@ -343,7 +341,6 @@ myModules.vfio.stealth = {
       manufacturer = "Crucial Technology";
       partNumber = "CT16G56C46S5.M8G1";
       speed = 5600;
-      size = 16384;
       count = 4;
     };
   };
