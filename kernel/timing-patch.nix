@@ -4,248 +4,189 @@
 # Provides realistic VM exit timing by tracking cumulative exit time and
 # subtracting it from TSC reads inside the guest.
 #
+# Each stealth exit handler self-times with rdtsc() at entry and exit,
+# accumulating only the handler's own execution time into total_exit_time.
+# This avoids the original bug where the vcpu_enter_guest wrapper counted
+# guest execution time as exit overhead, making TSC advance too slowly.
+#
 # Targets: arch/x86/kvm/svm/svm.c, arch/x86/kvm/x86.c, include/linux/kvm_host.h
 ''
-    echo "=== BetterTiming: TSC compensation patch ==="
+      echo "=== BetterTiming: TSC compensation patch ==="
 
-    # ---------- 1. Add tracking fields to struct kvm_vcpu ----------
-    # Insert last_exit_start and total_exit_time after valid_wakeup
-    if grep -q 'bool valid_wakeup;' include/linux/kvm_host.h; then
-      sed -i '/bool valid_wakeup;/a\\n\tu64 last_exit_start;\n\tu64 total_exit_time;' \
-        include/linux/kvm_host.h
-      echo "[OK] kvm_host.h: added timing fields to struct kvm_vcpu"
-    else
-      echo "[FAIL] kvm_host.h: could not find valid_wakeup field"
-      exit 1
-    fi
+      # ---------- 1. Add tracking fields to struct kvm_vcpu ----------
+      # Insert last_exit_start and total_exit_time after valid_wakeup.
+      # last_exit_start is retained for ABI stability but unused.
+      if grep -q 'bool valid_wakeup;' include/linux/kvm_host.h; then
+        sed -i '/bool valid_wakeup;/a\\n\tu64 last_exit_start;\n\tu64 total_exit_time;' \
+          include/linux/kvm_host.h
+        echo "[OK] kvm_host.h: added timing fields to struct kvm_vcpu"
+      else
+        echo "[FAIL] kvm_host.h: could not find valid_wakeup field"
+        exit 1
+      fi
 
-    # ---------- 2. Rename vcpu_enter_guest → vcpu_enter_guest_real ----------
-    if grep -q '^static int vcpu_enter_guest(struct kvm_vcpu \*vcpu)' arch/x86/kvm/x86.c; then
-      sed -i 's/^static int vcpu_enter_guest(struct kvm_vcpu \*vcpu)/static int vcpu_enter_guest_real(struct kvm_vcpu *vcpu)/' \
-        arch/x86/kvm/x86.c
-      echo "[OK] x86.c: renamed vcpu_enter_guest to vcpu_enter_guest_real"
-    else
-      echo "[FAIL] x86.c: could not find vcpu_enter_guest definition"
-      exit 1
-    fi
+      # ---------- 2. Patch MSR_IA32_TSC read to return compensated time ----------
+      # Replace the TSC computation block in kvm_get_msr_common.
+      # Returns rdtsc() minus accumulated exit time, and self-times.
+      if grep -q 'case MSR_IA32_TSC: {' arch/x86/kvm/x86.c; then
+        awk '
+        /case MSR_IA32_TSC: \{/ {
+          print "\tcase MSR_IA32_TSC: {"
+          print "\t\tu64 bt_start = rdtsc();"
+          print "\t\tmsr_info->data = bt_start - vcpu->total_exit_time;"
+          print "\t\tvcpu->total_exit_time += rdtsc() - bt_start;"
+          print "\t\tbreak;"
+          print "\t}"
+          in_tsc = 1
+          next
+        }
+        in_tsc && /^\tcase / { in_tsc = 0; print; next }
+        in_tsc && /^\t\}/ { in_tsc = 0; next }
+        in_tsc { next }
+        { print }
+        ' arch/x86/kvm/x86.c > arch/x86/kvm/x86.c.tmp && \
+          mv arch/x86/kvm/x86.c.tmp arch/x86/kvm/x86.c
+        echo "[OK] x86.c: patched MSR_IA32_TSC to return compensated time"
+      else
+        echo "[FAIL] x86.c: could not find MSR_IA32_TSC case block — TSC compensation broken without this"
+        exit 1
+      fi
 
-    # ---------- 3. Add wrapper vcpu_enter_guest after vcpu_enter_guest_real ----------
-    # Insert after the closing brace of vcpu_enter_guest_real, which is the first
-    # solo '}' on a line after the function. We find it by locating the next function
-    # (kvm_vcpu_running) and inserting before it.
-    if grep -q '^static bool kvm_vcpu_running(struct kvm_vcpu \*vcpu)' arch/x86/kvm/x86.c; then
-      sed -i '/^static bool kvm_vcpu_running(struct kvm_vcpu \*vcpu)/i\
-  static int vcpu_enter_guest(struct kvm_vcpu *vcpu)\
-  {\
-  \tint result;\
-  \tu64 difference;\
-  \
-  \tvcpu->last_exit_start = rdtsc();\
-  \
-  \tresult = vcpu_enter_guest_real(vcpu);\
-  \
-  \tif (vcpu->run->exit_reason == 0xDEAD) {\
-  \t\tdifference = rdtsc() - vcpu->last_exit_start;\
-  \t\tvcpu->total_exit_time += difference;\
-  \t}\
-  \
-  \treturn result;\
-  }\
-  ' arch/x86/kvm/x86.c
-      echo "[OK] x86.c: added vcpu_enter_guest wrapper"
-    else
-      echo "[FAIL] x86.c: could not find kvm_vcpu_running to insert wrapper before"
-      exit 1
-    fi
+      # ---------- 3. Enable RDTSC and RDTSCP interception in init_vmcb ----------
+      # Note: sed /a inserts in LIFO order — last appended is closest to
+      # anchor. When cpuid-patch.nix clears these intercepts (also via /a
+      # on the same anchor), the clears land BEFORE these sets, so the
+      # sets override the clears. This is correct behavior.
+      if grep -q 'svm_set_intercept(svm, INTERCEPT_RSM);' arch/x86/kvm/svm/svm.c; then
+        sed -i '/svm_set_intercept(svm, INTERCEPT_RSM);/a\\tsvm_set_intercept(svm, INTERCEPT_RDTSC);\n\tsvm_set_intercept(svm, INTERCEPT_RDTSCP);' \
+          arch/x86/kvm/svm/svm.c
+        echo "[OK] svm.c: enabled RDTSC+RDTSCP interception in init_vmcb"
+      else
+        echo "[FAIL] svm.c: could not find INTERCEPT_RSM anchor for RDTSC/RDTSCP interception"
+        exit 1
+      fi
 
-    # ---------- 4. Patch MSR_IA32_TSC read to return compensated time ----------
-    # Replace the TSC computation block in kvm_get_msr_common.
-    # In 6.19, the MSR_IA32_TSC case has a block starting with:
-    #   u64 offset, ratio;
-    # We replace the entire case body with our compensated read.
-    if grep -q 'case MSR_IA32_TSC: {' arch/x86/kvm/x86.c; then
-      # Use awk for multi-line replacement within the MSR_IA32_TSC case
-      awk '
-      /case MSR_IA32_TSC: \{/ {
-        print "\tcase MSR_IA32_TSC: {"
-        print "\t\tu64 bt_diff;"
-        print "\t\tu64 bt_total;"
-        print ""
-        print "\t\tu64 bt_now = rdtsc();"
-        print "\t\tbt_diff = bt_now - vcpu->last_exit_start;"
-        print "\t\tbt_total = vcpu->total_exit_time + bt_diff;"
-        print ""
-        print "\t\tmsr_info->data = bt_now - bt_total;"
-        print ""
-        print "\t\tvcpu->run->exit_reason = 0xDEAD;"
-        print "\t\tbreak;"
-        print "\t}"
-        # Skip old content until the closing brace+break
-        in_tsc = 1
-        next
-      }
-      in_tsc && /^\tcase / { in_tsc = 0; print; next }
-      in_tsc && /^\t\}/ { in_tsc = 0; next }
-      in_tsc { next }
-      { print }
-      ' arch/x86/kvm/x86.c > arch/x86/kvm/x86.c.tmp && \
-        mv arch/x86/kvm/x86.c.tmp arch/x86/kvm/x86.c
-      echo "[OK] x86.c: patched MSR_IA32_TSC to return compensated time"
-    else
-      echo "[FAIL] x86.c: could not find MSR_IA32_TSC case block — TSC compensation broken without this"
-      exit 1
-    fi
+      # ---------- 4. Add stealth wrapper functions ----------
+      # Each wrapper self-times: rdtsc() at entry, accumulate delta at exit.
+      # Insert before svm_exit_handlers table definition.
 
-    # ---------- 5. Enable RDTSC and RDTSCP interception in init_vmcb ----------
-    # Note: sed /a inserts in LIFO order — last appended is closest to
-    # anchor. When cpuid-patch.nix clears these intercepts (also via /a
-    # on the same anchor), the clears land BEFORE these sets, so the
-    # sets override the clears. This is correct behavior.
-    if grep -q 'svm_set_intercept(svm, INTERCEPT_RSM);' arch/x86/kvm/svm/svm.c; then
-      sed -i '/svm_set_intercept(svm, INTERCEPT_RSM);/a\\tsvm_set_intercept(svm, INTERCEPT_RDTSC);\n\tsvm_set_intercept(svm, INTERCEPT_RDTSCP);' \
-        arch/x86/kvm/svm/svm.c
-      echo "[OK] svm.c: enabled RDTSC+RDTSCP interception in init_vmcb"
-    else
-      echo "[FAIL] svm.c: could not find INTERCEPT_RSM anchor for RDTSC/RDTSCP interception"
-      exit 1
-    fi
-
-    # ---------- 6b. Add handle_rdtscp_interception handler ----------
-    # Insert before the svm_exit_handlers table definition.
-    # Identical to RDTSC handler but also returns TSC_AUX in ECX.
-    if grep -q '^static int (\*const svm_exit_handlers\[\])' arch/x86/kvm/svm/svm.c; then
+      # 4a. CPUID, WBINVD, XSETBV, INVD wrappers
       sed -i '/^static int (\*const svm_exit_handlers\[\])/i\
-  static int handle_rdtscp_interception(struct kvm_vcpu *vcpu)\
-  {\
-  \tu64 difference;\
-  \tu64 final_time;\
-  \tu64 data;\
-  \
-  \tdifference = rdtsc() - vcpu->last_exit_start;\
-  \tfinal_time = vcpu->total_exit_time + difference;\
-  \
-  \tdata = rdtsc() - final_time;\
-  \
-  \tvcpu->arch.regs[VCPU_REGS_RAX] = data & -1u;\
-  \tvcpu->arch.regs[VCPU_REGS_RDX] = (data >> 32) & -1u;\
-  \tvcpu->arch.regs[VCPU_REGS_RCX] = (u32)to_svm(vcpu)->tsc_aux;\
-  \
-  \tvcpu->run->exit_reason = 0xDEAD;\
-  \treturn kvm_skip_emulated_instruction(vcpu);\
-  }\
-  ' arch/x86/kvm/svm/svm.c
-      echo "[OK] svm.c: added handle_rdtscp_interception handler"
-    else
-      echo "[FAIL] svm.c: could not find svm_exit_handlers table"
-      exit 1
-    fi
-
-    # ---------- 6. Add handle_rdtsc_interception handler ----------
-    # Insert before the svm_exit_handlers table definition.
-    # In 6.19, handlers take (struct kvm_vcpu *vcpu).
-    if grep -q '^static int (\*const svm_exit_handlers\[\])' arch/x86/kvm/svm/svm.c; then
-      sed -i '/^static int (\*const svm_exit_handlers\[\])/i\
-  static int handle_rdtsc_interception(struct kvm_vcpu *vcpu)\
-  {\
-  \tu64 difference;\
-  \tu64 final_time;\
-  \tu64 data;\
-  \
-  \tdifference = rdtsc() - vcpu->last_exit_start;\
-  \tfinal_time = vcpu->total_exit_time + difference;\
-  \
-  \tdata = rdtsc() - final_time;\
-  \
-  \tvcpu->arch.regs[VCPU_REGS_RAX] = data & -1u;\
-  \tvcpu->arch.regs[VCPU_REGS_RDX] = (data >> 32) & -1u;\
-  \
-  \tvcpu->run->exit_reason = 0xDEAD;\
-  \treturn kvm_skip_emulated_instruction(vcpu);\
-  }\
-  ' arch/x86/kvm/svm/svm.c
-      echo "[OK] svm.c: added handle_rdtsc_interception handler"
-    else
-      echo "[FAIL] svm.c: could not find svm_exit_handlers table"
-      exit 1
-    fi
-
-    # ---------- 7. Register RDTSC handler in svm_exit_handlers table ----------
-    # Add [SVM_EXIT_RDTSC] entry after [SVM_EXIT_AVIC_UNACCELERATED_ACCESS]
-    if grep -q 'SVM_EXIT_AVIC_UNACCELERATED_ACCESS.*avic_unaccelerated_access_interception' arch/x86/kvm/svm/svm.c; then
-      sed -i '/\[SVM_EXIT_AVIC_UNACCELERATED_ACCESS\].*=.*avic_unaccelerated_access_interception/a\\t[SVM_EXIT_RDTSC]\t\t\t\t= handle_rdtsc_interception,' \
-        arch/x86/kvm/svm/svm.c
-      echo "[OK] svm.c: registered SVM_EXIT_RDTSC handler"
-    else
-      echo "[FAIL] svm.c: could not find AVIC_UNACCELERATED_ACCESS entry for RDTSC registration"
-      exit 1
-    fi
-
-    # ---------- 7b. Register RDTSCP handler in svm_exit_handlers table ----------
-    # Replace the upstream kvm_handle_invalid_op mapping for SVM_EXIT_RDTSCP.
-    if grep -q '\[SVM_EXIT_RDTSCP\].*=.*kvm_handle_invalid_op,' arch/x86/kvm/svm/svm.c; then
-      sed -i 's/\[SVM_EXIT_RDTSCP\].*=.*kvm_handle_invalid_op,/[SVM_EXIT_RDTSCP]\t\t\t= handle_rdtscp_interception,/' \
-        arch/x86/kvm/svm/svm.c
-      echo "[OK] svm.c: registered SVM_EXIT_RDTSCP handler"
-    else
-      echo "[FAIL] svm.c: could not find SVM_EXIT_RDTSCP entry for handler registration"
-      exit 1
-    fi
-
-    # ---------- 8. Tag exit_reason=0xDEAD on CPUID, WBINVD, XSETBV, INVD ----------
-    # In 6.19, these map directly to kvm_emulate_* functions. We create wrapper
-    # functions that set exit_reason=0xDEAD then call through, and update the table.
-
-    # 8a. Create wrapper functions (insert before svm_exit_handlers table)
-    sed -i '/^static int handle_rdtsc_interception/i\
   static int stealth_cpuid_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tvcpu->run->exit_reason = 0xDEAD;\
-  \treturn kvm_emulate_cpuid(vcpu);\
+  \tu64 _start = rdtsc();\
+  \tint ret = kvm_emulate_cpuid(vcpu);\
+  \tvcpu->total_exit_time += rdtsc() - _start;\
+  \treturn ret;\
   }\
   \
   static int stealth_wbinvd_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tvcpu->run->exit_reason = 0xDEAD;\
-  \treturn kvm_emulate_wbinvd(vcpu);\
+  \tu64 _start = rdtsc();\
+  \tint ret = kvm_emulate_wbinvd(vcpu);\
+  \tvcpu->total_exit_time += rdtsc() - _start;\
+  \treturn ret;\
   }\
   \
   static int stealth_xsetbv_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tvcpu->run->exit_reason = 0xDEAD;\
-  \treturn kvm_emulate_xsetbv(vcpu);\
+  \tu64 _start = rdtsc();\
+  \tint ret = kvm_emulate_xsetbv(vcpu);\
+  \tvcpu->total_exit_time += rdtsc() - _start;\
+  \treturn ret;\
   }\
   \
   static int stealth_invd_interception(struct kvm_vcpu *vcpu)\
   {\
-  \tvcpu->run->exit_reason = 0xDEAD;\
-  \treturn kvm_emulate_invd(vcpu);\
+  \tu64 _start = rdtsc();\
+  \tint ret = kvm_emulate_invd(vcpu);\
+  \tvcpu->total_exit_time += rdtsc() - _start;\
+  \treturn ret;\
   }\
   ' arch/x86/kvm/svm/svm.c
-    echo "[OK] svm.c: created stealth wrapper functions for exit_reason tagging"
+      echo "[OK] svm.c: created stealth wrapper functions with per-handler timing"
 
-    # 8b. Replace handler table entries to use wrappers
-    sed -i 's/\[SVM_EXIT_CPUID\].*=.*kvm_emulate_cpuid,/[SVM_EXIT_CPUID]\t\t\t= stealth_cpuid_interception,/' \
-      arch/x86/kvm/svm/svm.c
-    sed -i 's/\[SVM_EXIT_WBINVD\].*=.*kvm_emulate_wbinvd,/[SVM_EXIT_WBINVD]\t\t\t= stealth_wbinvd_interception,/' \
-      arch/x86/kvm/svm/svm.c
-    sed -i 's/\[SVM_EXIT_XSETBV\].*=.*kvm_emulate_xsetbv,/[SVM_EXIT_XSETBV]\t\t\t= stealth_xsetbv_interception,/' \
-      arch/x86/kvm/svm/svm.c
-    sed -i 's/\[SVM_EXIT_INVD\].*=.*kvm_emulate_invd,/[SVM_EXIT_INVD]\t\t\t\t= stealth_invd_interception,/' \
-      arch/x86/kvm/svm/svm.c
-    echo "[OK] svm.c: updated exit handler table to use stealth wrappers"
+      # 4b. RDTSC handler — reads compensated TSC and self-times
+      sed -i '/^static int (\*const svm_exit_handlers\[\])/i\
+  static int handle_rdtsc_interception(struct kvm_vcpu *vcpu)\
+  {\
+  \tu64 start = rdtsc();\
+  \tu64 data = start - vcpu->total_exit_time;\
+  \tint ret;\
+  \
+  \tvcpu->arch.regs[VCPU_REGS_RAX] = (u32)data;\
+  \tvcpu->arch.regs[VCPU_REGS_RDX] = (u32)(data >> 32);\
+  \
+  \tret = kvm_skip_emulated_instruction(vcpu);\
+  \tvcpu->total_exit_time += rdtsc() - start;\
+  \treturn ret;\
+  }\
+  ' arch/x86/kvm/svm/svm.c
+      echo "[OK] svm.c: added handle_rdtsc_interception handler"
 
-    # ---------- 9. Disable KVM hypercall instruction patching ----------
-    # KVM's patch_hypercall() writes VMCALL/VMMCALL to guest memory.
-    # On read-execute pages this triggers #PF instead of #UD (bare metal
-    # behavior). Force the quirk check to always inject #UD.
-    if grep -q 'if (!kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_FIX_HYPERCALL_INSN))' arch/x86/kvm/x86.c; then
-      sed -i 's/if (!kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_FIX_HYPERCALL_INSN))/if (1)/' \
-        arch/x86/kvm/x86.c
-      echo "[OK] x86.c: disabled hypercall instruction patching (always inject #UD)"
-    else
-      echo "[FAIL] x86.c: could not find KVM_X86_QUIRK_FIX_HYPERCALL_INSN check"
-      exit 1
-    fi
+      # 4c. RDTSCP handler — same as RDTSC but also returns TSC_AUX in ECX
+      sed -i '/^static int (\*const svm_exit_handlers\[\])/i\
+  static int handle_rdtscp_interception(struct kvm_vcpu *vcpu)\
+  {\
+  \tu64 start = rdtsc();\
+  \tu64 data = start - vcpu->total_exit_time;\
+  \tint ret;\
+  \
+  \tvcpu->arch.regs[VCPU_REGS_RAX] = (u32)data;\
+  \tvcpu->arch.regs[VCPU_REGS_RDX] = (u32)(data >> 32);\
+  \tvcpu->arch.regs[VCPU_REGS_RCX] = (u32)to_svm(vcpu)->tsc_aux;\
+  \
+  \tret = kvm_skip_emulated_instruction(vcpu);\
+  \tvcpu->total_exit_time += rdtsc() - start;\
+  \treturn ret;\
+  }\
+  ' arch/x86/kvm/svm/svm.c
+      echo "[OK] svm.c: added handle_rdtscp_interception handler"
 
-    echo "=== BetterTiming: patch complete ==="
+      # ---------- 5. Register handlers in svm_exit_handlers table ----------
+      # 5a. RDTSC — add new entry after AVIC_UNACCELERATED_ACCESS
+      if grep -q 'SVM_EXIT_AVIC_UNACCELERATED_ACCESS.*avic_unaccelerated_access_interception' arch/x86/kvm/svm/svm.c; then
+        sed -i '/\[SVM_EXIT_AVIC_UNACCELERATED_ACCESS\].*=.*avic_unaccelerated_access_interception/a\\t[SVM_EXIT_RDTSC]\t\t\t\t= handle_rdtsc_interception,' \
+          arch/x86/kvm/svm/svm.c
+        echo "[OK] svm.c: registered SVM_EXIT_RDTSC handler"
+      else
+        echo "[FAIL] svm.c: could not find AVIC_UNACCELERATED_ACCESS entry for RDTSC registration"
+        exit 1
+      fi
+
+      # 5b. RDTSCP — replace upstream kvm_handle_invalid_op mapping
+      if grep -q '\[SVM_EXIT_RDTSCP\].*=.*kvm_handle_invalid_op,' arch/x86/kvm/svm/svm.c; then
+        sed -i 's/\[SVM_EXIT_RDTSCP\].*=.*kvm_handle_invalid_op,/[SVM_EXIT_RDTSCP]\t\t\t= handle_rdtscp_interception,/' \
+          arch/x86/kvm/svm/svm.c
+        echo "[OK] svm.c: registered SVM_EXIT_RDTSCP handler"
+      else
+        echo "[FAIL] svm.c: could not find SVM_EXIT_RDTSCP entry for handler registration"
+        exit 1
+      fi
+
+      # 5c. Replace handler table entries for CPUID, WBINVD, XSETBV, INVD
+      sed -i 's/\[SVM_EXIT_CPUID\].*=.*kvm_emulate_cpuid,/[SVM_EXIT_CPUID]\t\t\t= stealth_cpuid_interception,/' \
+        arch/x86/kvm/svm/svm.c
+      sed -i 's/\[SVM_EXIT_WBINVD\].*=.*kvm_emulate_wbinvd,/[SVM_EXIT_WBINVD]\t\t\t= stealth_wbinvd_interception,/' \
+        arch/x86/kvm/svm/svm.c
+      sed -i 's/\[SVM_EXIT_XSETBV\].*=.*kvm_emulate_xsetbv,/[SVM_EXIT_XSETBV]\t\t\t= stealth_xsetbv_interception,/' \
+        arch/x86/kvm/svm/svm.c
+      sed -i 's/\[SVM_EXIT_INVD\].*=.*kvm_emulate_invd,/[SVM_EXIT_INVD]\t\t\t\t= stealth_invd_interception,/' \
+        arch/x86/kvm/svm/svm.c
+      echo "[OK] svm.c: updated exit handler table to use stealth wrappers"
+
+      # ---------- 6. Disable KVM hypercall instruction patching ----------
+      # KVM's patch_hypercall() writes VMCALL/VMMCALL to guest memory.
+      # On read-execute pages this triggers #PF instead of #UD (bare metal
+      # behavior). Force the quirk check to always inject #UD.
+      if grep -q 'if (!kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_FIX_HYPERCALL_INSN))' arch/x86/kvm/x86.c; then
+        sed -i 's/if (!kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_FIX_HYPERCALL_INSN))/if (1)/' \
+          arch/x86/kvm/x86.c
+        echo "[OK] x86.c: disabled hypercall instruction patching (always inject #UD)"
+      else
+        echo "[FAIL] x86.c: could not find KVM_X86_QUIRK_FIX_HYPERCALL_INSN check"
+        exit 1
+      fi
+
+      echo "=== BetterTiming: patch complete ==="
 ''
