@@ -173,6 +173,26 @@ in
           default = 32768;
           description = "L3 cache size in KB for SMBIOS type 7.";
         };
+        assocL1 = lib.mkOption {
+          type = lib.types.int;
+          default = 7;
+          description = "SMBIOS type 7 associativity byte for L1 (7 = 8-way, the AMD Zen 4/5 L1d value). Other common: 9 (16-way), 6 (fully associative). See DSP0134 Table 36.";
+        };
+        assocL2 = lib.mkOption {
+          type = lib.types.int;
+          default = 7;
+          description = "SMBIOS type 7 associativity byte for L2 (7 = 8-way, the AMD Zen 4/5 L2 value).";
+        };
+        assocL3 = lib.mkOption {
+          type = lib.types.int;
+          default = 9;
+          description = "SMBIOS type 7 associativity byte for L3 (9 = 16-way, the AMD Zen 4/5 V-Cache value; use 7 for non-V-Cache CCDs).";
+        };
+        ecc = lib.mkOption {
+          type = lib.types.int;
+          default = 3;
+          description = "SMBIOS type 7 error correction type per DSP0134 Table 39. 0 = Reserved, 1 = Other, 2 = Unknown, 3 = None, 4 = Parity, 5 = Single-bit ECC, 6 = Multi-bit ECC. Consumer Ryzen has no cache ECC; server EPYC has parity on L3.";
+        };
       };
 
       oemStrings = lib.mkOption {
@@ -230,6 +250,20 @@ in
       type = lib.types.bool;
       default = true;
       description = "Pass through IA32_APERF/MPERF MSRs to guest (addresses IET-based VM indicators). Requires kernel 6.18+.";
+    };
+
+    # --- KVM paravirt MSR enforcement ---
+    # AutoVirt's QEMU patch flips the kvm-pv-enforce-cpuid default from
+    # false to true. The flag faults RDMSR/WRMSR in the KVM paravirt
+    # range (0x4b564d00-0x4b564d08) with #GP unless the matching CPUID
+    # feature is set. Windows HAL/HvLoader touches these MSRs during
+    # early boot without the feature bit, so enable-on crashes the VM.
+    # Default off: keeps the pre-AutoVirt behavior. Per-VM override lives
+    # in the consumer's vms.nix submodule.
+    kvmPvEnforceCpuid = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Pass kvm-pv-enforce-cpuid=on to the guest -cpu flag. AutoVirt's default is on; Windows guests without the matching CPUID feature fault with #GP in early HAL init. Off = pre-AutoVirt behavior. Per-VM override available via the consumer's vms.nix kvmPvEnforceCpuid option.";
     };
 
     # --- Network identity ---

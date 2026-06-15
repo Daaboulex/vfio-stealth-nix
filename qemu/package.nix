@@ -183,10 +183,15 @@ assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemuBase.version)
         grep -n 'PCI_DEVICE_ID_INTEL_P35_MCH' include/hw/pci/pci_ids.h || true
         exit 1
       fi
-      sed -i 's/k->vendor_id = .*/k->vendor_id = PCI_VENDOR_ID_INTEL;/' hw/pci-host/q35.c
-      if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_INTEL;' hw/pci-host/q35.c; then
-        echo "FATAL: MCH vendor_id revert to Intel failed in q35.c"
-        grep -n 'vendor_id' hw/pci-host/q35.c || true
+      mchVendorFile=$(grep -rl 'k->vendor_id = PCI_VENDOR_ID_AMD' hw/pci-host/ 2>/dev/null | head -1)
+      if [ -z "$mchVendorFile" ]; then
+        echo "FATAL: AutoVirt's k->vendor_id = PCI_VENDOR_ID_AMD anchor not found under hw/pci-host/ — patch content changed; update the MCH vendor_id revert"
+        exit 1
+      fi
+      sed -i 's|k->vendor_id = PCI_VENDOR_ID_AMD;|k->vendor_id = PCI_VENDOR_ID_INTEL;|' "$mchVendorFile"
+      if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_INTEL;' "$mchVendorFile"; then
+        echo "FATAL: MCH vendor_id revert to Intel failed in $mchVendorFile"
+        grep -n 'vendor_id' "$mchVendorFile" || true
         exit 1
       fi
 

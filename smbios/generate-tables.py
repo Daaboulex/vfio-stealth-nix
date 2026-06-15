@@ -88,8 +88,20 @@ CACHE_TYPE_INSTRUCTION = 3
 CACHE_TYPE_DATA = 4
 CACHE_TYPE_UNIFIED = 5
 
-# Associativity (u8) — 0x06 = Fully Associative
-ASSOC_FULLY = 6
+# Associativity (u8) per DSP0134 Table 36:
+#   0x01 Other, 0x02 Unknown, 0x03 Direct Mapped, 0x04 2-way,
+#   0x05 4-way, 0x06 Fully Associative, 0x07 8-way, 0x08 12-way,
+#   0x09 16-way, 0x0A 20-way, 0x0B 24-way, 0x0C 32-way, ...
+ASSOC_OTHER = 1
+ASSOC_8WAY = 7
+ASSOC_16WAY = 9
+
+# Defaults for AMD Zen 4/5 (consumer Ryzen):
+# L1d 8-way, L2 8-way, L3 (V-Cache) 16-way; no ECC on any consumer cache.
+ASSOC_L1_DEFAULT = ASSOC_8WAY
+ASSOC_L2_DEFAULT = ASSOC_8WAY
+ASSOC_L3_DEFAULT = ASSOC_16WAY
+ECC_DEFAULT = 0x03  # None per DSP0134 Table 39; consumer Ryzen has no cache ECC
 
 TYPE7_LENGTH = 27  # SMBIOS 3.1+ with extended size fields
 
@@ -340,8 +352,23 @@ def build_type29(
 # Generation
 # ---------------------------------------------------------------------------
 
-def generate_all(output_dir: str, cache_l1: int, cache_l2: int, cache_l3: int) -> None:
-    """Generate all SMBIOS binary table files into output_dir."""
+def generate_all(
+    output_dir: str,
+    cache_l1: int,
+    cache_l2: int,
+    cache_l3: int,
+    assoc_l1: int = ASSOC_L1_DEFAULT,
+    assoc_l2: int = ASSOC_L2_DEFAULT,
+    assoc_l3: int = ASSOC_L3_DEFAULT,
+    ecc: int = ECC_DEFAULT,
+) -> None:
+    """Generate all SMBIOS binary table files into output_dir.
+
+    assoc_l{1,2,3} and ecc are the SMBIOS Type 7 cache characteristics.
+    Defaults match AMD Zen 4/5 (consumer): 8-way / 8-way / 16-way, no ECC.
+    Override per-host (e.g. server-class CPUs with different associativity
+    or with ECC/parity on L3) via generate-tables.py CLI args.
+    """
     os.makedirs(output_dir, exist_ok=True)
 
     caches = [
@@ -350,27 +377,27 @@ def generate_all(output_dir: str, cache_l1: int, cache_l2: int, cache_l3: int) -
             designation="L1 Data Cache",
             config=CACHE_CFG_L1,
             size_kb=cache_l1,
-            ecc=ECC_SINGLE_BIT,
+            ecc=ecc,
             cache_type=CACHE_TYPE_DATA,
-            associativity=ASSOC_FULLY,
+            associativity=assoc_l1,
         ),
         CacheEntry(
             handle=0x0701,
             designation="L2 Unified Cache",
             config=CACHE_CFG_L2,
             size_kb=cache_l2,
-            ecc=ECC_SINGLE_BIT,
+            ecc=ecc,
             cache_type=CACHE_TYPE_UNIFIED,
-            associativity=ASSOC_FULLY,
+            associativity=assoc_l2,
         ),
         CacheEntry(
             handle=0x0702,
             designation="L3 Unified Cache",
             config=CACHE_CFG_L3,
             size_kb=cache_l3,
-            ecc=ECC_MULTI_BIT,
+            ecc=ecc,
             cache_type=CACHE_TYPE_UNIFIED,
-            associativity=ASSOC_FULLY,
+            associativity=assoc_l3,
         ),
     ]
 
@@ -494,7 +521,8 @@ def verify_table(path: str, expected_type: int, expected_length: int) -> list[st
             errors.append(f"{name}: cache level {level} out of expected range [1, 3]")
 
         ecc = struct.unpack_from("<B", data, 16)[0]  # offset 10h
-        if ecc not in (ECC_SINGLE_BIT, ECC_MULTI_BIT):
+        # DSP0134 Table 39: 0x01 Other, 0x02 Unknown, 0x03 None, 0x04 Parity, 0x05 Single-bit ECC, 0x06 Multi-bit ECC.
+        if ecc not in (0x01, 0x02, 0x03, 0x04, ECC_SINGLE_BIT, ECC_MULTI_BIT):
             errors.append(f"{name}: unexpected ECC type {ecc}")
 
         cache_type = struct.unpack_from("<B", data, 17)[0]  # offset 11h
@@ -543,6 +571,14 @@ def main() -> None:
                         help="L2 unified cache size in KB (default: 8192)")
     parser.add_argument("--cache-l3", type=int, default=32768,
                         help="L3 unified cache size in KB (default: 32768)")
+    parser.add_argument("--assoc-l1", type=int, default=ASSOC_L1_DEFAULT,
+                        help=f"L1 associativity (SMBIOS Type 7 byte, default: {ASSOC_L1_DEFAULT} = 8-way)")
+    parser.add_argument("--assoc-l2", type=int, default=ASSOC_L2_DEFAULT,
+                        help=f"L2 associativity (SMBIOS Type 7 byte, default: {ASSOC_L2_DEFAULT} = 8-way)")
+    parser.add_argument("--assoc-l3", type=int, default=ASSOC_L3_DEFAULT,
+                        help=f"L3 associativity (SMBIOS Type 7 byte, default: {ASSOC_L3_DEFAULT} = 16-way V-Cache)")
+    parser.add_argument("--ecc", type=int, default=ECC_DEFAULT,
+                        help=f"Error correction type (SMBIOS Type 7 byte, default: {ECC_DEFAULT} = Unknown; consumer Ryzen has no ECC)")
 
     args = parser.parse_args()
 
@@ -554,7 +590,16 @@ def main() -> None:
     if not args.output_dir:
         parser.error("--output-dir is required when not using --verify")
 
-    generate_all(args.output_dir, args.cache_l1, args.cache_l2, args.cache_l3)
+    generate_all(
+        args.output_dir,
+        args.cache_l1,
+        args.cache_l2,
+        args.cache_l3,
+        assoc_l1=args.assoc_l1,
+        assoc_l2=args.assoc_l2,
+        assoc_l3=args.assoc_l3,
+        ecc=args.ecc,
+    )
     print(f"Generated {len(EXPECTED_FILES)} SMBIOS tables in {args.output_dir}")
 
 

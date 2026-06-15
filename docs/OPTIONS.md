@@ -20,6 +20,7 @@ README is the canonical home, this page is the deep-link target.
 | `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
 | `hypervVendorId` | `str` (1-12 chars) | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv) | Hyper-V vendor_id identification |
 | `hypervMode` | `enum ["enlightened" "hidden"]` | `"enlightened"` | "enlightened" exposes hypervisor + full Hyper-V enlightenments. "hidden" conceals the hypervisor and emits no enlightenments | Hyper-V presence detection |
+| `kvmPvEnforceCpuid` | `bool` | `false` | Pass `kvm-pv-enforce-cpuid=on` to the guest `-cpu` flag. AutoVirt's QEMU patch flipped the QEMU default to on; that flag faults RDMSR/WRMSR in the KVM paravirt range (0x4b564d00-0x4b564d08) with #GP unless the matching CPUID feature is set, which crashes Windows HAL/HvLoader. Off = pre-AutoVirt behavior | KVM paravirt MSR #GP on Win init |
 
 ## Kernel
 
@@ -56,6 +57,10 @@ README is the canonical home, this page is the deep-link target.
 | `smbios.cache.l1` | `int` | `512` | L1 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
 | `smbios.cache.l2` | `int` | `8192` | L2 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
 | `smbios.cache.l3` | `int` | `32768` | L3 cache size in KB (SMBIOS Type 7) | `Win32_CacheMemory` |
+| `smbios.cache.assocL1` | `int` | `7` | SMBIOS Type 7 L1 associativity byte (7 = 8-way, AMD Zen 4/5 L1d) | `Win32_CacheMemory.Associativity` |
+| `smbios.cache.assocL2` | `int` | `7` | SMBIOS Type 7 L2 associativity byte (7 = 8-way) | `Win32_CacheMemory.Associativity` |
+| `smbios.cache.assocL3` | `int` | `9` | SMBIOS Type 7 L3 associativity byte (9 = 16-way V-Cache; 7 for non-V-Cache) | `Win32_CacheMemory.Associativity` |
+| `smbios.cache.ecc` | `int` | `3` | SMBIOS Type 7 error correction type per DSP0134 Table 39 (0 Reserved, 1 Other, 2 Unknown, 3 None, 4 Parity, 5 Single-bit ECC, 6 Multi-bit ECC). Consumer Ryzen has no ECC | `Win32_CacheMemory.ErrorCorrectionType` |
 
 ## ACPI SSDT
 

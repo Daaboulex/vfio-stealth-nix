@@ -18,6 +18,7 @@
       stripVirtio ? true,
       hypervVendorId ? "AuthAMDRyzen", # 12 chars — libvirt max
       hypervMode ? "enlightened", # "enlightened" = visible hypervisor + Hyper-V enlightenments; "hidden" = concealed hypervisor, no enlightenments
+      kvmPvEnforceCpuid ? false, # AutoVirt's QEMU patch flips the default to on; that flag faults Win HAL/HvLoader KVM paravirt MSRs with #GP. Off = pre-AutoVirt behavior.
     }:
     {
       cpuFeatures =
@@ -301,7 +302,8 @@
         ++ [
           "-cpu"
           (
-            "host,topoext=on,invtsc=on,kvm-pv-enforce-cpuid=on"
+            "host,topoext=on,invtsc=on"
+            + lib.optionalString kvmPvEnforceCpuid ",kvm-pv-enforce-cpuid=on"
             + lib.optionalString (hypervMode == "hidden") ",hypervisor=off"
             + lib.optionalString aperfMperf ",aperfmperf=on"
           )
