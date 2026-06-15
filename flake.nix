@@ -22,6 +22,16 @@
       url = "github:SamuelTulach/BetterTiming";
       flake = false;
     };
+    # CachyOS kernel packaging — used by the kernel-anchor-contract
+    # test to verify the awk anchors in the user's actual production
+    # kernel source (CachyOS's BORE/LTO/Zen4 patches + upstream Linux).
+    # Tracking `master` (latest) so the contract test follows the
+    # user's rolling kernel; if a CachyOS bump moves an anchor, the
+    # test fails LOUDLY at `nix flake check` time, not at boot.
+    nix-cachyos-kernel = {
+      url = "github:xddxdd/nix-cachyos-kernel";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -58,6 +68,19 @@
             overlays = [ self.overlays.default ];
             module = ./module.nix;
             config.myModules.vfio.stealth.enable = true;
+          };
+
+          checks.sed-contract-qemu = pkgs.callPackage ./tests/sed-contract-qemu.nix {
+            inherit inputs;
+          };
+
+          checks.sed-contract-edk2 = pkgs.callPackage ./tests/sed-contract-edk2.nix {
+            inherit inputs;
+          };
+
+          checks.kernel-anchor-contract = pkgs.callPackage ./tests/kernel-anchor-contract.nix {
+            cachyosLtoLatest =
+              inputs.nix-cachyos-kernel.legacyPackages.x86_64-linux.linuxPackages-cachyos-latest-lto;
           };
 
           checks.boot-smoke = pkgs.testers.runNixOSTest {
