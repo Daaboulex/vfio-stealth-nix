@@ -42,7 +42,7 @@ in
       enable = lib.mkOption {
         type = lib.types.bool;
         default = false;
-        description = "Disable CPUID interception entirely. Guest executes CPUID at native hardware speed (zero VM exit). Addresses software-counter timing checks (VMAware TIMER 95pts, SINGLE_STEP 100pts). Requires AMD host with host-passthrough CPU mode. When enabled, cpuidSpoof is skipped (passthrough takes precedence). Side effect: Hyper-V enlightenments are invisible to guest (Windows uses TSC directly).";
+        description = "Disable CPUID interception entirely. Guest executes CPUID at native hardware speed (zero VM exit). Addresses software-counter timing checks (VMAware TIMER 95pts, SINGLE_STEP 100pts). Requires AMD host with host-passthrough CPU mode. When enabled, cpuidSpoof is skipped (passthrough takes precedence). Side effect: Hyper-V enlightenments are invisible to guest (Windows uses TSC directly). LIMITATION: the guest sees the host's raw topology (core count, thread count, NUMA nodes) via CPUID -- if the VM has fewer vCPUs than the host has threads, Windows deadlocks at boot waiting for processors that do not exist.";
       };
     };
 
@@ -479,19 +479,19 @@ in
     assertions = [
       {
         assertion = !(cfg.cpuidPassthrough.enable && cfg.hypervMode == "enlightened");
-        message = "cpuidPassthrough disables CPUID interception — Hyper-V enlightenments (hypervMode=enlightened) will be invisible to the guest; set hypervMode to hidden";
+        message = "myModules.vfio.stealth: cpuidPassthrough disables CPUID interception -- Hyper-V enlightenments (hypervMode=enlightened) will be invisible to the guest; set hypervMode to hidden";
       }
       {
         assertion = builtins.stringLength cfg.disk.model <= 40;
-        message = "disk.model must be at most 40 characters (ATA-8 model string limit); got ${toString (builtins.stringLength cfg.disk.model)}";
+        message = "myModules.vfio.stealth.disk.model: must be at most 40 characters (ATA-8 model string limit); got ${toString (builtins.stringLength cfg.disk.model)}";
       }
       {
         assertion = builtins.stringLength cfg.acpiOem.id == 6;
-        message = "acpiOem.id must be exactly 6 characters; got ${toString (builtins.stringLength cfg.acpiOem.id)}";
+        message = "myModules.vfio.stealth.acpiOem.id: must be exactly 6 characters; got ${toString (builtins.stringLength cfg.acpiOem.id)}";
       }
       {
         assertion = builtins.stringLength cfg.acpiOem.tableId == 8;
-        message = "acpiOem.tableId must be exactly 8 characters; got ${toString (builtins.stringLength cfg.acpiOem.tableId)}";
+        message = "myModules.vfio.stealth.acpiOem.tableId: must be exactly 8 characters; got ${toString (builtins.stringLength cfg.acpiOem.tableId)}";
       }
     ];
 

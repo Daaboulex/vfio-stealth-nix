@@ -94,7 +94,7 @@
           }
           {
             name = "hypervclock";
-            present = (hypervMode == "enlightened");
+            present = hypervMode == "enlightened";
           }
           {
             name = "tsc";
@@ -303,7 +303,7 @@
           "-cpu"
           (
             "host,topoext=on,invtsc=on"
-            + lib.optionalString kvmPvEnforceCpuid ",kvm-pv-enforce-cpuid=on"
+            + ",kvm-pv-enforce-cpuid=${if kvmPvEnforceCpuid then "on" else "off"}"
             + lib.optionalString (hypervMode == "hidden") ",hypervisor=off"
             + lib.optionalString aperfMperf ",aperfmperf=on"
           )
