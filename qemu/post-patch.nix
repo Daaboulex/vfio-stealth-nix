@@ -148,4 +148,29 @@
       exit 1
     fi
 
+    # Revert AutoVirt's FADT C-state latency spoofing.
+    # AutoVirt sets plvl2_lat=0x0065 and plvl3_lat=0x03e9 (1 above
+    # the ACPI "not supported" threshold) to fool detection software.
+    # Windows HAL interprets these boundary values as C2/C3-capable
+    # and attempts power state transitions that hang under QEMU.
+    sed -i 's/\.plvl2_lat = 0x0065/\.plvl2_lat = 0xfff/' hw/i386/acpi-build.c
+    if ! grep -q '\.plvl2_lat = 0xfff' hw/i386/acpi-build.c; then
+      echo "FATAL: FADT plvl2_lat revert to 0xfff failed"
+      exit 1
+    fi
+    sed -i 's/\.plvl3_lat = 0x03e9/\.plvl3_lat = 0xfff/' hw/i386/acpi-build.c
+    if ! grep -q '\.plvl3_lat = 0xfff' hw/i386/acpi-build.c; then
+      echo "FATAL: FADT plvl3_lat revert to 0xfff failed"
+      exit 1
+    fi
+
+    # Re-add WAET (Windows ACPI Emulation Table) removed by AutoVirt.
+    # Without WAET, Windows uses slow timer workarounds (triple-read PM
+    # timer, cli-bracketed RTC) that can stall HAL init under QEMU.
+    sed -i '/\/\* Add tables supplied by user/i\    acpi_add_table(table_offsets, tables_blob);\n    build_waet(tables_blob, tables->linker, x86ms->oem_id, x86ms->oem_table_id);' hw/i386/acpi-build.c
+    if ! grep -q 'build_waet' hw/i386/acpi-build.c; then
+      echo "FATAL: WAET table re-addition failed"
+      exit 1
+    fi
+
     echo "=== Hardware identity customization complete ==="''

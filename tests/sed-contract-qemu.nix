@@ -137,6 +137,21 @@ let
       path = "include/hw/pci/pci_ids.h";
       pattern = "PCI_DEVICE_ID_INTEL_P35_MCH      0x29c0";
     }
+    {
+      name = "fadt-plvl2-lat";
+      path = "hw/i386/acpi-build.c";
+      pattern = ".plvl2_lat = 0xfff";
+    }
+    {
+      name = "fadt-plvl3-lat";
+      path = "hw/i386/acpi-build.c";
+      pattern = ".plvl3_lat = 0xfff";
+    }
+    {
+      name = "waet-table";
+      path = "hw/i386/acpi-build.c";
+      pattern = "build_waet";
+    }
   ];
 
   # Render each guard as a shell fragment: a `grep -F` test that returns
