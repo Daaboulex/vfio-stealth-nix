@@ -92,6 +92,12 @@ let
   # shell at eval time. The shell uses literal numbers for
   # comparison (no shell-variable interpolation; the multiline
   # Nix string's $ would otherwise confuse the Nix parser).
+  #
+  # Source-type detection: upstream `linux_latest.src` is a tarball
+  # (fetchurl); CachyOS's `kernel.src` is a directory (the build
+  # produces a tree). We test the source type and handle both —
+  # the test does NOT build the kernel, it just inspects the
+  # already-patched source for the awk anchors.
   renderCheck =
     s: a:
     let
@@ -101,7 +107,11 @@ let
     ''
       if [ ! -d /tmp/anchorsrc ]; then
         mkdir -p /tmp/anchorsrc
-        tar -xf ${s.src} -C /tmp/anchorsrc --strip-components=1
+        if [ -d ${s.src} ]; then
+          cp -r ${s.src}/. /tmp/anchorsrc/
+        else
+          tar -xf ${s.src} -C /tmp/anchorsrc --strip-components=1
+        fi
       fi
       if [ ! -f /tmp/anchorsrc/${a.path} ]; then
         echo "  FAIL [${s.name}]: ${a.path} not found in the source tree"
