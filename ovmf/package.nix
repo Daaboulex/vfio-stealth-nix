@@ -61,13 +61,16 @@ in
       # VMAware CRC 0x110350C5 matches the stock TianoCore logo bitmap.
       # A blank or custom logo in LogoDxe would break the CRC match.
 
-      # AutoVirt's EDK2 patch sets INTEL_Q35_MCH_DEVICE_ID to 0x14D8 (AMD).
-      # The matching QEMU patch also sets the MCH to 0x14D8. Both sides
-      # agree, so OVMF's Q35 PEI init (TSEG/SMRAM) works: the registers
-      # are at fixed Q35 offsets regardless of the advertised device ID.
-      # Keep 0x14D8 for a consistent all-AMD PCI topology.
-      if ! grep -q 'INTEL_Q35_MCH_DEVICE_ID' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
-        echo "FATAL: INTEL_Q35_MCH_DEVICE_ID define not found in Q35MchIch9.h"
+      # Revert AutoVirt's MCH device ID (0x14D8) to Intel Q35 (0x29C0).
+      # The OVMF build enrolls Secure Boot keys by booting inside STOCK
+      # QEMU (accel=tcg), whose MCH is 0x29C0. If OVMF expects 0x14D8,
+      # Q35 PEI init hangs during the build. The runtime qemu-stealth
+      # also uses 0x29C0 (reverted in post-patch.nix) with AMD vendor --
+      # keeping all-AMD vendors while matching OVMF's Q35 check.
+      sed -i 's/define INTEL_Q35_MCH_DEVICE_ID.*$/define INTEL_Q35_MCH_DEVICE_ID    0x29C0/' \
+        OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
+      if ! grep -q 'INTEL_Q35_MCH_DEVICE_ID.*0x29C0' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
+        echo "FATAL: MCH device ID revert to 0x29C0 failed"
         exit 1
       fi
 

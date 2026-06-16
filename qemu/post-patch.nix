@@ -120,18 +120,25 @@
     substituteInPlace hw/ide/core.c \
       --replace-fail 'HL-DT-ST BD-RE WH16NS60' '${opticalModel}'
 
-    # AutoVirt sets the Q35 MCH (00:00.0) to AMD vendor + device 0x14D8,
-    # and the matching AutoVirt EDK2 patch changes OVMF's MCH check to
-    # accept 0x14D8. BOTH sides agree, so Q35 TSEG/SMRAM init works.
-    # Keep the all-AMD topology: AMD MCH + AMD LPC/SMBus/AHCI/USB/PCIe.
-    # A mixed Intel-MCH + AMD-chipset Frankenstein is detectable and
-    # crashes the AMD RDNA 4 display driver (VIDEO_DXGKRNL_FATAL_ERROR).
+    # MCH device ID: revert to 0x29C0 for OVMF compatibility. The OVMF
+    # build enrolls Secure Boot keys by booting OVMF inside STOCK QEMU
+    # (which has MCH 0x29C0). OVMF must accept 0x29C0 or the build hangs.
+    # MCH vendor ID: keep AMD (AutoVirt's change) for a consistent
+    # all-AMD-vendor PCI topology. The guest sees 1022:29C0 — AMD vendor
+    # with Intel Q35 device. The vendor consistency prevents the AMD RDNA 4
+    # driver from crashing (VIDEO_DXGKRNL_FATAL_ERROR 0x113).
+    sed -i 's/define PCI_DEVICE_ID_INTEL_P35_MCH.*$/define PCI_DEVICE_ID_INTEL_P35_MCH      0x29c0/' \
+      include/hw/pci/pci_ids.h
+    if ! grep -q 'PCI_DEVICE_ID_INTEL_P35_MCH.*0x29c0' include/hw/pci/pci_ids.h; then
+      echo "FATAL: MCH device ID revert to 0x29c0 failed in pci_ids.h"
+      exit 1
+    fi
     if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_AMD;' hw/pci-host/q35.c; then
-      echo "FATAL: AutoVirt's AMD vendor_id not found in q35.c — patch content changed"
+      echo "FATAL: AutoVirt's AMD vendor_id not found in q35.c"
       exit 1
     fi
     if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_AMD;' hw/pci-host/gpex.c; then
-      echo "FATAL: AutoVirt's AMD vendor_id not found in gpex.c — patch content changed"
+      echo "FATAL: AutoVirt's AMD vendor_id not found in gpex.c"
       exit 1
     fi
 

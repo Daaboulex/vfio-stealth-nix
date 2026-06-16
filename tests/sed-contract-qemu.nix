@@ -133,6 +133,11 @@ let
       pattern = "HL-DT-ST DVDRAM GH24NSC0";
     }
     {
+      name = "mch-device-id";
+      path = "include/hw/pci/pci_ids.h";
+      pattern = "PCI_DEVICE_ID_INTEL_P35_MCH      0x29c0";
+    }
+    {
       name = "mch-vendor-amd";
       path = "hw/pci-host/q35.c";
       pattern = "k->vendor_id = PCI_VENDOR_ID_AMD;";
