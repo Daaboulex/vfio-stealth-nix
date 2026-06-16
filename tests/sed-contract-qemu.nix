@@ -138,6 +138,16 @@ let
       pattern = "PCI_DEVICE_ID_INTEL_P35_MCH      0x29c0";
     }
     {
+      name = "mch-vendor-intel";
+      path = "hw/pci-host/q35.c";
+      pattern = "k->vendor_id = PCI_VENDOR_ID_INTEL;";
+    }
+    {
+      name = "gpex-vendor-amd";
+      path = "hw/pci-host/gpex.c";
+      pattern = "k->vendor_id = PCI_VENDOR_ID_AMD;";
+    }
+    {
       name = "fadt-plvl2-lat";
       path = "hw/i386/acpi-build.c";
       pattern = ".plvl2_lat = 0xfff";

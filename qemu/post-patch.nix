@@ -136,15 +136,20 @@
       grep -n 'PCI_DEVICE_ID_INTEL_P35_MCH' include/hw/pci/pci_ids.h || true
       exit 1
     fi
-    mchVendorFile=$(grep -rl 'k->vendor_id = PCI_VENDOR_ID_AMD' hw/pci-host/ 2>/dev/null | head -1)
-    if [ -z "$mchVendorFile" ]; then
-      echo "FATAL: AutoVirt's k->vendor_id = PCI_VENDOR_ID_AMD anchor not found under hw/pci-host/ — patch content changed; update the MCH vendor_id revert"
+    # AutoVirt sets vendor_id = PCI_VENDOR_ID_AMD in BOTH q35.c (MCH)
+    # and gpex.c (PCIe root complex). Only the MCH must be Intel (OVMF
+    # requires it); the GPEX stays AMD (hides the Red Hat VM indicator).
+    if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_AMD;' hw/pci-host/q35.c; then
+      echo "FATAL: AutoVirt's k->vendor_id = PCI_VENDOR_ID_AMD anchor not found in q35.c"
       exit 1
     fi
-    sed -i 's|k->vendor_id = PCI_VENDOR_ID_AMD;|k->vendor_id = PCI_VENDOR_ID_INTEL;|' "$mchVendorFile"
-    if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_INTEL;' "$mchVendorFile"; then
-      echo "FATAL: MCH vendor_id revert to Intel failed in $mchVendorFile"
-      grep -n 'vendor_id' "$mchVendorFile" || true
+    sed -i 's|k->vendor_id = PCI_VENDOR_ID_AMD;|k->vendor_id = PCI_VENDOR_ID_INTEL;|' hw/pci-host/q35.c
+    if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_INTEL;' hw/pci-host/q35.c; then
+      echo "FATAL: MCH vendor_id revert to Intel failed in q35.c"
+      exit 1
+    fi
+    if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_AMD;' hw/pci-host/gpex.c; then
+      echo "FATAL: GPEX vendor_id anchor (PCI_VENDOR_ID_AMD) not found in gpex.c — AutoVirt patch changed"
       exit 1
     fi
 
