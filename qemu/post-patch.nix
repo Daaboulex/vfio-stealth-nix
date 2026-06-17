@@ -120,27 +120,41 @@
     substituteInPlace hw/ide/core.c \
       --replace-fail 'HL-DT-ST BD-RE WH16NS60' '${opticalModel}'
 
-    # MCH device ID: revert to 0x29C0 for OVMF compatibility. The OVMF
-    # build enrolls Secure Boot keys by booting OVMF inside STOCK QEMU
-    # (which has MCH 0x29C0). OVMF must accept 0x29C0 or the build hangs.
-    # MCH vendor ID: keep AMD (AutoVirt's change) for a consistent
-    # all-AMD-vendor PCI topology. The guest sees 1022:29C0 — AMD vendor
-    # with Intel Q35 device. The vendor consistency prevents the AMD RDNA 4
-    # driver from crashing (VIDEO_DXGKRNL_FATAL_ERROR 0x113).
+    # Revert Q35 chipset PCI IDs to stock Intel values. AutoVirt remaps
+    # ICH9 LPC/SMBus/AHCI to AMD FCH IDs (790e/790b/43f6), but Q35
+    # emulates Intel ICH9 behavior. The AMD GPU driver (amdkmdag.sys)
+    # sees AMD FCH IDs, takes an AMD-platform code path that expects
+    # real FCH hardware features, and crashes with 0x113 BSOD
+    # (UNEXPECTED_DEFERRED_DESTRUCTION) when Q35 doesn't provide them.
+    # Anti-cheat checks CPUID/SMBIOS/VGA IDs, not chipset bridge IDs,
+    # so reverting these has minimal stealth impact.
+
+    # MCH: device ID to 0x29C0 (OVMF build compat + Q35 identity)
     sed -i 's/define PCI_DEVICE_ID_INTEL_P35_MCH.*$/define PCI_DEVICE_ID_INTEL_P35_MCH      0x29c0/' \
       include/hw/pci/pci_ids.h
-    if ! grep -q 'PCI_DEVICE_ID_INTEL_P35_MCH.*0x29c0' include/hw/pci/pci_ids.h; then
-      echo "FATAL: MCH device ID revert to 0x29c0 failed in pci_ids.h"
-      exit 1
-    fi
-    if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_AMD;' hw/pci-host/q35.c; then
-      echo "FATAL: AutoVirt's AMD vendor_id not found in q35.c"
-      exit 1
-    fi
-    if ! grep -q 'k->vendor_id = PCI_VENDOR_ID_AMD;' hw/pci-host/gpex.c; then
-      echo "FATAL: AutoVirt's AMD vendor_id not found in gpex.c"
-      exit 1
-    fi
+
+    # ICH9 LPC bridge: 0x790E -> 0x2918
+    sed -i 's/define PCI_DEVICE_ID_INTEL_ICH9_8.*$/define PCI_DEVICE_ID_INTEL_ICH9_8       0x2918/' include/hw/pci/pci_ids.h
+    sed -i 's|k->vendor_id = PCI_VENDOR_ID_AMD;|k->vendor_id = PCI_VENDOR_ID_INTEL;|' hw/isa/lpc_ich9.c
+
+    # ICH9 SMBus: 0x790B -> 0x2930
+    sed -i 's/define PCI_DEVICE_ID_INTEL_ICH9_6.*$/define PCI_DEVICE_ID_INTEL_ICH9_6       0x2930/' include/hw/pci/pci_ids.h
+    sed -i 's|k->vendor_id = PCI_VENDOR_ID_AMD;|k->vendor_id = PCI_VENDOR_ID_INTEL;|' hw/i2c/smbus_ich9.c
+
+    # AHCI: AMD 0x43F6 -> Intel 0x2922 (define lives in pci.h, not pci_ids.h)
+    sed -i 's/define PCI_DEVICE_ID_INTEL_82801IR.*$/define PCI_DEVICE_ID_INTEL_82801IR      0x2922/' include/hw/pci/pci.h
+    sed -i 's|k->vendor_id = PCI_VENDOR_ID_AMD;|k->vendor_id = PCI_VENDOR_ID_INTEL;|' hw/ide/ich.c
+    sed -i 's|k->device_id = PCI_DEVICE_ID_AMD_SATA;|k->device_id = PCI_DEVICE_ID_INTEL_82801IR;|' hw/ide/ich.c
+
+    # Verify all reverts applied
+    grep -q 'PCI_DEVICE_ID_INTEL_P35_MCH.*0x29c0' include/hw/pci/pci_ids.h || { echo "FATAL: MCH revert failed"; exit 1; }
+    grep -q 'PCI_DEVICE_ID_INTEL_ICH9_8.*0x2918' include/hw/pci/pci_ids.h || { echo "FATAL: LPC revert failed"; exit 1; }
+    grep -q 'PCI_DEVICE_ID_INTEL_ICH9_6.*0x2930' include/hw/pci/pci_ids.h || { echo "FATAL: SMBus revert failed"; exit 1; }
+    grep -q 'PCI_DEVICE_ID_INTEL_82801IR.*0x2922' include/hw/pci/pci.h || { echo "FATAL: AHCI revert failed"; exit 1; }
+    grep -q 'PCI_VENDOR_ID_INTEL' hw/isa/lpc_ich9.c || { echo "FATAL: LPC vendor revert failed"; exit 1; }
+    grep -q 'PCI_VENDOR_ID_INTEL' hw/i2c/smbus_ich9.c || { echo "FATAL: SMBus vendor revert failed"; exit 1; }
+    grep -q 'PCI_VENDOR_ID_INTEL' hw/ide/ich.c || { echo "FATAL: AHCI vendor revert failed"; exit 1; }
+    grep -q 'PCI_DEVICE_ID_INTEL_82801IR' hw/ide/ich.c || { echo "FATAL: AHCI device_id revert failed"; exit 1; }
 
     # Revert AutoVirt's FADT C-state latency spoofing.
     # AutoVirt sets plvl2_lat=0x0065 and plvl3_lat=0x03e9 (1 above

@@ -138,14 +138,34 @@ let
       pattern = "PCI_DEVICE_ID_INTEL_P35_MCH      0x29c0";
     }
     {
-      name = "mch-vendor-amd";
-      path = "hw/pci-host/q35.c";
-      pattern = "k->vendor_id = PCI_VENDOR_ID_AMD;";
+      name = "lpc-device-id";
+      path = "include/hw/pci/pci_ids.h";
+      pattern = "PCI_DEVICE_ID_INTEL_ICH9_8";
     }
     {
-      name = "gpex-vendor-amd";
-      path = "hw/pci-host/gpex.c";
-      pattern = "k->vendor_id = PCI_VENDOR_ID_AMD;";
+      name = "smbus-device-id";
+      path = "include/hw/pci/pci_ids.h";
+      pattern = "PCI_DEVICE_ID_INTEL_ICH9_6";
+    }
+    {
+      name = "ahci-device-id";
+      path = "include/hw/pci/pci.h";
+      pattern = "PCI_DEVICE_ID_INTEL_82801IR";
+    }
+    {
+      name = "lpc-vendor-intel";
+      path = "hw/isa/lpc_ich9.c";
+      pattern = "k->vendor_id = PCI_VENDOR_ID_INTEL;";
+    }
+    {
+      name = "smbus-vendor-intel";
+      path = "hw/i2c/smbus_ich9.c";
+      pattern = "k->vendor_id = PCI_VENDOR_ID_INTEL;";
+    }
+    {
+      name = "ahci-vendor-intel";
+      path = "hw/ide/ich.c";
+      pattern = "k->vendor_id = PCI_VENDOR_ID_INTEL;";
     }
     {
       name = "fadt-plvl2-lat";
