@@ -85,6 +85,7 @@ For long-form references beyond the quick start below, see:
 | SVM instruction interception | `kvm_amd.vls=0` + `kvm_amd.vgif=0` force VMLOAD/VMSAVE/STGI/CLGI interception | `module.nix` kernel params |
 | OVMF boot logo / BGRT | TianoCore LogoDxe + BootGraphicsResourceTableDxe stripped (VMAware CRC indicator) | `ovmf/package.nix` |
 | ACPI thermal zone fluctuation | Timer()-based dynamic temperature in CPU + VRM thermal zones (handles static-value detection) | `acpi/sensor-probes.dsl` |
+| PCI subsystem vendor:device | Default 0x1af4:0x1100 (Red Hat/QEMU) replaced with 0x8086:0x0000 (Intel) on all Q35 chipset devices | `qemu/post-patch.nix` |
 | QEMU pvpanic device | Consumer excludes `<panic>` from domain XML; verified by `verify-host.sh` | `guest/verify-host.sh` |
 | Registry SCSI DEVICEMAP | Cleaned via guest-side registry script | `guest/cleanup-registry.ps1` |
 
@@ -357,7 +358,7 @@ These represent current boundaries of software-level VM stealth:
 | **Remote TPM attestation** | Cloud-based attestation (e.g. Microsoft Azure Attestation) verifies TPM endorsement keys against manufacturer databases. swtpm keys are not manufacturer-signed and cannot pass remote attestation. No software-only fix. |
 | **VBS-dependent detection** | Detection stacks requiring Virtualization-Based Security (VBS) + `hypervisorlaunchtype=auto` are incompatible with standard KVM guests. VBS means Windows must run under its own Hyper-V hypervisor. |
 | **Boot-time kernel drivers** | Kernel-mode detection drivers that load before the OS can detect hypervisors via multiple vectors beyond CPUID. swtpm satisfies TPM 2.0 presence checks, but detection is independent of TPM state. |
-| **PCI subsystem ID `1af4:1100`** | QEMU hardcodes Red Hat subsystem vendor:device on ICH9 LPC, AHCI, SMBus, and HDA devices. Not user-configurable on most chipset devices; requires QEMU source patches to override. |
+| **PCIe root port vendor `1b36:000c`** | QEMU's generic PCIe root port uses vendor 1b36 (Red Hat). No upstream override mechanism; patching the root port device type would need a QEMU source change. |
 | **fw_cfg I/O port probe** | Reading 4 bytes from fw_cfg selector 0x0000 returns "QEMU". The DMA signature is patched but the legacy I/O path (ports 0x510/0x511) remains. Requires QEMU source patch to fully suppress. |
 | **Context-switch timing oracles** | Detection libraries (VMAware v2.5+) use context-switch-based clocks independent of TSC. Claims immunity to all TSC/hardware clock spoofing including BetterTiming. An evolving area. |
 | **XSAVE state identification** | Detection of CPUID interception handling via XCR0/XSS size discrepancies. On AMD SVM, VMRUN loads guest XCR0 from the VMCB, making leaf 0xD naturally consistent -- an evolving area. |

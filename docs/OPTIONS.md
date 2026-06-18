@@ -2,9 +2,9 @@
 
 Companion to the top-level [README](../README.md). All options live
 under the `myModules.vfio.stealth.*` namespace. EDID / disk / optical /
-ACPI OEM strings are build-time arguments to `qemu-stealth` (passed via
-overlay or `callPackage`), **not** module options — those are listed
-separately at the bottom.
+ACPI OEM strings have both module options (for discoverability) and
+build-time `qemu-stealth` arguments (for compilation). The build-time
+arguments are listed separately at the bottom.
 
 Canonical reference for all `myModules.vfio.stealth.*` options and
 `qemu-stealth` build-time arguments.
@@ -21,6 +21,7 @@ Canonical reference for all `myModules.vfio.stealth.*` options and
 | `hypervVendorId`    | `str` (1-12 chars)              | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv)                                                                                                                                                                                                                          | Hyper-V vendor_id identification       |
 | `hypervMode`        | `enum ["enlightened" "hidden"]` | `"enlightened"`  | "enlightened" exposes hypervisor + full Hyper-V enlightenments. "hidden" conceals the hypervisor and emits no enlightenments                                                                                                                                                                                     | Hyper-V presence detection             |
 | `kvmPvEnforceCpuid` | `bool`                          | `false`          | Pass `kvm-pv-enforce-cpuid=on` to the guest `-cpu` flag. AutoVirt's QEMU patch flipped the QEMU default to on; that flag faults RDMSR/WRMSR in the KVM paravirt range (0x4b564d00-0x4b564d08) with #GP unless the matching CPUID feature is set, which crashes Windows HAL/HvLoader. Off = pre-AutoVirt behavior | KVM paravirt MSR #GP on Win init       |
+| `pciMmio64Mb`       | `int`                           | `65536`          | Size of the OVMF 64-bit PCI MMIO window in MB. 65536 (64 GB) covers GPUs up to 64 GB VRAM. 0 = omit the flag (OVMF uses its default, which may be too small for modern GPUs)                                                                                                                                    | --                                     |
 
 ## Kernel
 
@@ -93,6 +94,11 @@ nixpkgs.overlays = [
 
 ### EDID (display identity)
 
+The module also exposes `myModules.vfio.stealth.edid.*` options
+(`manufacturer`, `serial`, `productCode`, `dpi`, `week`, `year`) that
+document the target EDID values for discoverability. The actual EDID
+binary is compiled by the build-time arguments below.
+
 | Argument           | Default     | Description                        | Detection vector                |
 | ------------------ | ----------- | ---------------------------------- | ------------------------------- |
 | `edidManufacturer` | `"ACI"`     | 3-letter EDID manufacturer ID      | Monitor manufacturer identifier |
@@ -106,6 +112,11 @@ nixpkgs.overlays = [
 
 ### Disk / optical
 
+The module also exposes `myModules.vfio.stealth.disk.*` options (`model`,
+`serial`, `opticalModel`) that document the target disk identity values
+for discoverability. The actual strings are compiled into QEMU by the
+build-time arguments below.
+
 | Argument            | Default                       | Description                                                        | Detection vector                    |
 | ------------------- | ----------------------------- | ------------------------------------------------------------------ | ----------------------------------- |
 | `diskModel`         | `"WDC WD10EZEX-00WN4A0     "` | IDE/SCSI disk model string (25 chars, space-padded)                | Disk model reveals QEMU default     |
@@ -116,6 +127,11 @@ nixpkgs.overlays = [
 
 ### ACPI OEM
 
+The module also exposes `myModules.vfio.stealth.acpiOem.*` options (`id`,
+`tableId`) that document the target ACPI OEM identity values for
+discoverability. The actual table headers are compiled into QEMU by the
+build-time arguments below.
+
 | Argument         | Default      | Description                     | Detection vector               |
 | ---------------- | ------------ | ------------------------------- | ------------------------------ |
 | `acpiOemId`      | `"ALASKA"`   | 6-char ACPI OEM ID              | ACPI table OEM ID reveals QEMU |
@@ -123,9 +139,10 @@ nixpkgs.overlays = [
 
 ## CPU Identity
 
-| Option                     | Type         | Default | Description                                                                           | Detection vector                    |
-| -------------------------- | ------------ | ------- | ------------------------------------------------------------------------------------- | ----------------------------------- |
-| `cpuIdentity.modelId`      | `nullOr str` | `null`  | CPU model string for SMBIOS Type 4 + QEMU `-global cpu.model-id`. null = use host CPU | `Win32_Processor.Name`              |
+| Option                     | Type         | Default | Description                                                                                            | Detection vector                    |
+| -------------------------- | ------------ | ------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| `cpuIdentity.manufacturer` | `nullOr str` | `null`  | CPU manufacturer for SMBIOS Type 4. null = "Advanced Micro Devices, Inc." Set to your CPU vendor string | `Win32_Processor.Manufacturer`      |
+| `cpuIdentity.modelId`      | `nullOr str` | `null`  | CPU model string for SMBIOS Type 4 + QEMU `-global cpu.model-id`. null = use host CPU                  | `Win32_Processor.Name`              |
 | `cpuIdentity.maxSpeed`     | `nullOr int` | `null`  | Max CPU speed in MHz (Type 4). null = omit                                            | `Win32_Processor.MaxClockSpeed`     |
 | `cpuIdentity.currentSpeed` | `nullOr int` | `null`  | Current CPU speed in MHz (Type 4). null = omit                                        | `Win32_Processor.CurrentClockSpeed` |
 

@@ -182,6 +182,16 @@ let
       path = "hw/i386/acpi-build.c";
       pattern = "build_waet";
     }
+    {
+      name = "pci-subsystem-vendor";
+      path = "include/hw/pci/pci.h";
+      pattern = "PCI_SUBVENDOR_ID_REDHAT_QUMRANET 0x8086";
+    }
+    {
+      name = "pci-subsystem-device";
+      path = "include/hw/pci/pci.h";
+      pattern = "PCI_SUBDEVICE_ID_QEMU            0x0000";
+    }
   ];
 
   # Render each guard as a shell fragment: a `grep -F` test that returns

@@ -11,7 +11,7 @@ first signal that an anchor has moved.
 
 ## Reading order
 
-- `qemu/package.nix` (21 anchors): hardware identity + MCH vendor/device
+- `qemu/package.nix` (23 anchors): hardware identity + MCH vendor/device + PCI subsystem
 - `ovmf/package.nix` (10 anchors + 1 filterdiff): firmware identity + MCH
 - `kernel/timing-patch.nix` (5 anchors): BetterTiming TSC compensation
 - `kernel/cpuid-patch.nix` (2 anchors): Hypervisor-Phantom CPUID override
@@ -248,6 +248,27 @@ first signal that an anchor has moved.
   function changes) OR moves the host bridge to a different directory
 - **Repair:** Update the grep pattern; the FATAL is loud so this
   fails LOUDLY
+
+## qemu/package.nix — PCI subsystem vendor (global default)
+
+- **Anchor:** `PCI_SUBVENDOR_ID_REDHAT_QUMRANET  0x1af4` (include/hw/pci/pci.h)
+- **Replacement:** `PCI_SUBVENDOR_ID_REDHAT_QUMRANET  0x8086`
+- **Tool:** `sed -i 's/...0x1af4/.../0x8086/'`
+- **Guard:** FATAL if 0x8086 not found after sed
+- **Counters:** Every Q35 chipset device inherits this default subsystem
+  vendor. 0x1af4 (Red Hat) is a trivial QEMU fingerprint.
+- **Breaks when:** QEMU renames the define or changes the spacing
+- **Repair:** Update the anchor
+
+## qemu/package.nix — PCI subsystem device (global default)
+
+- **Anchor:** `PCI_SUBDEVICE_ID_QEMU             0x1100` (include/hw/pci/pci.h)
+- **Replacement:** `PCI_SUBDEVICE_ID_QEMU             0x0000`
+- **Tool:** `sed -i 's/...0x1100/.../0x0000/'`
+- **Guard:** FATAL if 0x0000 not found after sed
+- **Counters:** Same as above; 0x1100 ("QEMU") is the companion fingerprint
+- **Breaks when:** QEMU renames the define or changes the spacing
+- **Repair:** Update the anchor
 
 ---
 

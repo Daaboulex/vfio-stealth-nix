@@ -156,6 +156,23 @@
     grep -q 'PCI_VENDOR_ID_INTEL' hw/ide/ich.c || { echo "FATAL: AHCI vendor revert failed"; exit 1; }
     grep -q 'PCI_DEVICE_ID_INTEL_82801IR' hw/ide/ich.c || { echo "FATAL: AHCI device_id revert failed"; exit 1; }
 
+    # PCI subsystem vendor:device: replace Red Hat 0x1af4:0x1100 with
+    # Intel 0x8086:0x0000. Every Q35 chipset device (LPC, SMBus, AHCI,
+    # HDA, MCH) inherits these defaults from pci.h. The subsystem IDs
+    # are visible via WMI/lspci/registry and trivially fingerprint QEMU.
+    sed -i 's/PCI_SUBVENDOR_ID_REDHAT_QUMRANET 0x1af4/PCI_SUBVENDOR_ID_REDHAT_QUMRANET 0x8086/' \
+      include/hw/pci/pci.h
+    if ! grep -q 'PCI_SUBVENDOR_ID_REDHAT_QUMRANET 0x8086' include/hw/pci/pci.h; then
+      echo "FATAL: PCI subsystem vendor rewrite to 0x8086 failed"
+      exit 1
+    fi
+    sed -i 's/PCI_SUBDEVICE_ID_QEMU            0x1100/PCI_SUBDEVICE_ID_QEMU            0x0000/' \
+      include/hw/pci/pci.h
+    if ! grep -q 'PCI_SUBDEVICE_ID_QEMU            0x0000' include/hw/pci/pci.h; then
+      echo "FATAL: PCI subsystem device rewrite to 0x0000 failed"
+      exit 1
+    fi
+
     # Revert AutoVirt's FADT C-state latency spoofing.
     # AutoVirt sets plvl2_lat=0x0065 and plvl3_lat=0x03e9 (1 above
     # the ACPI "not supported" threshold) to fool detection software.
