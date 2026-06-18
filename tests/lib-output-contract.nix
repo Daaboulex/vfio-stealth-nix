@@ -242,12 +242,12 @@ let
     {
       name = "kvm-hidden";
       json = featuresJson;
-      filter = ''.kvm.hidden.state == true'';
+      filter = ".kvm.hidden.state == true";
     }
     {
       name = "vmport-off";
       json = featuresJson;
-      filter = ''.vmport.state == false'';
+      filter = ".vmport.state == false";
     }
     {
       name = "hint-dedicated";
@@ -262,12 +262,12 @@ let
     {
       name = "hyperv-relaxed";
       json = featuresJson;
-      filter = ''.hyperv.relaxed.state == true'';
+      filter = ".hyperv.relaxed.state == true";
     }
     {
       name = "hyperv-vapic";
       json = featuresJson;
-      filter = ''.hyperv.vapic.state == true'';
+      filter = ".hyperv.vapic.state == true";
     }
     {
       name = "hyperv-vendor-id";
@@ -277,12 +277,12 @@ let
     {
       name = "hyperv-stimer-direct";
       json = featuresJson;
-      filter = ''.hyperv.stimer.direct.state == true'';
+      filter = ".hyperv.stimer.direct.state == true";
     }
     {
       name = "hyperv-frequencies";
       json = featuresJson;
-      filter = ''.hyperv.frequencies.state == true'';
+      filter = ".hyperv.frequencies.state == true";
     }
 
     # --- hidden mode: no hyperv block ---
@@ -391,7 +391,9 @@ let
 
   guardCheck = g: ''
     echo -n "  ${g.name}: "
-    if echo '${builtins.replaceStrings [ "'" ] [ "'\"'\"'" ] g.json}' | ${jq}/bin/jq -e '${g.filter}' > /dev/null 2>&1; then
+    if echo '${
+      builtins.replaceStrings [ "'" ] [ "'\"'\"'" ] g.json
+    }' | ${jq}/bin/jq -e '${g.filter}' > /dev/null 2>&1; then
       echo "PASS"
     else
       echo "FAIL"
@@ -404,16 +406,16 @@ let
   '';
 in
 runCommand "lib-output-contract" { } ''
-  FAILURES=0
-  echo "=== lib-output-contract: ${toString (lib.length guards)} guards ==="
+    FAILURES=0
+    echo "=== lib-output-contract: ${toString (lib.length guards)} guards ==="
 
-${lib.concatMapStringsSep "\n" guardCheck guards}
+  ${lib.concatMapStringsSep "\n" guardCheck guards}
 
-  echo ""
-  if [ "$FAILURES" -gt 0 ]; then
-    echo "FAILED: $FAILURES/${toString (lib.length guards)} guards failed"
-    exit 1
-  fi
-  echo "lib-output-contract: all ${toString (lib.length guards)} guards passed"
-  touch $out
+    echo ""
+    if [ "$FAILURES" -gt 0 ]; then
+      echo "FAILED: $FAILURES/${toString (lib.length guards)} guards failed"
+      exit 1
+    fi
+    echo "lib-output-contract: all ${toString (lib.length guards)} guards passed"
+    touch $out
 ''
