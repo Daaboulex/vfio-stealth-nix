@@ -310,28 +310,28 @@ in
     hypervFeatures = {
       vapic = lib.mkOption {
         type = lib.types.bool;
-        default = true;
-        description = "SynIC APIC virtualization (HvApic). QEMU-emulated, no host kernel dependency.";
+        default = false;
+        description = "SynIC APIC virtualization (HvApic). Requires CONFIG_KVM_HYPERV=y in the host kernel (KVM_CAP_HYPERV_VAPIC); libvirt errors with 'host doesn't support hyperv vapic' otherwise.";
       };
       relaxed = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "Relaxed timing (HvRelax). QEMU-emulated, no host kernel dependency.";
+        description = "Relaxed timing (HvRelax). QEMU/libvirt-level setting with no KVM cap; always supported.";
       };
       spinlocks = lib.mkOption {
         type = lib.types.bool;
-        default = true;
-        description = "Spinlock retry reporting (HvSpin). QEMU-emulated, no host kernel dependency.";
+        default = false;
+        description = "Spinlock retry reporting (HvSpin). Requires CONFIG_KVM_HYPERV=y (KVM_CAP_HYPERV_SPIN); libvirt errors with 'host doesn't support hyperv spinlocks' otherwise.";
       };
       frequencies = lib.mkOption {
         type = lib.types.bool;
-        default = true;
-        description = "TSC frequency reporting (HvTscPage). QEMU-emulated, no host kernel dependency.";
+        default = false;
+        description = "TSC frequency reporting (HvTscPage). Requires CONFIG_KVM_HYPERV=y (KVM_CAP_HYPERV_TIME); libvirt errors with 'host doesn't support hyperv frequencies' otherwise.";
       };
       vendor_id = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "Hyper-V vendor_id exposure. Libvirt-level, no host kernel dependency.";
+        description = "Hyper-V vendor_id exposure. Libvirt-level setting with no KVM cap; always supported.";
       };
       vpindex = lib.mkOption {
         type = lib.types.bool;

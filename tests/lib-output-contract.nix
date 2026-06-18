@@ -105,6 +105,15 @@ let
     hypervMode = "hidden";
   };
 
+  # Test defaults: no hypervFeatures override, no kernelCapabilities.
+  # The new defaults emit only vendor_id and relaxed; all 11 KVM-gated
+  # features (including vapic, spinlocks, frequencies) are off.
+  default = stealthLib.mkStealthFeatures {
+    smbios = testSmbios;
+    acpiTables = acpi-ssdt-stealth;
+    smbiosTables = smbios-stealth-tables;
+  };
+
   # Test new defaults (kernel-dep features off) with a kernel that advertises
   # CONFIG_KVM_HYPERV. Only universal features should be enabled; hypervclock
   # should be absent.
@@ -137,6 +146,9 @@ let
       vapic = true;
       vpindex = true;
       synic = true;
+      # Request the truly-universal features to verify they survive.
+      vendor_id = true;
+      relaxed = true;
     };
     # Kernel without KVM_HYPERV.
     kernelCapabilities = cap.fromConfigText ''
@@ -157,6 +169,7 @@ let
   hiddenFeaturesJson = builtins.toJSON hidden.features;
   supportedFeaturesJson = builtins.toJSON supported.features;
   unsupportedFeaturesJson = builtins.toJSON unsupported.features;
+  defaultFeaturesJson = builtins.toJSON default.features;
   clockJson = builtins.toJSON enlightened.clock;
   hiddenClockJson = builtins.toJSON hidden.clock;
   supportedClockJson = builtins.toJSON supported.clock;
@@ -470,12 +483,19 @@ let
       json = unsupportedFeaturesJson;
       filter = "(.hyperv.vpindex.state == null or .hyperv.vpindex.state == false) and (.hyperv.synic.state == null or .hyperv.synic.state == false)";
     }
-    # Universal features (vapic) must survive even when the kernel does not
-    # advertise KVM_HYPERV.
+    # KVM-gated features (vapic, vpindex, synic) must all be dropped when
+    # the kernel does not advertise KVM_HYPERV.
     {
-      name = "universal-features-survive-no-kvm-hyperv";
+      name = "kvm-gated-features-dropped-no-kvm-hyperv";
       json = unsupportedFeaturesJson;
-      filter = ".hyperv.vapic.state == true";
+      filter = "(.hyperv.vapic.state == null or .hyperv.vapic.state == false) and (.hyperv.vpindex.state == null or .hyperv.vpindex.state == false) and (.hyperv.synic.state == null or .hyperv.synic.state == false)";
+    }
+    # Truly universal features (vendor_id, relaxed) have no KVM cap and must
+    # survive on any host, even one without KVM_HYPERV.
+    {
+      name = "truly-universal-features-survive-no-kvm-hyperv";
+      json = unsupportedFeaturesJson;
+      filter = ".hyperv.vendor_id.state == true and .hyperv.relaxed.state == true";
     }
     # Warnings: the unsupported case must emit a warning naming vpindex.
     {
@@ -489,6 +509,16 @@ let
       name = "back-compat-null-kernel-caps-passes-through";
       json = featuresJson;
       filter = ".hyperv.vpindex.state == true";
+    }
+    # New defaults: with no hypervFeatures override and no kernelCapabilities,
+    # only the 2 truly-universal features (vendor_id, relaxed) are emitted.
+    # The 11 KVM-gated features (including vapic, spinlocks, frequencies)
+    # are off by default to avoid libvirt "host doesn't support hyperv X"
+    # errors on hosts without CONFIG_KVM_HYPERV.
+    {
+      name = "defaults-only-truly-universal";
+      json = defaultFeaturesJson;
+      filter = ".hyperv.vendor_id.state == true and .hyperv.relaxed.state == true and (.hyperv.vapic.state == null or .hyperv.vapic.state == false) and (.hyperv.spinlocks.state == null or .hyperv.spinlocks.state == false) and (.hyperv.frequencies.state == null or .hyperv.frequencies.state == false) and (.hyperv.vpindex.state == null or .hyperv.vpindex.state == false)";
     }
   ];
 

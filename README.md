@@ -367,17 +367,18 @@ These represent current boundaries of software-level VM stealth:
 
 ### Hyper-V enlightenment capability mismatch
 
-Kernel-dependent Hyper-V enlightenments (`vpindex`, `synic`, `stimer`,
-`reset`, `ipi`, `tlbflush`, `reenlightenment`, `runtime`) require
-`CONFIG_KVM_HYPERV=y` in the host kernel. On hosts that do not
-advertise the capability, libvirt refuses to start the VM with
-`host doesn't support hyperv '<feature>'`. The lib exposes each
-enlightenment as a per-feature opt-in (`myModules.vfio.stealth.hypervFeatures.*`),
-intersects the request with the host kernel's capability set
-(`myModules.vfio.stealth.kernelCapabilities`), drops unsupported
-features with a NixOS warning, and lets the VM start cleanly. See
+Of the 13 Hyper-V enlightenment features in this module, only
+`vendor_id` and `relaxed` are unconditional (no KVM cap; libvirt-level
+settings). The other 11 (`vapic`, `spinlocks`, `frequencies`,
+`vpindex`, `synic`, `stimer`, `reset`, `ipi`, `tlbflush`,
+`reenlightenment`, `runtime`) all require `CONFIG_KVM_HYPERV=y` in the
+host kernel — a single switch in the kernel. The module's defaults
+reflect this: the 11 KVM-gated features default off, the 2 truly
+universal features default on. Enable additional features only after
+verifying your kernel has `CONFIG_KVM_HYPERV=y` with
+`zcat /proc/config.gz | grep KVM_HYPERV`. See
 [`docs/OPTIONS.md`](docs/OPTIONS.md#hyper-v-features) for the full
-opt-in table and the auto-detection helper.
+opt-in table and the `kernelCapabilities` auto-detection helper.
 
 ## License
 

@@ -23,14 +23,17 @@ in
       hypervMode ? "enlightened", # "enlightened" = visible hypervisor + Hyper-V enlightenments; "hidden" = concealed hypervisor, no enlightenments
       kvmPvEnforceCpuid ? false, # AutoVirt's QEMU patch flips the default to on; that flag faults Win HAL/HvLoader KVM paravirt MSRs with #GP. Off = pre-AutoVirt behavior.
       pciMmio64Mb ? 65536, # 64 GB MMIO window for large-BAR GPUs (RDNA 4 = 16 GB BAR)
-      # Per-feature opt-in. Universal features (no kernel dep) default on.
-      # Kernel-dependent features (require CONFIG_KVM_HYPERV=y) default off
-      # so the VM starts cleanly on hosts that don't advertise them.
+      # Per-feature opt-in. Of the 13 Hyper-V features, only vendor_id and
+      # relaxed are unconditional (no KVM cap; libvirt-level settings). The
+      # other 11 all require CONFIG_KVM_HYPERV=y in the host kernel and
+      # default off so the VM starts cleanly on hosts that don't advertise
+      # them. Enable only after computing kernelCapabilities from your
+      # kernel's .config (see lib/kernel-capabilities.nix).
       hypervFeatures ? {
-        vapic = true;
+        vapic = false;
         relaxed = true;
-        spinlocks = true;
-        frequencies = true;
+        spinlocks = false;
+        frequencies = false;
         vendor_id = true;
         vpindex = false;
         synic = false;

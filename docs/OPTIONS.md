@@ -24,26 +24,32 @@ Canonical reference for all `myModules.vfio.stealth.*` options and
 
 ## Hyper-V features
 
-Each Hyper-V enlightenment is its own boolean option. Universal features
-(no host kernel dependency) default to `true`. Kernel-dependent features
-(require `CONFIG_KVM_HYPERV=y` in the host kernel) default to `false` so
-the VM starts cleanly on hosts that do not advertise them.
+Of the 13 Hyper-V enlightenment features exposed by this module, only
+`vendor_id` and `relaxed` are unconditional (no KVM cap; libvirt-level
+settings). The other 11 all require `CONFIG_KVM_HYPERV=y` in the host
+kernel — verified against `arch/x86/kvm/x86.c:4817-4831` in the Linux
+kernel source, which puts every relevant `KVM_CAP_HYPERV_*` cap in a
+single `#ifdef CONFIG_KVM_HYPERV` block. To check your kernel:
+
+```
+zcat /proc/config.gz | grep KVM_HYPERV
+```
 
 | Option                        | Type   | Default | Kernel dep         | Description                                                                            |
 | ----------------------------- | ------ | ------- | ------------------ | -------------------------------------------------------------------------------------- |
-| `hypervFeatures.vapic`        | `bool` | `true`  | --                 | SynIC APIC virtualization (HvApic). QEMU-emulated.                                     |
-| `hypervFeatures.relaxed`      | `bool` | `true`  | --                 | Relaxed timing (HvRelax). QEMU-emulated.                                               |
-| `hypervFeatures.spinlocks`    | `bool` | `true`  | --                 | Spinlock retry reporting (HvSpin). QEMU-emulated.                                      |
-| `hypervFeatures.frequencies`  | `bool` | `true`  | --                 | TSC frequency reporting (HvTscPage). QEMU-emulated.                                    |
-| `hypervFeatures.vendor_id`    | `bool` | `true`  | --                 | Hyper-V vendor_id exposure. Libvirt-level.                                             |
-| `hypervFeatures.vpindex`      | `bool` | `false` | `CONFIG_KVM_HYPERV` | Virtual processor index (HvVpIndex). libvirt errors with "host doesn't support hyperv 'vpindex'" on kernels that do not advertise it. |
-| `hypervFeatures.synic`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | Synthetic interrupt controller (HvSynIC).                                              |
-| `hypervFeatures.stimer`       | `bool` | `false` | `CONFIG_KVM_HYPERV` | Synthetic timers with direct mode.                                                     |
-| `hypervFeatures.reset`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V reset hypercall.                                                               |
-| `hypervFeatures.ipi`          | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V IPI hypercall.                                                                 |
-| `hypervFeatures.tlbflush`     | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V TLB flush hypercall.                                                           |
-| `hypervFeatures.reenlightenment` | `bool` | `false` | `CONFIG_KVM_HYPERV` | TSC re-enlightenment notification (HvReenlightenment).                                  |
-| `hypervFeatures.runtime`      | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V runtime (HvRuntime).                                                           |
+| `hypervFeatures.vendor_id`    | `bool` | `true`  | --                 | Hyper-V vendor_id exposure. Libvirt-level setting; no KVM cap. Always supported.       |
+| `hypervFeatures.relaxed`      | `bool` | `true`  | --                 | Relaxed timing (HvRelax). Libvirt-level setting; no KVM cap. Always supported.          |
+| `hypervFeatures.vapic`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | SynIC APIC virtualization (HvApic / `KVM_CAP_HYPERV_VAPIC`).                            |
+| `hypervFeatures.spinlocks`    | `bool` | `false` | `CONFIG_KVM_HYPERV` | Spinlock retry reporting (HvSpin / `KVM_CAP_HYPERV_SPIN`).                             |
+| `hypervFeatures.frequencies`  | `bool` | `false` | `CONFIG_KVM_HYPERV` | TSC frequency reporting (HvTscPage / `KVM_CAP_HYPERV_TIME`).                           |
+| `hypervFeatures.vpindex`      | `bool` | `false` | `CONFIG_KVM_HYPERV` | Virtual processor index (HvVpIndex / `KVM_CAP_HYPERV_VP_INDEX`).                       |
+| `hypervFeatures.synic`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | Synthetic interrupt controller (HvSynIC / `KVM_CAP_HYPERV_SYNIC` + `SYNIC2`).            |
+| `hypervFeatures.stimer`       | `bool` | `false` | `CONFIG_KVM_HYPERV` | Synthetic timers with direct mode.                                                      |
+| `hypervFeatures.reset`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V reset hypercall.                                                                |
+| `hypervFeatures.ipi`          | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V IPI hypercall (`KVM_CAP_HYPERV_SEND_IPI`).                                      |
+| `hypervFeatures.tlbflush`     | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V TLB flush hypercall (`KVM_CAP_HYPERV_TLBFLUSH`).                                |
+| `hypervFeatures.reenlightenment` | `bool` | `false` | `CONFIG_KVM_HYPERV` | TSC re-enlightenment notification (HvReenlightenment).                                 |
+| `hypervFeatures.runtime`      | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V runtime (HvRuntime).                                                            |
 
 ## Kernel capabilities
 

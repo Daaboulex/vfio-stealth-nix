@@ -3,10 +3,16 @@
 let
   # Map each kernel-dependent Hyper-V enlightenment to the CONFIG_* options
   # the KVM module requires to advertise it via KVM_CHECK_EXTENSION.
-  # Universal features (vapic, relaxed, spinlocks, frequencies, vendor_id) are
-  # QEMU/libvirt-level and do not depend on the host kernel -- they are not
-  # listed here and always evaluate to true.
+  #
+  # Verified against the Linux kernel source arch/x86/kvm/x86.c:4817-4831:
+  # every KVM_CAP_HYPERV_* cap (VAPIC, SPIN, TIME, SYNIC, SYNIC2,
+  # VP_INDEX, TLBFLUSH, SEND_IPI) sits inside a single #ifdef
+  # CONFIG_KVM_HYPERV block. Add a feature here ONLY after verifying
+  # it has its own KVM cap gated by KVM_HYPERV in the source.
   featureRequires = {
+    vapic = [ "KVM_HYPERV" ];
+    spinlocks = [ "KVM_HYPERV" ];
+    frequencies = [ "KVM_HYPERV" ];
     vpindex = [ "KVM_HYPERV" ];
     synic = [ "KVM_HYPERV" ];
     stimer = [ "KVM_HYPERV" ];
@@ -17,12 +23,11 @@ let
     runtime = [ "KVM_HYPERV" ];
   };
 
+  # Universal features: no KVM cap at all, libvirt/QEMU-emulated only.
+  # Verified by absence from the kernel's KVM_CHECK_EXTENSION switch.
   universalFeatures = [
-    "vapic"
-    "relaxed"
-    "spinlocks"
-    "frequencies"
     "vendor_id"
+    "relaxed"
   ];
 
   allFeatures = universalFeatures ++ builtins.attrNames featureRequires;
