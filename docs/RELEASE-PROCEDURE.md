@@ -34,6 +34,7 @@ The dependencies that move are:
 nix flake check .#checks.x86_64-linux.sed-contract-qemu
 nix flake check .#checks.x86_64-linux.sed-contract-edk2
 nix flake check .#checks.x86_64-linux.kernel-anchor-contract
+nix flake check .#checks.x86_64-linux.lib-output-contract
 nix flake check .#checks.x86_64-linux.boot-smoke
 ```
 

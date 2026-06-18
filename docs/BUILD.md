@@ -108,7 +108,7 @@ before push to `main`.
 | `iasl` complains about ACPI SSDT compilation in `acpi-ssdt-stealth` | Outdated `iasl` (older than 20240927) | Bump nixpkgs input or `inputs.nixpkgs.follows = "nixpkgs";` to use the host's nixpkgs |
 | Guest still detected as VM despite `myModules.vfio.stealth.enable = true` | One of the kernel patches not applied | Confirm `boot.kernelPackages` is wired to a kernel built with `_kernelPostPatch` appended (see README §Kernel Integration) |
 | `services.virtualisation.vms.<vm>` rewrites missing `kvm-hidden` | `lib.nix` rewriter not applied | The module hooks into NixVirt; ensure `services.virtualisation.libvirt.swtpm.enable = true` and the VM is declared via NixVirt, not raw libvirt XML |
-| FACEIT / TPM-attesting game security software still rejects | Software emulation cannot address hardware-rooted attestation | See README §Known Limitations — there is no software-only fix |
+| TPM-attesting detection software still rejects | Software emulation cannot address hardware-rooted attestation | See README §Known Limitations -- there is no software-only fix |
 
 For other issues, attach the failing nix log + the relevant module
 config snippet to a GitHub Issue.

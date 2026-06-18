@@ -510,6 +510,13 @@ def verify_table(path: str, expected_type: int, expected_length: int) -> list[st
         if ref < 1 or ref > max_ref:
             errors.append(f"{name}: description string ref {ref} out of range [1, {max_ref}]")
 
+    # Cross-reference check: Type 27 temp_probe_handle must match Type 28 handle.
+    # If the relationship is broken, Win32_Fan returns empty (wbenny 2025 research).
+    if stype == 27 and slength >= TYPE27_LENGTH:
+        temp_handle = struct.unpack_from("<H", data, 4)[0]
+        if temp_handle != 0xFFFE and temp_handle != 0x1C00:
+            errors.append(f"{name}: temp_probe_handle 0x{temp_handle:04X} does not match Type 28 handle 0x1C00")
+
     # Type-specific field sanity checks
     if stype == 7 and slength >= TYPE7_LENGTH:
         config = struct.unpack_from("<H", data, 5)[0]  # offset 05h

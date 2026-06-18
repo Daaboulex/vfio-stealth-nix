@@ -83,6 +83,13 @@
               inputs.nix-cachyos-kernel.legacyPackages.x86_64-linux.linuxPackages-cachyos-latest-lto;
           };
 
+          checks.lib-output-contract = pkgs.callPackage ./tests/lib-output-contract.nix {
+            inherit (self.packages.${pkgs.stdenv.hostPlatform.system})
+              acpi-ssdt-stealth
+              smbios-stealth-tables
+              ;
+          };
+
           checks.boot-smoke = pkgs.testers.runNixOSTest {
             name = "qemu-stealth-boot-smoke";
             globalTimeout = 600;

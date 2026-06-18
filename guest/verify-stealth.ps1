@@ -1,4 +1,4 @@
-# vfio-stealth verification — checks 37 VM indicators from inside the Windows guest
+# vfio-stealth verification — checks VM indicators from inside the Windows guest
 #
 # Usage: .\verify-stealth.ps1
 # Run inside the VM after applying host-side vfio-stealth-nix config + guest cleanup.
@@ -7,8 +7,7 @@
 $failed = 0
 $warned = 0
 $skipped = 0
-
-Write-Host "=== vfio-stealth detection check (37 vectors) ===" -ForegroundColor Cyan
+Write-Host "=== vfio-stealth detection check ===" -ForegroundColor Cyan
 Write-Host ""
 
 # -----------------------------------------------------------------------
@@ -543,12 +542,93 @@ if (-not $vmportDetected) {
 }
 
 # -----------------------------------------------------------------------
+# 38. SCSI DEVICEMAP — "QEMU" in Scsi controller/disk identifiers
+# -----------------------------------------------------------------------
+$scsiMap = "HKLM:\HARDWARE\DEVICEMAP\Scsi"
+$scsiQemu = $false
+if (Test-Path $scsiMap) {
+    Get-ChildItem $scsiMap -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+        $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+        foreach ($name in @("Identifier", "DeviceIdentifier", "InquiryData")) {
+            $val = $props.$name
+            if ($val -is [string] -and $val -match "QEMU|qemu|Bochs|VBOX") {
+                Write-Host "[FAIL] SCSI DEVICEMAP '$name': $val" -ForegroundColor Red
+                $scsiQemu = $true
+            }
+        }
+    }
+}
+if ($scsiQemu) {
+    $failed++
+} else {
+    Write-Host "[PASS] No QEMU identifiers in SCSI DEVICEMAP" -ForegroundColor Green
+}
+
+# -----------------------------------------------------------------------
+# 39. Raw SMBIOS blob scan for "QEMU" string (al-khaser technique)
+# -----------------------------------------------------------------------
+try {
+    $rsmb = [System.Runtime.InteropServices.Marshal]
+    $fwSize = & { $ErrorActionPreference = 'Stop'; (Get-CimInstance -Namespace root\wmi -ClassName MSSMBios_RawSMBiosTables -ErrorAction Stop).SMBiosData }
+    if ($fwSize) {
+        $smbiosStr = [System.Text.Encoding]::ASCII.GetString($fwSize)
+        if ($smbiosStr -match "QEMU|qemu|Bochs|bochs") {
+            Write-Host "[FAIL] Raw SMBIOS blob contains VM string" -ForegroundColor Red
+            $failed++
+        } else {
+            Write-Host "[PASS] Raw SMBIOS blob clean" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "[SKIP] Could not read raw SMBIOS data" -ForegroundColor Yellow
+        $skipped++
+    }
+} catch {
+    Write-Host "[SKIP] Raw SMBIOS read failed (may need Administrator)" -ForegroundColor Yellow
+    $skipped++
+}
+
+# -----------------------------------------------------------------------
+# 40. ACPI firmware table scan for QEMU device IDs (QEMU0001, QEMU0002)
+# -----------------------------------------------------------------------
+try {
+    $acpiBios = Get-ItemProperty "HKLM:\HARDWARE\ACPI\DSDT\*\*\*" -ErrorAction SilentlyContinue
+    $acpiDevices = Get-ChildItem "HKLM:\HARDWARE\ACPI\DSDT" -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.PSChildName -match "QEMU" }
+    if ($acpiDevices) {
+        Write-Host "[FAIL] ACPI DSDT contains QEMU device nodes: $($acpiDevices.PSChildName -join ', ')" -ForegroundColor Red
+        $failed++
+    } else {
+        Write-Host "[PASS] No QEMU device nodes in ACPI DSDT registry" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "[SKIP] Could not scan ACPI DSDT registry" -ForegroundColor Yellow
+    $skipped++
+}
+
+# -----------------------------------------------------------------------
+# 41. SPICE Guest Tools processes
+# -----------------------------------------------------------------------
+$spiceProcs = @("vdagent", "vdservice")
+$spiceFound = $false
+foreach ($proc in $spiceProcs) {
+    if (Get-Process $proc -ErrorAction SilentlyContinue) {
+        Write-Host "[FAIL] SPICE process running: $proc" -ForegroundColor Red
+        $spiceFound = $true
+    }
+}
+if ($spiceFound) {
+    $failed++
+} else {
+    Write-Host "[PASS] No SPICE Guest Tools processes" -ForegroundColor Green
+}
+
+# -----------------------------------------------------------------------
 # Summary
 # -----------------------------------------------------------------------
 Write-Host ""
 Write-Host "=== $failed failures, $warned warnings, $skipped skipped ===" -ForegroundColor $(if ($failed -gt 0) { "Red" } elseif ($warned -gt 0 -or $skipped -gt 0) { "Yellow" } else { "Green" })
 if ($failed -eq 0 -and $warned -eq 0 -and $skipped -eq 0) {
-    Write-Host "All 37 checks passed." -ForegroundColor Green
+    Write-Host "All checks passed." -ForegroundColor Green
 } elseif ($failed -eq 0 -and $skipped -gt 0) {
     Write-Host "0 failures, $warned warnings, $skipped skipped" -ForegroundColor Yellow
 } elseif ($failed -eq 0) {

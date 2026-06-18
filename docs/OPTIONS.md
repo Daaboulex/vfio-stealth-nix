@@ -6,8 +6,8 @@ ACPI OEM strings are build-time arguments to `qemu-stealth` (passed via
 overlay or `callPackage`), **not** module options — those are listed
 separately at the bottom.
 
-This document mirrors the README "Configuration Reference" section; the
-README is the canonical home, this page is the deep-link target.
+Canonical reference for all `myModules.vfio.stealth.*` options and
+`qemu-stealth` build-time arguments.
 
 ## Core
 

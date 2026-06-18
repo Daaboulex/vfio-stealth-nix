@@ -184,7 +184,64 @@ if ($clearedLogs -gt 0) {
 }
 
 # ============================================================================
-# Section 8: Device Manager cached device descriptions
+# Section 8: SCSI DEVICEMAP — Windows writes controller/disk identifiers
+# during device enumeration; "QEMU" persists even after model string spoofing.
+# al-khaser checks HKLM\HARDWARE\DEVICEMAP\Scsi for QEMU identifiers.
+# ============================================================================
+$scsiDevMap = "HKLM:\HARDWARE\DEVICEMAP\Scsi"
+$scsiCleaned = 0
+if (Test-Path $scsiDevMap) {
+    Get-ChildItem $scsiDevMap -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+        $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+        if ($props) {
+            foreach ($name in @("Identifier", "DeviceIdentifier", "InquiryData")) {
+                $val = $props.$name
+                if ($val -is [string] -and $val -match "QEMU|qemu|Bochs|VBOX") {
+                    Set-ItemProperty -Path $_.PSPath -Name $name -Value ($val -replace "QEMU|qemu|Bochs|VBOX", "WDC ") -ErrorAction SilentlyContinue
+                    $scsiCleaned++
+                }
+            }
+        }
+    }
+}
+if ($scsiCleaned -gt 0) {
+    Write-Host "[OK] Cleaned $scsiCleaned SCSI DEVICEMAP entries containing VM identifiers" -ForegroundColor Green
+    $cleaned++
+} else {
+    Write-Host "[OK] No VM identifiers in SCSI DEVICEMAP" -ForegroundColor Green
+}
+
+# ============================================================================
+# Section 9: SPICE Guest Tools remnants
+# ============================================================================
+$spicePaths = @(
+    "HKLM:\SYSTEM\CurrentControlSet\Services\vdagent",
+    "HKLM:\SYSTEM\CurrentControlSet\Services\vdservice"
+)
+$removedSpice = 0
+foreach ($path in $spicePaths) {
+    if (Test-Path $path) {
+        Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+        $removedSpice++
+    }
+}
+$spiceDirs = @(
+    "$env:ProgramFiles\SPICE Guest Tools",
+    "${env:ProgramFiles(x86)}\SPICE Guest Tools"
+)
+foreach ($p in $spiceDirs) {
+    if (Test-Path $p) {
+        Remove-Item -Path $p -Recurse -Force -ErrorAction SilentlyContinue
+        $removedSpice++
+    }
+}
+if ($removedSpice -gt 0) {
+    Write-Host "[OK] Removed $removedSpice SPICE Guest Tools entries" -ForegroundColor Green
+    $cleaned++
+}
+
+# ============================================================================
+# Section 10: Device Manager cached device descriptions
 # ============================================================================
 $setupClasses = @(
     "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e96c-e325-11ce-bfc1-08002be10318}",  # Display

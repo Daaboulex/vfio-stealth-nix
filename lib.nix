@@ -277,6 +277,10 @@
           "-global"
           "ICH9-LPC.disable_s4=0"
         ]
+        # NOTE: pvpanic-pci (ACPI HID QEMU0001) is NOT auto-created by
+        # Q35. It only appears if libvirt adds a <panic> element. The
+        # consumer's domain XML must not include <panic>; there is no
+        # QEMU command-line flag to suppress it. verify-host.sh checks.
         # CPU identity (per-VM)
         ++ lib.optionals (cpuIdentity != null && cpuIdentity ? modelId && cpuIdentity.modelId != null) [
           "-global"

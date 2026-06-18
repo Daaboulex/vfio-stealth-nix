@@ -319,7 +319,19 @@ else
 fi
 
 # -----------------------------------------------------------------------
-# 16. SMBIOS binary tables present in domain XML
+# 16. pvpanic device — ACPI HID QEMU0001, detectable by al-khaser/VMAware
+# Q35 does not auto-create pvpanic; it only appears if libvirt adds <panic>.
+# -----------------------------------------------------------------------
+if [[ -n "${XML:-}" ]]; then
+    if echo "$XML" | grep -q '<panic'; then
+        fail "pvpanic device present in domain XML (<panic> element exposes ACPI HID QEMU0001)"
+    else
+        pass "No pvpanic <panic> element in domain XML"
+    fi
+fi
+
+# -----------------------------------------------------------------------
+# 17. SMBIOS binary tables present in domain XML
 # -----------------------------------------------------------------------
 if [[ -n "${XML:-}" ]]; then
     SMBIOS_DIR=$(echo "$XML" | grep -oP '/nix/store/[^"]+/share/smbios' | head -1 || true)

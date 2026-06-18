@@ -49,6 +49,14 @@ let
       grep -n 'MCH_DEVICE_ID\|0x14[dD]8\|0x29[cC]0' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h || true
       exit 1
     fi
+
+    if grep -q 'PlatformDebugLibIoPort' OvmfPkg/OvmfPkgX64.dsc; then
+      sed -i 's|OvmfPkg/Library/PlatformDebugLibIoPort/PlatformDebugLibIoPort.inf|MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull.inf|g' \
+        OvmfPkg/OvmfPkgX64.dsc
+      echo "[OK] OVMF: debug port 0x402 library replaced with DebugLibNull"
+    else
+      echo "[INFO] OVMF: PlatformDebugLibIoPort not referenced (may already be patched)"
+    fi
   '';
 
   # Per-sed guard: (name, file path, pattern the sed is required to
@@ -67,6 +75,11 @@ let
       name = "mch-device-id";
       path = "OvmfPkg/Include/IndustryStandard/Q35MchIch9.h";
       pattern = "INTEL_Q35_MCH_DEVICE_ID    0x29C0";
+    }
+    {
+      name = "debug-port-null";
+      path = "OvmfPkg/OvmfPkgX64.dsc";
+      pattern = "BaseDebugLibNull";
     }
   ];
 

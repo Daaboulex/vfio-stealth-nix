@@ -487,6 +487,28 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    warnings =
+      lib.optional (cfg.smbios.manufacturer == "To Be Filled By O.E.M.")
+        "vfio.stealth: smbios.manufacturer is the default placeholder -- set to your real board manufacturer from dmidecode"
+      ++
+        lib.optional (cfg.smbios.product == "To Be Filled By O.E.M.")
+          "vfio.stealth: smbios.product is the default placeholder -- set to your real board model from dmidecode"
+      ++
+        lib.optional (cfg.hypervVendorId == "AuthAMDRyzen")
+          "vfio.stealth: hypervVendorId is the project default 'AuthAMDRyzen' -- customize to a unique 1-12 char string to avoid stealth-config fingerprinting"
+      ++
+        lib.optional (cfg.disk.serial == "Default string")
+          "vfio.stealth: disk.serial is a placeholder -- set to a realistic serial from smartctl or dmidecode"
+      ++
+        lib.optional (cfg.smbios.baseBoardSerial == "Default string")
+          "vfio.stealth: smbios.baseBoardSerial is a placeholder -- set to your real serial from dmidecode -t 2"
+      ++
+        lib.optional (cfg.smbios.memory.manufacturer == "Unknown")
+          "vfio.stealth: smbios.memory.manufacturer is 'Unknown' -- set to your real DIMM vendor from dmidecode -t 17"
+      ++
+        lib.optional (cfg.smbios.onboardDevices == [ ])
+          "vfio.stealth: smbios.onboardDevices is empty (no SMBIOS Type 41) -- set to match your board from dmidecode -t 41";
+
     assertions = [
       {
         assertion = !(cfg.cpuidPassthrough.enable && cfg.hypervMode == "enlightened");
@@ -510,8 +532,13 @@ in
       "processor.max_cstate=${toString cfg.kernelParams.maxCState}"
       "kvm_amd.vls=0" # Force VMLOAD/VMSAVE interception (prevents SVM instruction indicator)
       "kvm_amd.vgif=0" # Force STGI/CLGI interception (prevents vGIF behavior indicator)
-      "kvm.ignore_msrs=1" # Windows writes AMD HWCR (0xC0010015) during HAL init; #GP on unhandled MSRs crashes the guest
-      "kvm.report_ignored_msrs=0" # Suppress ignored-MSR dmesg spam
+      # Windows writes AMD HWCR (0xC0010015) during HAL init; #GP on
+      # unhandled MSRs crashes the guest. Tension: VMAware VM::MSR probes
+      # MSR addresses that should #GP on real hardware -- ignore_msrs=1
+      # suppresses those faults, creating a detection surface. No targeted
+      # MSR allowlist exists in KVM yet; this is the lesser of two failures.
+      "kvm.ignore_msrs=1"
+      "kvm.report_ignored_msrs=0"
     ]
     ++ lib.optionals cfg.kernelParams.tscReliable [ "tsc=reliable" ];
 

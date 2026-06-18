@@ -12,7 +12,7 @@ first signal that an anchor has moved.
 ## Reading order
 
 - `qemu/package.nix` (21 anchors): hardware identity + MCH vendor/device
-- `ovmf/package.nix` (10 anchors + 1 filterdiff): firmware identity + MCH
+- `ovmf/package.nix` (11 anchors + 1 filterdiff): firmware identity + MCH + debug port
 - `kernel/timing-patch.nix` (5 anchors): BetterTiming TSC compensation
 - `kernel/cpuid-patch.nix` (2 anchors): Hypervisor-Phantom CPUID override
 - `kernel/cpuid-disable.nix` (2 anchors): CPUID passthrough (clear intercept)
@@ -319,8 +319,33 @@ first signal that an anchor has moved.
 - **Repair:** Update the filter pattern; the FATAL guards in the
   postPatch don't catch this directly. The contract test
   `sed-contract-edk2` asserts post-patch file content but doesn't
-  catch a leaked BaseTools hunk — strengthen if this becomes an
+  catch a leaked BaseTools hunk -- strengthen if this becomes an
   issue
+
+## ovmf/package.nix:88 -- OVMF debug port 0x402
+
+- **Anchor:** `PlatformDebugLibIoPort` (OvmfPkg/OvmfPkgX64.dsc)
+- **Replacement:** `MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull.inf`
+- **Tool:** `sed -i 's|.../PlatformDebugLibIoPort/...|.../BaseDebugLibNull/...|g'`
+- **Guard:** conditional -- `if grep -q 'PlatformDebugLibIoPort'`; prints
+  `[INFO]` and continues if absent (no FATAL)
+- **Counters:** I/O port 0x402 is a QEMU/OVMF debug artifact; detection
+  software probes responsive I/O ports
+- **Breaks when:** OVMF renames PlatformDebugLibIoPort or switches to a
+  different DebugLib implementation (e.g., BaseDebugLibSerialPort for
+  COM1 at 0x3F8). The conditional guard makes this a silent no-op.
+- **Repair:** Update the anchor; the `sed-contract-edk2` guard for
+  `BaseDebugLibNull` catches the break if no other BaseDebugLibNull
+  exists in the DSC
+
+## ovmf/package.nix:58 -- BGRT FDF guard
+
+- **Anchor:** `BootGraphicsResourceTableDxe` (OvmfPkg/OvmfPkgX64.fdf)
+- **Replacement:** (deleted)
+- **Tool:** same sed as DSC strip, applied to both .dsc and .fdf
+- **Guard:** grep -q must NOT find the string in .fdf after sed
+- **Breaks when:** Same as DSC strip
+- **Repair:** Same as DSC strip
 
 ---
 

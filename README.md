@@ -19,9 +19,7 @@
 
 ## Overview
 
-vfio-stealth-nix is a NixOS module that makes VFIO/KVM virtual machines indistinguishable from bare-metal hardware. It is designed for **legitimate VM gaming** where users own the hardware, the games, and the operating system licenses. The goal is to prevent false-positive VM detection that locks paying customers out of games they own, simply because they run them in a VM for driver isolation, security, or multi-OS workflows.
-
-This project provides **hardware-accurate VM configuration**. It does not modify game memory, inject code, or tamper with integrity checks. It makes the VM environment report truthful hardware characteristics instead of exposing hypervisor artifacts that have nothing to do with cheating.
+vfio-stealth-nix is a NixOS module that makes VFIO/KVM virtual machines indistinguishable from bare-metal hardware. It provides hardware-accurate VM configuration -- realistic hardware identity instead of hypervisor artifacts.
 
 ## Documentation
 
@@ -29,7 +27,7 @@ For long-form references beyond the quick start below, see:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — directory layout, component-to-file mapping, kernel-integration boundary
 - [`docs/BUILD.md`](docs/BUILD.md) — operator commands: dev shell, formatters, hooks, tests, update contract, troubleshooting
-- [`docs/OPTIONS.md`](docs/OPTIONS.md) — full `myModules.vfio.stealth.*` option reference (mirrors the Configuration Reference section)
+- [`docs/OPTIONS.md`](docs/OPTIONS.md) — canonical `myModules.vfio.stealth.*` option reference
 
 ## Components
 
@@ -87,17 +85,9 @@ For long-form references beyond the quick start below, see:
 | SVM instruction interception | `kvm_amd.vls=0` + `kvm_amd.vgif=0` force VMLOAD/VMSAVE/STGI/CLGI interception | `module.nix` kernel params |
 | OVMF boot logo / BGRT | TianoCore LogoDxe + BootGraphicsResourceTableDxe stripped (VMAware CRC indicator) | `ovmf/package.nix` |
 | ACPI thermal zone fluctuation | Timer()-based dynamic temperature in CPU + VRM thermal zones (handles static-value detection) | `acpi/sensor-probes.dsl` |
-
-## Game Security Compatibility
-
-| Software | Status | Notes |
-|---|---|---|
-| VAC | Works | Light detection, user-mode only. CPUID + SMBIOS emulation sufficient. |
-| EAC | Likely | Requires full BetterTiming + RDTSCP handler + APERF/MPERF passthrough + kvm-pv-enforce-cpuid. Timing checks tightened March 2026; current patch set covers known vectors. `cpuidPassthrough` recommended. |
-| BattlEye | Likely | Requires full stack: BetterTiming, CPUID emulation, SMBIOS, fw_cfg probe fix, hypercall #UD injection. May 2024 update improved timing detection; `cpuidPassthrough` recommended to eliminate timing surface. |
-| Vanguard | Blocked | Kernel-mode driver with boot-time loading detects hypervisors via multiple vectors beyond CPUID. swtpm satisfies TPM 2.0 presence check, but VM detection is independent of TPM state. No known working VM configuration. |
-| FACEIT | Blocked | Multi-layer enforcement: TPM 2.0 + Secure Boot + IOMMU + VBS (Virtualization-Based Security) + `hypervisorlaunchtype=auto`. The VBS requirement is incompatible with standard KVM guests. |
-| nProtect | Works | CPUID + SMBIOS emulation sufficient for GameGuard. |
+| QEMU pvpanic device | Consumer excludes `<panic>` from domain XML; verified by `verify-host.sh` | `guest/verify-host.sh` |
+| OVMF debug output port | DebugLib redirected to null | `ovmf/package.nix` |
+| Registry SCSI DEVICEMAP | Cleaned via guest-side registry script | `guest/cleanup-registry.ps1` |
 
 ## Quick Start
 
@@ -131,132 +121,7 @@ myModules.vfio.stealth = {
 
 ## Configuration Reference
 
-All options live under `myModules.vfio.stealth`.
-
-### Core
-
-| Option | Type | Default | Description | Detection Vector |
-|---|---|---|---|---|
-| `enable` | `bool` | `false` | Enable the VFIO stealth hardware emulation stack | -- |
-| `stripVirtio` | `bool` | `true` | Remove VirtIO balloon, RNG, and tablet devices from VM config | VirtIO PCI vendor ID detection |
-| `spoofMac` | `bool` | `true` | Override guest NIC MAC address with a realistic OUI prefix | MAC address OUI reveals VM NIC vendor |
-| `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix for overridden MAC (Realtek OUI matching ASUS X870E onboard LAN) | MAC address OUI |
-| `aperfMperf` | `bool` | `true` | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+ | IET-based VM detection via MSR absence |
-| `hypervVendorId` | `str` (1-12 chars) | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv) | Hyper-V vendor_id detection |
-| `hypervMode` | `enum ["enlightened" "hidden"]` | `"enlightened"` | "enlightened" exposes hypervisor + full Hyper-V enlightenments (paravirt perf). "hidden" conceals the hypervisor and emits no enlightenments | Hyper-V presence detection |
-
-### Kernel
-
-| Option | Type | Default | Description | Detection Vector |
-|---|---|---|---|---|
-| `timing.enable` | `bool` | `true` | Apply BetterTiming TSC compensation kernel patch | RDTSC/RDTSCP timing attacks |
-| `cpuidSpoof.enable` | `bool` | `true` | Apply CPUID leaf 0 emulation via Hypervisor-Phantom technique | CPUID vendor string + hypervisor bit |
-| `cpuidPassthrough.enable` | `bool` | `false` | Disable CPUID interception entirely — guest executes at native speed. Handles TIMER + SINGLE_STEP. Requires AMD host-passthrough. When enabled, cpuidSpoof is skipped. | RDTSC software-counter timing, #DB exception timing |
-| `kernelParams.maxCState` | `int` | `1` | `processor.max_cstate` kernel parameter value | TSC stability (deep C-states cause drift) |
-| `kernelParams.tscReliable` | `bool` | `true` | Pass `tsc=reliable` on kernel command line | TSC source selection |
-
-### SMBIOS
-
-| Option | Type | Default | Description | Detection Vector |
-|---|---|---|---|---|
-| `smbios.manufacturer` | `str` | `"To Be Filled By O.E.M."` | System and baseboard manufacturer (Types 1, 2) | Win32_ComputerSystem.Manufacturer |
-| `smbios.product` | `str` | `"To Be Filled By O.E.M."` | System and baseboard product name (Types 1, 2) | Win32_ComputerSystem.Model |
-| `smbios.biosVendor` | `str` | `"American Megatrends Inc."` | BIOS vendor string (Type 0) | Win32_BIOS.Manufacturer |
-| `smbios.biosVersion` | `str` | `"1001"` | BIOS version string (Type 0) | Win32_BIOS.SMBIOSBIOSVersion |
-| `smbios.biosDate` | `str` | `"01/01/2025"` | BIOS release date MM/DD/YYYY (Type 0). OVMF default 02/02/2022 is a generic VM date | Win32_BIOS.ReleaseDate |
-| `smbios.biosRelease` | `str` | `"2.4"` | BIOS release version major.minor (Type 0 System BIOS Release field) | Win32_BIOS release fields |
-| `smbios.serial` | `str` | `"System Serial Number"` | System serial number (Type 1) | Win32_ComputerSystem.SerialNumber |
-| `smbios.baseBoardVersion` | `str` | `"Rev 1.xx"` | Baseboard version string (Type 2) | Win32_BaseBoard.Version |
-| `smbios.baseBoardSerial` | `str` | `"Default string"` | Baseboard serial number (Type 2, set from dmidecode) | Win32_BaseBoard.SerialNumber |
-| `smbios.baseBoardAsset` | `str` | `"Default string"` | Baseboard asset tag (Type 2) | Win32_BaseBoard.Tag |
-| `smbios.baseBoardLocation` | `str` | `"Default string"` | Baseboard location in chassis (Type 2) | Win32_BaseBoard.LocationInChassis |
-| `smbios.socketPrefix` | `str` | `"AM5"` | Processor socket designator prefix (Type 4) | Win32_Processor.SocketDesignation |
-| `smbios.memory.manufacturer` | `str` | `"Unknown"` | DIMM manufacturer (Type 17) | Win32_PhysicalMemory.Manufacturer |
-| `smbios.memory.partNumber` | `str` | `"Unknown"` | DIMM part number (Type 17) | Win32_PhysicalMemory.PartNumber |
-| `smbios.memory.speed` | `int` | `4800` | Memory speed in MT/s (Type 17) | Win32_PhysicalMemory.Speed |
-| `smbios.memory.count` | `int` | `2` | Number of DIMMs to report (Type 17) | Win32_PhysicalMemory count |
-| `smbios.oemStrings` | `listOf str` | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator | Win32_ComputerSystem.OEMStringArray |
-| `smbios.onboardDevices` | `listOf submodule` | `[ ]` | Onboard devices for Type 41 (submodule with designation, kind, instance). Set to match your board. Empty = no Type 41 entries | Win32_OnBoardDevice |
-
-### EDID (Display Identity)
-
-Module options under `myModules.vfio.stealth.edid.*` document the target values. The corresponding build-time arguments to `qemu-stealth` (passed via overlay or `callPackage`) compile them into the QEMU binary.
-
-| Argument | Default | Description | Detection Vector |
-|---|---|---|---|
-| `edidManufacturer` | `"ACI"` | 3-letter EDID manufacturer ID | Monitor manufacturer identifier |
-| `edidSerial` | `"VG248QE"` | Monitor serial string | EDID serial number |
-| `edidProductCode` | `"0x2480"` | EDID product code (hex) | EDID product code field |
-| `edidDpi` | `91` | Monitor DPI | EDID physical size calculation |
-| `edidWeek` | `22` | Manufacture week (1-52) | EDID manufacture date |
-| `edidYear` | `2020` | Manufacture year | EDID manufacture date |
-| `edidResX` | `1920` | Default EDID horizontal resolution | EDID preferred timing |
-| `edidResY` | `1080` | Default EDID vertical resolution | EDID preferred timing |
-
-### Disk / SCSI
-
-Module options under `myModules.vfio.stealth.disk.*` document the target values. Build-time arguments to `qemu-stealth`:
-
-| Argument | Default | Description | Detection Vector |
-|---|---|---|---|
-| `diskModel` | `"WDC WD10EZEX-00WN4A0     "` | IDE/SCSI disk model string (25 chars, space-padded) | Disk model reveals QEMU default |
-| `diskSerial` | `"Default string"` | IDE disk serial string (replaces AutoVirt blank serial) | Blank disk serial is a VM indicator |
-| `opticalModel` | `"HL-DT-ST DVDRAM GH24NSC0 "` | IDE/ATAPI optical drive model string (25 chars) | Optical drive model reveals QEMU |
-| `scsiVendor` | `"WDC"` | SCSI INQUIRY vendor string (8-char T10 format, auto-padded) | SCSI vendor reveals QEMU default |
-| `scsiTargetProduct` | `"SCSI Disk       "` | SCSI target product for dead-LUN INQUIRY fallback (16-char padded) | SCSI target product reveals QEMU |
-
-### ACPI
-
-| Option | Type | Default | Description | Detection Vector |
-|---|---|---|---|---|
-| `acpiSsdt.spoofedDevices` | `bool` | `true` | Include emulated ACPI devices (EC, fan, thermal zone, power/sleep buttons, timers) in SSDT | Missing EC/fan/thermal = VM indicator |
-| `acpiSsdt.fakeBattery` | `bool` | `true` | Include emulated ACPI battery device in SSDT | Missing battery can flag VM detection |
-| `acpiSsdt.sensorProbes` | `bool` | `true` | Include CPU + VRM thermal zones with Timer()-based dynamic fluctuation | Static/missing thermal data flags VM |
-
-Module options under `myModules.vfio.stealth.acpiOem.*`. Build-time arguments to `qemu-stealth`:
-
-| Argument | Default | Description | Detection Vector |
-|---|---|---|---|
-| `acpiOemId` | `"ALASKA"` | 6-char ACPI OEM ID | ACPI table OEM ID reveals QEMU |
-| `acpiOemTableId` | `"A M I   "` | 8-char padded ACPI OEM Table ID | ACPI table OEM Table ID |
-
-### Network
-
-| Option | Type | Default | Description | Detection Vector |
-|---|---|---|---|---|
-| `spoofMac` | `bool` | `true` | Enable MAC address OUI override | OUI prefix identifies virtual NIC vendor |
-| `macPrefix` | `str` | `"D8:BB:C1"` | OUI prefix (Realtek OUI matching ASUS X870E onboard LAN) | MAC OUI lookup reveals VM |
-
-### CPU Identity
-
-Module options under `myModules.vfio.stealth.cpuIdentity.*`. Passed per-VM via `mkStealthFeatures` in `lib.nix`:
-
-| Argument | Description | Detection Vector |
-|---|---|---|
-| `cpuIdentity.modelId` | CPU model string for SMBIOS Type 4 + QEMU `-global cpu.model-id` | Win32_Processor.Name |
-| `cpuIdentity.maxSpeed` | Max CPU speed in MHz (Type 4) | Win32_Processor.MaxClockSpeed |
-| `cpuIdentity.currentSpeed` | Current CPU speed in MHz (Type 4) | Win32_Processor.CurrentClockSpeed |
-
-### Cache (SMBIOS Type 7)
-
-Cache entries are configurable via `smbios.cache.*` options. They populate `Win32_CacheMemory`, which is empty by default on VMs and used as a detection signal.
-
-| Option | Type | Default | Description | Detection Vector |
-|---|---|---|---|---|
-| `smbios.cache.l1` | `int` | `512` | L1 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
-| `smbios.cache.l2` | `int` | `8192` | L2 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
-| `smbios.cache.l3` | `int` | `32768` | L3 cache size in KB (SMBIOS Type 7) | Win32_CacheMemory |
-
-### TPM Identity
-
-| Option | Type | Default | Description | Detection Vector |
-|---|---|---|---|---|
-| `tpm.harden` | `bool` | `true` | Configure swtpm to report realistic hardware TPM identity | swtpm defaults report IBM/swtpm |
-| `tpm.manufacturer` | `str` | `"id:49465800"` | TPM manufacturer ID (8 hex digits). id:49465800=Infineon | Win32_Tpm manufacturer |
-| `tpm.model` | `str` | `"SLB9672"` | TPM model string. SLB9672 = Infineon discrete TPM | Win32_Tpm model |
-| `tpm.firmwareVersion` | `str` | `"id:000F0018"` | TPM firmware version (8 hex digits). 0x000F0018 = FW 15.24 | Win32_Tpm firmware version |
-| `tpm.platformManufacturer` | `str` | `"ASUSTeK COMPUTER INC."` | Platform manufacturer for TPM platform certificate | TPM platform certificate |
-| `tpm.platformModel` | `str` | `"System Product Name"` | Platform model for TPM platform certificate | TPM platform certificate |
+All options live under `myModules.vfio.stealth.*`. Module options, build-time `qemu-stealth` arguments, and read-only outputs are documented in [`docs/OPTIONS.md`](docs/OPTIONS.md).
 
 ## Example Configurations
 
@@ -490,11 +355,15 @@ These represent current boundaries of software-level VM stealth:
 
 | Limitation | Reason |
 |---|---|
-| **Vanguard (Riot Games)** | Kernel-mode driver loads at boot and detects hypervisors via multiple vectors beyond CPUID. swtpm satisfies TPM 2.0 presence check, but VM detection is independent of TPM state. No confirmed working VM configuration as of 2026. |
-| **FACEIT** | Multi-layer enforcement: TPM 2.0, Secure Boot, IOMMU/DMA Protection, VBS (Virtualization-Based Security), and `hypervisorlaunchtype=auto`. The VBS requirement means Windows must run under its own Hyper-V hypervisor — incompatible with standard KVM guests. |
-| **AI behavioral analysis** | ML models analyzing gameplay patterns (movement, aim, reaction time) can flag statistical anomalies. The VM-relevant subset is performance variance detection (frame-time jitter from VM exits), which BetterTiming + cpuidPassthrough substantially reduce but cannot guarantee identical distributions. |
-| **XSAVE state identification (emerging)** | VMAware v2.7+ researches detection of CPUID interception handling via XCR0/XSS size discrepancies. On AMD SVM, VMRUN loads guest XCR0 from the VMCB, making leaf 0xD naturally consistent — but this is an evolving area. |
-| **NPT page-walk latency** | Nested Page Table translation adds ~10-20ns per TLB miss. Detectable in theory via microbenchmarks, but high noise floor makes it impractical for detection software false-positive rates. No known detection software uses this. |
+| **Remote TPM attestation** | Cloud-based attestation (e.g. Microsoft Azure Attestation) verifies TPM endorsement keys against manufacturer databases. swtpm keys are not manufacturer-signed and cannot pass remote attestation. No software-only fix. |
+| **VBS-dependent detection** | Detection stacks requiring Virtualization-Based Security (VBS) + `hypervisorlaunchtype=auto` are incompatible with standard KVM guests. VBS means Windows must run under its own Hyper-V hypervisor. |
+| **Boot-time kernel drivers** | Kernel-mode detection drivers that load before the OS can detect hypervisors via multiple vectors beyond CPUID. swtpm satisfies TPM 2.0 presence checks, but detection is independent of TPM state. |
+| **PCI subsystem ID `1af4:1100`** | QEMU hardcodes Red Hat subsystem vendor:device on ICH9 LPC, AHCI, SMBus, and HDA devices. Not user-configurable on most chipset devices; requires QEMU source patches to override. |
+| **fw_cfg I/O port probe** | Reading 4 bytes from fw_cfg selector 0x0000 returns "QEMU". The DMA signature is patched but the legacy I/O path (ports 0x510/0x511) remains. Requires QEMU source patch to fully suppress. |
+| **Context-switch timing oracles** | Detection libraries (VMAware v2.5+) use context-switch-based clocks independent of TSC. Claims immunity to all TSC/hardware clock spoofing including BetterTiming. An evolving area. |
+| **XSAVE state identification** | Detection of CPUID interception handling via XCR0/XSS size discrepancies. On AMD SVM, VMRUN loads guest XCR0 from the VMCB, making leaf 0xD naturally consistent -- an evolving area. |
+| **NPT page-walk latency** | Nested Page Table translation adds ~10-20ns per TLB miss. Detectable in theory via microbenchmarks, but high noise floor makes it impractical for false-positive rates. No known detection software uses this. |
+| **Performance variance** | ML-based detection of frame-time jitter from VM exits. BetterTiming + `cpuidPassthrough` substantially reduce but cannot eliminate this surface. |
 
 ## License
 

@@ -126,7 +126,7 @@
     # sees AMD FCH IDs, takes an AMD-platform code path that expects
     # real FCH hardware features, and crashes with 0x113 BSOD
     # (UNEXPECTED_DEFERRED_DESTRUCTION) when Q35 doesn't provide them.
-    # Anti-cheat checks CPUID/SMBIOS/VGA IDs, not chipset bridge IDs,
+    # Detection software checks CPUID/SMBIOS/VGA IDs, not chipset bridge IDs,
     # so reverting these has minimal stealth impact.
 
     # MCH: device ID to 0x29C0 (OVMF build compat + Q35 identity)

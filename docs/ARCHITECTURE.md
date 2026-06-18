@@ -48,8 +48,7 @@ vfio-stealth-nix/
 │   └── check-kernel-patches.sh  # Validate kernel patch anchors
 ├── .github/
 │   ├── workflows/{ci,update,maintenance}.yml
-│   ├── update.json
-│   └── dependabot.yml
+│   └── update.json
 ├── README.md
 ├── docs/                    # this folder
 ├── LICENSE
@@ -75,40 +74,14 @@ vfio-stealth-nix/
 
 ## Kernel-integration layering
 
-The module exposes `myModules.vfio.stealth._kernelPostPatch` — a shell
-script string that patches kernel sources via `sed`/`awk`. It is meant
-to be appended to `linux*.kernel.overrideAttrs`'s `postPatch`. Up to three
-patch sets compose into this single hook:
+The module exposes `myModules.vfio.stealth._kernelPostPatch` -- a shell
+script string meant to be appended to `linux*.kernel.overrideAttrs`'s
+`postPatch`. Three composable patch sets target the KVM/SVM subsystem.
+See README "What the patches do" for the detailed breakdown of each patch.
 
-1. **BetterTiming** (`kernel/timing-patch.nix`) — TSC compensation
-   - Adds `last_exit_start` and `total_exit_time` fields to `struct kvm_vcpu`
-   - Wraps `vcpu_enter_guest` to measure VM-exit duration
-   - Patches `MSR_IA32_TSC` reads to return compensated values
-   - Enables RDTSC interception in SVM `init_vmcb`
-   - Adds `handle_rdtsc_interception` returning compensated TSC
-   - Adds `handle_rdtscp_interception` returning compensated TSC + TSC_AUX in ECX
-   - Wraps CPUID, WBINVD, XSETBV, INVD exit handlers to tag
-     `exit_reason=0xDEAD` for timing compensation
-   - Disables KVM hypercall instruction patching (forces `#UD` on
-     VMCALL/VMMCALL instead of `#PF`, matching bare-metal behavior)
-
-2. **CPUID emulation** (`kernel/cpuid-patch.nix`) — Hypervisor-Phantom
-   - Intercepts CPUID leaf 0 inside `svm_vcpu_run` after
-     `svm_vcpu_enter_exit` returns
-   - Overrides vendor string to `AuthenticAMD` with max leaf `0x20`
-   - Advances RIP and re-enters guest via `goto reenter_guest_fast`
-     (no full VM exit)
-   - Clears RDTSC/RDTSCP interception bits (BetterTiming re-enables
-     RDTSC if active)
-
-3. **CPUID passthrough** (`kernel/cpuid-disable.nix`) — Exit-less CPUID
-   - Clears `INTERCEPT_CPUID` in `init_vmcb` and `pre_svm_run`
-   - Guest executes CPUID at native hardware speed (zero VM exit)
-   - AMD SVM loads guest XCR0 from VMCB — leaf 0xD naturally consistent
-   - Hardware returns AuthenticAMD with no hypervisor bit (synthetic,
-     absent in real CPUID)
-   - Side effect: Hyper-V enlightenments invisible to guest (Windows
-     uses TSC directly)
+1. **BetterTiming** (`kernel/timing-patch.nix`) -- TSC compensation + hypercall #UD injection
+2. **CPUID emulation** (`kernel/cpuid-patch.nix`) -- Hypervisor-Phantom leaf 0 override without full VM exit
+3. **CPUID passthrough** (`kernel/cpuid-disable.nix`) -- exit-less CPUID, guest runs at native hardware speed
 
 Patches target function signatures and symbol names, not line numbers,
 for resilience across kernel versions. Validated via CI against
