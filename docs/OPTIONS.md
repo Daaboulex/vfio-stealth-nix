@@ -21,6 +21,8 @@ Canonical reference for all `myModules.vfio.stealth.*` options and
 | `hypervVendorId`    | `str` (1-12 chars)              | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv)                                                                                                                                                                                                                          | Hyper-V vendor_id identification       |
 | `hypervMode`        | `enum ["enlightened" "hidden"]` | `"enlightened"`  | "enlightened" exposes hypervisor + Hyper-V enlightenments. "hidden" conceals the hypervisor and emits no enlightenments                                                                                                                                                                                     | Hyper-V presence detection             |
 | `kernelCapabilities` | `nullOr (attrsOf bool)` | `null`       | Per-feature capability set from the host kernel. `null` = assume all features supported (back-compat). Compute via `vfio-stealth-nix.lib.kernelCapabilities.fromConfigPath` in your host config, or set the attrset by hand after `zcat /proc/config.gz \| grep KVM_HYPERV`. See [Kernel capabilities](#kernel-capabilities) | Hyper-V capability mismatches          |
+| `kvmPvEnforceCpuid` | `bool`                          | `false`          | Pass `kvm-pv-enforce-cpuid=on` to the guest `-cpu` flag. AutoVirt's QEMU patch flipped the QEMU default to on; that flag faults RDMSR/WRMSR in the KVM paravirt range (0x4b564d00-0x4b564d08) with #GP unless the matching CPUID feature is set, which crashes Windows HAL/HvLoader. Off = pre-AutoVirt behavior | KVM paravirt MSR #GP on Win init       |
+| `pciMmio64Mb`       | `int`                           | `65536`          | Size of the OVMF 64-bit PCI MMIO window in MB. 65536 (64 GB) covers GPUs up to 64 GB VRAM. 0 = omit the flag (OVMF uses its default, which may be too small for modern GPUs)                                                                                                                                    | --                                     |
 
 ## Hyper-V features
 
@@ -31,7 +33,7 @@ kernel — verified against `arch/x86/kvm/x86.c:4817-4831` in the Linux
 kernel source, which puts every relevant `KVM_CAP_HYPERV_*` cap in a
 single `#ifdef CONFIG_KVM_HYPERV` block. To check your kernel:
 
-```
+```sh
 zcat /proc/config.gz | grep KVM_HYPERV
 ```
 
@@ -92,8 +94,6 @@ myModules.vfio.stealth.kernelCapabilities = {
 
 The `lib/kernel-capabilities.nix` helper also exports `fromConfigText`
 (for tests) and `emptyCapabilities` (returns all features = false).
-| `kvmPvEnforceCpuid` | `bool`                          | `false`          | Pass `kvm-pv-enforce-cpuid=on` to the guest `-cpu` flag. AutoVirt's QEMU patch flipped the QEMU default to on; that flag faults RDMSR/WRMSR in the KVM paravirt range (0x4b564d00-0x4b564d08) with #GP unless the matching CPUID feature is set, which crashes Windows HAL/HvLoader. Off = pre-AutoVirt behavior | KVM paravirt MSR #GP on Win init       |
-| `pciMmio64Mb`       | `int`                           | `65536`          | Size of the OVMF 64-bit PCI MMIO window in MB. 65536 (64 GB) covers GPUs up to 64 GB VRAM. 0 = omit the flag (OVMF uses its default, which may be too small for modern GPUs)                                                                                                                                    | --                                     |
 
 ## Kernel
 
