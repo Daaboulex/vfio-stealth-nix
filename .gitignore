@@ -50,3 +50,17 @@ Thumbs.db
 .vscode/
 .idea/
 
+.devshell/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+build/
+dist/
+target/
+*.egg-info/
+.eggs/
+node_modules/
+.venv/
+venv/
