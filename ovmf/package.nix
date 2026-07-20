@@ -65,16 +65,36 @@ in
         echo "FATAL: LogoDxe still in FDF"; exit 1
       fi
 
-      # Revert AutoVirt's MCH device ID (0x14D8) to Intel Q35 (0x29C0).
+      # Revert AutoVirt's Q35 MCH device ID (0x14D8 → 0x29C0).
       # The OVMF build enrolls Secure Boot keys by booting inside STOCK
-      # QEMU (accel=tcg), whose MCH is 0x29C0. If OVMF expects 0x14D8,
-      # Q35 PEI init hangs during the build. The runtime qemu-stealth
-      # also uses 0x29C0 (reverted in post-patch.nix) with AMD vendor --
-      # keeping all-AMD vendors while matching OVMF's Q35 check.
+      # QEMU (accel=tcg), whose MCH is 0x29C0. The runtime qemu-stealth
+      # also reverts this (post-patch.nix).
       sed -i 's/define INTEL_Q35_MCH_DEVICE_ID.*$/define INTEL_Q35_MCH_DEVICE_ID    0x29C0/' \
         OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
       if ! grep -q 'INTEL_Q35_MCH_DEVICE_ID.*0x29C0' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
         echo "FATAL: MCH device ID revert to 0x29C0 failed"
+        exit 1
+      fi
+
+      # Revert AutoVirt's Q35 PM register base (bus 0x14 dev 3 → bus 0x1f dev 0).
+      # The AutoVirt patch changes two macros — PCI_LIB_ADDRESS and
+      # EFI_PCI_ADDRESS — each spanning two lines (a #define + a
+      # continuation). The device numbers (0x14, 3) live on the
+      # continuation line.
+      sed -i 's|PCI_LIB_ADDRESS (0, 0x14, 3,|PCI_LIB_ADDRESS (0, 0x1f, 0,|g' \
+        OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
+      sed -i 's|EFI_PCI_ADDRESS (0, 0x14, 3,|EFI_PCI_ADDRESS (0, 0x1f, 0,|g' \
+        OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
+      if ! grep -q 'PCI_LIB_ADDRESS (0, 0x1f, 0,' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
+        echo "FATAL: PM PCI_LIB_ADDRESS revert to (0x1f,0) failed"
+        exit 1
+      fi
+      if ! grep -q 'EFI_PCI_ADDRESS (0, 0x1f, 0,' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
+        echo "FATAL: PM EFI_PCI_ADDRESS revert to (0x1f,0) failed"
+        exit 1
+      fi
+      if grep -n 'PCI_LIB_ADDRESS (0, 0x14, 3,\|EFI_PCI_ADDRESS (0, 0x14, 3' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
+        echo "FATAL: PM register address still at AutoVirt (0x14,3)"
         exit 1
       fi
 

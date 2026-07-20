@@ -116,6 +116,23 @@
               machine.wait_for_unit("multi-user.target", timeout=300)
             '';
           };
+
+          checks.ovmf-sb-vars-exists =
+            let
+              ovmf-sb = self.packages.${pkgs.stdenv.hostPlatform.system}.ovmf-stealth;
+            in
+            pkgs.runCommand "ovmf-sb-vars-exists" { } ''
+              varsMs="${ovmf-sb.fd}/FV/OVMF_VARS.ms.fd"
+              if [ ! -f "$varsMs" ]; then
+                echo "FAIL: OVMF_VARS.ms.fd absent — Secure Boot key enrollment did not complete"
+                echo "expected: $varsMs"
+                ls -la "${ovmf-sb.fd}/FV/" 2>/dev/null || echo "(FV dir missing)"
+                exit 1
+              fi
+              size=$(stat --format=%s "$varsMs")
+              echo "ovmf-sb-vars-exists: OVMF_VARS.ms.fd present ($size bytes)"
+              touch $out
+            '';
         };
     };
 }

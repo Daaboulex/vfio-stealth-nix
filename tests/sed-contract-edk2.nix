@@ -49,6 +49,22 @@ let
       grep -n 'MCH_DEVICE_ID\|0x14[dD]8\|0x29[cC]0' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h || true
       exit 1
     fi
+    sed -i 's|PCI_LIB_ADDRESS (0, 0x14, 3,|PCI_LIB_ADDRESS (0, 0x1f, 0,|g' \
+      OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
+    sed -i 's|EFI_PCI_ADDRESS (0, 0x14, 3,|EFI_PCI_ADDRESS (0, 0x1f, 0,|g' \
+      OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
+    if ! grep -q 'PCI_LIB_ADDRESS (0, 0x1f, 0,' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
+      echo "FATAL: PM PCI_LIB_ADDRESS revert to (0x1f,0) failed"
+      exit 1
+    fi
+    if ! grep -q 'EFI_PCI_ADDRESS (0, 0x1f, 0,' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
+      echo "FATAL: PM EFI_PCI_ADDRESS revert to (0x1f,0) failed"
+      exit 1
+    fi
+    if grep -n 'PCI_LIB_ADDRESS (0, 0x14, 3,\|EFI_PCI_ADDRESS (0, 0x14, 3' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
+      echo "FATAL: PM register address still at AutoVirt (0x14,3)"
+      exit 1
+    fi
 
   '';
 
@@ -68,6 +84,11 @@ let
       name = "mch-device-id";
       path = "OvmfPkg/Include/IndustryStandard/Q35MchIch9.h";
       pattern = "INTEL_Q35_MCH_DEVICE_ID    0x29C0";
+    }
+    {
+      name = "pm-register-address";
+      path = "OvmfPkg/Include/IndustryStandard/Q35MchIch9.h";
+      pattern = "EFI_PCI_ADDRESS (0, 0x1f, 0,";
     }
   ];
 
