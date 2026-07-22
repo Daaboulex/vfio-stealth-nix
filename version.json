@@ -1,12 +1,12 @@
 {
   "autovirt": {
-    "rev": "ac124d93260ba701e8eaba968f5716e99beae379",
-    "version": "ac124d9",
-    "date": "2026-07-20"
+    "rev": "dc67aee3787c86f1504d32c769c3480c7fdedef3",
+    "version": "dc67aee",
+    "date": "2026-07-22"
   },
   "betterTiming": {
     "rev": "3d95a8fe8a9e6f072c7732e83c6cca43023aa4a7",
     "version": "3d95a8f",
-    "date": "2026-07-20"
+    "date": "2026-07-22"
   }
 }
