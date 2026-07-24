@@ -185,6 +185,16 @@ let
       pattern = "build_waet";
     }
     {
+      name = "ich9-lpc-dev-stock-q35";
+      path = "include/hw/southbridge/ich9.h";
+      pattern = "#define ICH9_LPC_DEV                            31";
+    }
+    {
+      name = "ich9-lpc-func-stock-q35";
+      path = "include/hw/southbridge/ich9.h";
+      pattern = "#define ICH9_LPC_FUNC                           0";
+    }
+    {
       name = "pci-subsystem-vendor";
       path = "include/hw/pci/pci.h";
       pattern = "PCI_SUBVENDOR_ID_REDHAT_QUMRANET 0x8086";

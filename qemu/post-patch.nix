@@ -150,6 +150,22 @@
     grep -q 'PCI_VENDOR_ID_INTEL' hw/ide/ich.c || { echo "FATAL: AHCI vendor revert failed"; exit 1; }
     grep -q 'PCI_DEVICE_ID_INTEL_82801IR' hw/ide/ich.c || { echo "FATAL: AHCI device_id revert failed"; exit 1; }
 
+    # Must stay paired with the PM register revert in ovmf/package.nix: OVMF
+    # probes the PM base at 0x1f:0, so QEMU has to keep LPC there or the
+    # firmware hangs before any console output.
+    sed -i 's/^#define ICH9_LPC_DEV[[:space:]].*/#define ICH9_LPC_DEV                            31/' \
+      include/hw/southbridge/ich9.h
+    sed -i 's/^#define ICH9_LPC_FUNC[[:space:]].*/#define ICH9_LPC_FUNC                           0/' \
+      include/hw/southbridge/ich9.h
+    if ! grep -qE '^#define ICH9_LPC_DEV[[:space:]]+31$' include/hw/southbridge/ich9.h; then
+      echo "FATAL: ICH9 LPC device revert to 31 (stock Q35 0x1f) failed"
+      exit 1
+    fi
+    if ! grep -qE '^#define ICH9_LPC_FUNC[[:space:]]+0$' include/hw/southbridge/ich9.h; then
+      echo "FATAL: ICH9 LPC function revert to 0 failed"
+      exit 1
+    fi
+
     # PCI subsystem vendor:device: replace Red Hat 0x1af4:0x1100 with
     # Intel 0x8086:0x0000. Every Q35 chipset device (LPC, SMBus, AHCI,
     # HDA, MCH) inherits these defaults from pci.h. The subsystem IDs
