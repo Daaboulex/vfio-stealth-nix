@@ -1,6 +1,8 @@
 {
   lib,
-  autovirt,
+  autovirtPatch,
+  patchedOemId,
+  patchedOemTableId,
   edidManufacturer,
   edidSerial,
   edidProductCode,
@@ -19,26 +21,20 @@
 }:
 
 ''
-  echo "=== Applying EDK2/OVMF patch ==="
-    # nixpkgs builds OVMF separately; roms/edk2 is absent in the normal
-    # derivation, so this block is a no-op.  Kept for standalone builds.
-    if [ -d roms/edk2 ]; then
-      EDK2_PATCH=""
-      for p in "${autovirt}"/patches/EDK2/AMD-edk2-stable*.patch; do
-        if [ -f "$p" ]; then EDK2_PATCH="$p"; break; fi
-      done
-      if [ -z "$EDK2_PATCH" ]; then
-        echo "FATAL: no AMD EDK2 patch found in ${autovirt}/patches/EDK2/"
-        ls -la "${autovirt}/patches/EDK2/" 2>/dev/null || true
-        exit 1
-      fi
-      echo "Using EDK2 patch: $(basename "$EDK2_PATCH")"
-      patch -d roms/edk2 -p1 < "$EDK2_PATCH" || {
-        echo "FATAL: EDK2 patch failed"
-        exit 1
-      }
-      substituteInPlace roms/edk2/OvmfPkg/OvmfPkgX64.dsc \
-        --replace-warn 'L"EDK II"' 'L"American Megatrends Inc."' || true
+  echo "=== Applying AutoVirt QEMU patch: $(basename ${autovirtPatch}) ==="
+    # -F0: a stealth hunk that only applies with fuzz may land in the wrong
+    # place and silently produce a detectable or unbootable emulator.
+    patch -p1 -F0 -i ${autovirtPatch} || {
+      echo "FATAL: AutoVirt QEMU patch did not apply with zero fuzz"
+      exit 1
+    }
+
+    # aml_string is G_GNUC_PRINTF(1,2); AutoVirt's _OSI loop passes a variable
+    # as the format, which nixpkgs' -Werror=format-security rejects.
+    sed -i 's|aml_string(win_osi\[n\].osi)|aml_string("%s", win_osi[n].osi)|' hw/i386/acpi-build.c
+    if grep -q 'aml_string(win_osi\[n\]\.osi)' hw/i386/acpi-build.c; then
+      echo "FATAL: AutoVirt _OSI loop still passes a non-literal format to aml_string"
+      exit 1
     fi
 
     echo "=== Customizing hardware identifiers ==="
@@ -94,12 +90,12 @@
       --replace-fail '"QEMU"' '"${scsiVendor}"'
 
     # ACPI OEM: replace values in aml-build.h
-    sed -i 's|"ALASKA"|"${acpiOemId}"|g' include/hw/acpi/aml-build.h
+    sed -i 's|"${patchedOemId}"|"${acpiOemId}"|g' include/hw/acpi/aml-build.h
     if ! grep -q '"${acpiOemId}"' include/hw/acpi/aml-build.h; then
       echo "FATAL: ACPI OEM ID replacement to ${acpiOemId} did not apply"
       exit 1
     fi
-    sed -i 's|"A M I   "|"${acpiOemTableId}"|g' include/hw/acpi/aml-build.h
+    sed -i 's|"${patchedOemTableId}"|"${acpiOemTableId}"|g' include/hw/acpi/aml-build.h
     if ! grep -q '"${acpiOemTableId}"' include/hw/acpi/aml-build.h; then
       echo "FATAL: ACPI OEM Table ID replacement did not apply"
       exit 1
@@ -155,6 +151,22 @@
     grep -q 'PCI_VENDOR_ID_INTEL' hw/i2c/smbus_ich9.c || { echo "FATAL: SMBus vendor revert failed"; exit 1; }
     grep -q 'PCI_VENDOR_ID_INTEL' hw/ide/ich.c || { echo "FATAL: AHCI vendor revert failed"; exit 1; }
     grep -q 'PCI_DEVICE_ID_INTEL_82801IR' hw/ide/ich.c || { echo "FATAL: AHCI device_id revert failed"; exit 1; }
+
+    # Must stay paired with the PM register revert in ovmf/package.nix: OVMF
+    # probes the PM base at 0x1f:0, so QEMU has to keep LPC there or the
+    # firmware hangs before any console output.
+    sed -i 's/^#define ICH9_LPC_DEV[[:space:]].*/#define ICH9_LPC_DEV                            31/' \
+      include/hw/southbridge/ich9.h
+    sed -i 's/^#define ICH9_LPC_FUNC[[:space:]].*/#define ICH9_LPC_FUNC                           0/' \
+      include/hw/southbridge/ich9.h
+    if ! grep -qE '^#define ICH9_LPC_DEV[[:space:]]+31$' include/hw/southbridge/ich9.h; then
+      echo "FATAL: ICH9 LPC device revert to 31 (stock Q35 0x1f) failed"
+      exit 1
+    fi
+    if ! grep -qE '^#define ICH9_LPC_FUNC[[:space:]]+0$' include/hw/southbridge/ich9.h; then
+      echo "FATAL: ICH9 LPC function revert to 0 failed"
+      exit 1
+    fi
 
     # PCI subsystem vendor:device: replace Red Hat 0x1af4:0x1100 with
     # Intel 0x8086:0x0000. Every Q35 chipset device (LPC, SMBus, AHCI,

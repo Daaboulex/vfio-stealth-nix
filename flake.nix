@@ -9,17 +9,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     std = {
-      url = "github:Daaboulex/nix-packaging-standard?ref=v2.11.0";
+      url = "github:Daaboulex/nix-packaging-standard?ref=v2.15.0";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.git-hooks.follows = "git-hooks";
     };
 
     autovirt = {
       url = "github:Scrut1ny/AutoVirt";
-      flake = false;
-    };
-    better-timing = {
-      url = "github:SamuelTulach/BetterTiming";
       flake = false;
     };
     # CachyOS kernel packaging — used by the kernel-anchor-contract
@@ -43,6 +39,8 @@
 
       flake.overlays.default = final: _prev: {
         qemu-stealth = self.packages.${final.stdenv.hostPlatform.system}.default;
+        qemu-stealth-intel = self.packages.${final.stdenv.hostPlatform.system}.qemu-stealth-intel;
+        ovmf-stealth-intel = self.packages.${final.stdenv.hostPlatform.system}.ovmf-stealth-intel;
         ovmf-stealth = self.packages.${final.stdenv.hostPlatform.system}.ovmf-stealth;
         acpi-ssdt-stealth = self.packages.${final.stdenv.hostPlatform.system}.acpi-ssdt-stealth;
         smbios-extract = self.packages.${final.stdenv.hostPlatform.system}.smbios-extract;
@@ -56,8 +54,22 @@
       perSystem =
         { pkgs, ... }:
         {
-          packages.default = pkgs.callPackage ./qemu/package.nix { inherit (inputs) autovirt; };
-          packages.ovmf-stealth = pkgs.callPackage ./ovmf/package.nix { inherit (inputs) autovirt; };
+          packages.default = pkgs.callPackage ./qemu/package.nix {
+            inherit (inputs) autovirt;
+            cpuVendor = "amd";
+          };
+          packages.qemu-stealth-intel = pkgs.callPackage ./qemu/package.nix {
+            inherit (inputs) autovirt;
+            cpuVendor = "intel";
+          };
+          packages.ovmf-stealth = pkgs.callPackage ./ovmf/package.nix {
+            inherit (inputs) autovirt;
+            cpuVendor = "amd";
+          };
+          packages.ovmf-stealth-intel = pkgs.callPackage ./ovmf/package.nix {
+            inherit (inputs) autovirt;
+            cpuVendor = "intel";
+          };
           packages.acpi-ssdt-stealth = pkgs.callPackage ./acpi/package.nix { };
           packages.smbios-extract = pkgs.callPackage ./smbios/package.nix { };
           packages.smbios-stealth-tables = pkgs.callPackage ./smbios/tables-package.nix { };
@@ -68,15 +80,34 @@
             overlays = [ self.overlays.default ];
             module = ./module.nix;
             config.myModules.vfio.stealth.enable = true;
+            config.myModules.vfio.stealth.cpuVendor = "amd";
           };
 
           checks.sed-contract-qemu = pkgs.callPackage ./tests/sed-contract-qemu.nix {
             inherit inputs;
+            cpuVendor = "amd";
+            qemu-stealth = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+          };
+
+          checks.sed-contract-qemu-intel = pkgs.callPackage ./tests/sed-contract-qemu.nix {
+            inherit inputs;
+            cpuVendor = "intel";
+            qemu-stealth = self.packages.${pkgs.stdenv.hostPlatform.system}.qemu-stealth-intel;
           };
 
           checks.sed-contract-edk2 = pkgs.callPackage ./tests/sed-contract-edk2.nix {
             inherit inputs;
+            cpuVendor = "amd";
           };
+
+          checks.sed-contract-edk2-intel = pkgs.callPackage ./tests/sed-contract-edk2.nix {
+            inherit inputs;
+            cpuVendor = "intel";
+          };
+
+          checks.autovirt-patch-contract = pkgs.callPackage ./tests/autovirt-patch-contract.nix { };
+
+          checks.options-documented = pkgs.callPackage ./tests/options-documented.nix { };
 
           checks.kernel-anchor-contract = pkgs.callPackage ./tests/kernel-anchor-contract.nix {
             cachyosLtoLatest =

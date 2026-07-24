@@ -181,8 +181,47 @@ let
   supportedWarningsJson = builtins.toJSON supported.warnings;
   unsupportedWarningsJson = builtins.toJSON unsupported.warnings;
 
+  perVmCpuIdentity = {
+    modelId = "AMD Ryzen 9 9950X3D 16-Core Processor";
+    maxSpeed = 5700;
+    currentSpeed = 5700;
+  };
+
+  hostWideCpuIdentity = {
+    manufacturer = null;
+    modelId = null;
+    maxSpeed = null;
+    currentSpeed = null;
+  };
+
+  mergedCpuIdentity = hostWideCpuIdentity // lib.filterAttrs (_: v: v != null) perVmCpuIdentity;
+
+  cpuIdentityShapesAgreeJson = builtins.toJSON (
+    enlightened.qemuArgs perVmCpuIdentity == enlightened.qemuArgs mergedCpuIdentity
+  );
+
+  cpuIdentityInheritedManufacturerJson = builtins.toJSON (
+    enlightened.qemuArgs (mergedCpuIdentity // { manufacturer = "Intel Corporation"; })
+  );
+
   # Each guard: (name, json-source, jq-filter that must return true)
   guards = [
+    # --- cpuIdentity: absent key and explicit null must behave identically ---
+    {
+      name = "cpuidentity-null-and-absent-agree";
+      json = cpuIdentityShapesAgreeJson;
+      filter = ".";
+    }
+    {
+      name = "cpuidentity-null-manufacturer-falls-back-to-amd";
+      json = builtins.toJSON (enlightened.qemuArgs mergedCpuIdentity);
+      filter = ''[. | join(" ")] | .[0] | contains("manufacturer=Advanced Micro Devices,, Inc.")'';
+    }
+    {
+      name = "cpuidentity-set-manufacturer-wins";
+      json = cpuIdentityInheritedManufacturerJson;
+      filter = ''[. | join(" ")] | .[0] | contains("manufacturer=Intel Corporation")'';
+    }
     # --- qemuArgs: SMBIOS types ---
     {
       name = "smbios-type3-chassis";

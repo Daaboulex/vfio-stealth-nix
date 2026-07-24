@@ -4,6 +4,7 @@
   fetchurl,
   python3Packages,
   autovirt,
+  cpuVendor,
   # EDID: Generic ASUS monitor
   edidManufacturer ? "ACI",
   edidSerial ? "VG248QE",
@@ -29,18 +30,17 @@
 }:
 
 let
-  expectedVersionPrefix = "11.0.";
+  # QEMU 10.2.2 hangs OVMF firmware; 11.0.1 is the oldest release verified good.
+  minimumVersion = "11.0.1";
 
-  # Pin QEMU 11.0.x while nixpkgs ships 10.2.x (10.2.2 hangs OVMF firmware).
-  # When nixpkgs bumps to 11.0.x, the pin is skipped and nixpkgs patches apply normally.
   qemuBase =
-    if lib.hasPrefix expectedVersionPrefix qemu.version then
+    if builtins.compareVersions qemu.version minimumVersion >= 0 then
       qemu
     else
       qemu.overrideAttrs (old: {
-        version = "11.0.1";
+        version = minimumVersion;
         src = fetchurl {
-          url = "https://download.qemu.org/qemu-11.0.1.tar.xz";
+          url = "https://download.qemu.org/qemu-${minimumVersion}.tar.xz";
           hash = "sha256-DSNfWCAnjZFKMVXsJ6+OQljWl+qJKJVXCAfWnAy4zWQ=";
         };
         patches = [ ];
@@ -51,25 +51,30 @@ let
           python3Packages.wheel
         ];
       });
-in
 
-assert lib.assertMsg (lib.hasPrefix expectedVersionPrefix qemuBase.version)
-  "qemu-stealth: expected QEMU ${expectedVersionPrefix}x but got ${qemuBase.version} — update the patch";
+  autovirtPatches = import ../lib/autovirt-patches.nix { inherit lib; };
+
+  autovirtPatch = autovirtPatches.qemu {
+    inherit autovirt cpuVendor;
+    qemuVersion = qemuBase.version;
+  };
+
+  inherit (autovirtPatches.traits.${cpuVendor}) patchedOemId patchedOemTableId;
+in
 
 (qemuBase.override {
   hostCpuOnly = true;
 }).overrideAttrs
   (old: {
     pname = "qemu-stealth";
-    patches = (old.patches or [ ]) ++ [
-      "${autovirt}/patches/QEMU/AMD-v11.0.0.patch"
-    ];
     postPatch =
       (old.postPatch or "")
       + (import ./post-patch.nix {
         inherit
           lib
-          autovirt
+          autovirtPatch
+          patchedOemId
+          patchedOemTableId
           edidManufacturer
           edidSerial
           edidProductCode

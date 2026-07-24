@@ -3,17 +3,15 @@
   runCommand,
   patchutils,
   inputs,
+  cpuVendor,
   OVMF,
 }:
 
 let
-  autovirtPatch =
-    let
-      candidates = builtins.filter (n: lib.hasPrefix "AMD-edk2-stable" n && lib.hasSuffix ".patch" n) (
-        builtins.attrNames (builtins.readDir "${inputs.autovirt}/patches/EDK2")
-      );
-    in
-    "${inputs.autovirt}/patches/EDK2/${builtins.head (lib.sort (a: b: a > b) candidates)}";
+  autovirtPatch = (import ../lib/autovirt-patches.nix { inherit lib; }).edk2 {
+    inherit (inputs) autovirt;
+    inherit cpuVendor;
+  };
 
   # The OVMF postPatch as a Nix function: applies the filterdiff-trimmed
   # AutoVirt patch + the 10 hardware-identity seds to a source tree. Same
@@ -106,7 +104,7 @@ in
 # per-sed grep guards. This catches the silent-no-op class of breaks
 # that the build-time FATAL might miss (e.g. an AutoVirt bump that
 # renames the BGRT module).
-runCommand "sed-contract-edk2"
+runCommand "sed-contract-edk2-${cpuVendor}"
   {
     nativeBuildInputs = [ patchutils ];
   }
@@ -116,8 +114,8 @@ runCommand "sed-contract-edk2"
     chmod -R u+w "$src"
     cd "$src"
     ${ovmfPostPatch}
-    echo "=== sed-contract-edk2: per-sed guard assertions ==="
+    echo "=== sed-contract-edk2-${cpuVendor}: per-sed guard assertions ==="
     ${allGuardChecks}
-    echo "sed-contract-edk2: all ${toString (lib.length guards)} guards passed"
+    echo "sed-contract-edk2-${cpuVendor}: all ${toString (lib.length guards)} guards passed"
     touch $out
   ''

@@ -9,7 +9,8 @@ challenge it with a dep bump).
 ## What this repo is
 
 A fork-of-forks: QEMU + EDK2 + CachyOS Linux, with out-of-tree
-patches (AutoVirt + BetterTiming + Hypervisor-Phantom) and our own
+patches (AutoVirt + Hypervisor-Phantom, plus a hand-ported
+BetterTiming) and our own
 sed-based reversions. Every dep in the input set can move. This
 procedure minimises the surface area of breakage.
 
@@ -18,15 +19,17 @@ procedure minimises the surface area of breakage.
 The dependencies that move are:
 
 - `autovirt` (the AutoVirt patch content; pinned via `flake.lock`)
-- `nixpkgs` (QEMU upstream; the override in `qemu/package.nix` pins
-  QEMU 11.0.1 specifically, so most nixpkgs bumps are inert for
-  qemu-stealth — but the QEMU version check in the override fires
-  loudly if the pin is bypassed)
+- `nixpkgs` (QEMU upstream; `qemu/package.nix` uses nixpkgs' QEMU
+  whenever it is at or above the `minimumVersion` floor, and pins that
+  floor only when nixpkgs is older. The patch family is resolved for the
+  QEMU series actually being built, so a nixpkgs bump past the series
+  AutoVirt ships fails at eval with the available patch list)
 - `nix-cachyos-kernel` (the CachyOS LTO latest kernel; tracked
   at HEAD, so this moves continuously)
-- `qemu` (the nixpkgs QEMU; the override in `qemu/package.nix` pins
-  11.0.1 when the upstream isn't already 11.0.x)
-- `better-timing` (BetterTiming patch content; rarely changes)
+
+`kernel/timing-patch.nix` is a hand-port of BetterTiming, not a flake
+input. `version.json` records the upstream commit it was ported from and
+`scripts/update.sh` warns when upstream moves past it.
 
 ### 1. Run the contract tests
 
@@ -133,9 +136,10 @@ Each contract test is a `checks.<system>.<name>` derivation in
 `flake.nix`. They are all wired into `nix flake check` automatically.
 
 - `checks.sed-contract-qemu`: applies the AutoVirt QEMU patch + the
-  `qemu/post-patch.nix` seds to a fresh QEMU 11.0.1 source; runs a
-  per-sed grep guard after each substitution; reports per-sed
-  pass/fail.
+  `qemu/post-patch.nix` seds to the QEMU source the package actually
+  builds, with the same nixpkgs patches; runs a per-sed grep guard after
+  each substitution; reports per-sed pass/fail. Instantiated per vendor
+  as `sed-contract-qemu-amd` and `sed-contract-qemu-intel`.
 - `checks.sed-contract-edk2`: applies the filterdiff-trimmed AutoVirt
   EDK2 patch + the `ovmf/package.nix` postPatch to a fresh OVMF
   source; runs per-sed grep guards.

@@ -1,20 +1,33 @@
 {
   lib,
   runCommand,
-  fetchurl,
   inputs,
+  cpuVendor,
+  qemu-stealth,
 }:
 
 let
-  qemuTarball = fetchurl {
-    url = "https://download.qemu.org/qemu-11.0.1.tar.xz";
-    sha256 = "sha256-DSNfWCAnjZFKMVXsJ6+OQljWl+qJKJVXCAfWnAy4zWQ=";
+  autovirtPatches = import ../lib/autovirt-patches.nix { inherit lib; };
+
+  autovirtPatch = autovirtPatches.qemu {
+    inherit (inputs) autovirt;
+    inherit cpuVendor;
+    qemuVersion = qemu-stealth.version;
   };
-  autovirtPatch = "${inputs.autovirt}/patches/QEMU/AMD-v11.0.0.patch";
+
+  inherit (autovirtPatches.traits.${cpuVendor}) patchedOemId patchedOemTableId;
+
+  nixpkgsPatches = lib.concatMapStringsSep "\n" (p: "patch -p1 -i ${p}") (
+    qemu-stealth.patches or [ ]
+  );
 
   postPatch = import ../qemu/post-patch.nix {
-    inherit lib;
-    inherit (inputs) autovirt;
+    inherit
+      lib
+      autovirtPatch
+      patchedOemId
+      patchedOemTableId
+      ;
     edidManufacturer = "ACI";
     edidSerial = "VG248QE";
     edidProductCode = "0x2480";
@@ -183,6 +196,16 @@ let
       pattern = "build_waet";
     }
     {
+      name = "ich9-lpc-dev-stock-q35";
+      path = "include/hw/southbridge/ich9.h";
+      pattern = "#define ICH9_LPC_DEV                            31";
+    }
+    {
+      name = "ich9-lpc-func-stock-q35";
+      path = "include/hw/southbridge/ich9.h";
+      pattern = "#define ICH9_LPC_FUNC                           0";
+    }
+    {
       name = "pci-subsystem-vendor";
       path = "include/hw/pci/pci.h";
       pattern = "PCI_SUBVENDOR_ID_REDHAT_QUMRANET 0x8086";
@@ -205,21 +228,19 @@ let
 
   allGuardChecks = lib.concatMapStringsSep "\n" guardCheck guards;
 in
-# Apply the AutoVirt QEMU patch + our postPatch to a fresh source tree.
-# The postPatch's FATAL guards fire as part of this runCommand — if any
-# sed no-ops, the build aborts here.
-#
-# After the postPatch, the per-sed grep guards run for the per-sed
-# diagnosis (catches silent no-ops the FATAL might miss).
-runCommand "sed-contract-qemu" { } ''
+# Mirror of the real build: the same source, the same nixpkgs patches, then
+# the same postPatch (which applies the AutoVirt patch at zero fuzz and runs
+# the identity seds). The postPatch's FATAL guards fire here; the per-sed
+# grep guards below catch silent no-ops the FATAL might miss.
+runCommand "sed-contract-qemu-${cpuVendor}" { } ''
     src=$(mktemp -d)
-    tar -xf ${qemuTarball} -C "$src" --strip-components=1
+    tar -xf ${qemu-stealth.src} -C "$src" --strip-components=1
     chmod -R u+w "$src"
     cd "$src"
-    patch -p1 -i ${autovirtPatch}
+    ${nixpkgsPatches}
     ${postPatch}
-    echo "=== sed-contract-qemu: per-sed guard assertions ==="
+    echo "=== sed-contract-qemu-${cpuVendor}: per-sed guard assertions ==="
   ${allGuardChecks}
-    echo "sed-contract-qemu: all ${toString (lib.length guards)} guards passed"
+    echo "sed-contract-qemu-${cpuVendor}: all ${toString (lib.length guards)} guards passed"
     touch $out
 ''

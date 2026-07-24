@@ -11,15 +11,17 @@ first signal that an anchor has moved.
 
 ## Reading order
 
-- `qemu/package.nix` (23 anchors): hardware identity + MCH vendor/device + PCI subsystem
-- `ovmf/package.nix` (10 anchors + 1 filterdiff): firmware identity + MCH
-- `kernel/timing-patch.nix` (5 anchors): BetterTiming TSC compensation
+- `qemu/post-patch.nix` (35 substitutions): hardware identity, Q35 chipset
+  reversions, ICH9 LPC placement, PCI subsystem
+- `ovmf/package.nix` (6 substitutions + 1 filterdiff): firmware identity, MCH,
+  PM register address
+- `kernel/timing-patch.nix` (5 anchors): hand-ported BetterTiming TSC compensation
 - `kernel/cpuid-patch.nix` (2 anchors): Hypervisor-Phantom CPUID override
 - `kernel/cpuid-disable.nix` (2 anchors): CPUID passthrough (clear intercept)
 
 ---
 
-## qemu/package.nix:94 — EDID manufacturer
+## qemu/post-patch.nix — EDID manufacturer
 
 - **Anchor:** `"RHT"` (hw/display/edid-generate.c)
 - **Replacement:** `"${edidManufacturer}"`
@@ -29,7 +31,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU renames the default EDID manufacturer
 - **Repair:** Update the anchor to match the new QEMU default
 
-## qemu/package.nix:95 — EDID serial
+## qemu/post-patch.nix — EDID serial
 
 - **Anchor:** `"QEMU Monitor"` (hw/display/edid-generate.c)
 - **Replacement:** `"${edidSerial}"`
@@ -39,7 +41,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU renames the default EDID serial
 - **Repair:** Update the anchor
 
-## qemu/package.nix:97 — EDID product code
+## qemu/post-patch.nix — EDID product code
 
 - **Anchor:** `0x1234` (scoped: hw/display/edid-generate.c)
 - **Replacement:** `${edidProductCode}` (default `0x2480`)
@@ -50,7 +52,7 @@ first signal that an anchor has moved.
   AutoVirt adds another `0x1234` literal in this file
 - **Repair:** Update the anchor; consider scoping more narrowly
 
-## qemu/package.nix:102 — EDID manufacture week
+## qemu/post-patch.nix — EDID manufacture week
 
 - **Anchor:** `edid[16] = 42;` (hw/display/edid-generate.c)
 - **Replacement:** `edid[16] = ${toString edidWeek};` (default 22)
@@ -60,7 +62,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU removes or renames the week assignment
 - **Repair:** Update the anchor
 
-## qemu/package.nix:107 — EDID manufacture year offset
+## qemu/post-patch.nix — EDID manufacture year offset
 
 - **Anchor:** `2014 - 1990` (hw/display/edid-generate.c)
 - **Replacement:** `${toString edidYear} - 1990` (default 2020)
@@ -70,7 +72,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU refactors the year-offset calculation
 - **Repair:** Update the anchor
 
-## qemu/package.nix:112 — EDID DPI
+## qemu/post-patch.nix — EDID DPI
 
 - **Anchor:** `uint32_t dpi = 100;` (hw/display/edid-generate.c)
 - **Replacement:** `uint32_t dpi = ${toString edidDpi};` (default 91)
@@ -80,7 +82,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU changes the DPI default
 - **Repair:** Update the anchor
 
-## qemu/package.nix:118 — EDID default resolution X
+## qemu/post-patch.nix — EDID default resolution X
 
 - **Anchor:** `info->prefx = 1280;` (hw/display/edid-generate.c)
 - **Replacement:** `info->prefx = ${toString edidResX};` (default 1920)
@@ -90,7 +92,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU changes the default prefx
 - **Repair:** Update the anchor
 
-## qemu/package.nix:123 — EDID default resolution Y
+## qemu/post-patch.nix — EDID default resolution Y
 
 - **Anchor:** `info->prefy = 800;` (hw/display/edid-generate.c)
 - **Replacement:** `info->prefy = ${toString edidResY};` (default 1080)
@@ -100,7 +102,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU changes the default prefy
 - **Repair:** Update the anchor
 
-## qemu/package.nix:131 — SCSI INQUIRY vendor (8-char)
+## qemu/post-patch.nix — SCSI INQUIRY vendor (8-char)
 
 - **Anchor:** `"QEMU    "` (8 spaces; hw/scsi/scsi-bus.c)
 - **Replacement:** `"${builtins.substring 0 8 (scsiVendor + "        ")}"`
@@ -110,7 +112,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU changes the default SCSI vendor string
 - **Repair:** Update the anchor; check the 8-space padding
 
-## qemu/package.nix:133 — SCSI INQUIRY target product
+## qemu/post-patch.nix — SCSI INQUIRY target product
 
 - **Anchor:** `"QEMU TARGET     "` (16 chars; hw/scsi/scsi-bus.c)
 - **Replacement:** `"${scsiTargetProduct}"`
@@ -120,7 +122,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU changes the target product string
 - **Repair:** Update the anchor; check the 5-space padding
 
-## qemu/package.nix:137 — SCSI disk product
+## qemu/post-patch.nix — SCSI disk product
 
 - **Anchor:** `"QEMU HARDDISK"` (hw/scsi/scsi-disk.c)
 - **Replacement:** `"${diskModel}"`
@@ -130,7 +132,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU changes the default disk product
 - **Repair:** Update the anchor
 
-## qemu/package.nix:139 — SCSI CD-ROM product
+## qemu/post-patch.nix — SCSI CD-ROM product
 
 - **Anchor:** `"QEMU CD-ROM"` (hw/scsi/scsi-disk.c)
 - **Replacement:** `"${opticalModel}"`
@@ -140,7 +142,7 @@ first signal that an anchor has moved.
 - **Breaks when:** QEMU changes the default CD-ROM product
 - **Repair:** Update the anchor
 
-## qemu/package.nix:141 — SCSI vendor (4-char)
+## qemu/post-patch.nix — SCSI vendor (4-char)
 
 - **Anchor:** `"QEMU"` (hw/scsi/scsi-disk.c) — generic 4-char match
 - **Replacement:** `"${scsiVendor}"`
@@ -151,31 +153,68 @@ first signal that an anchor has moved.
 - **Repair:** Update the anchor; consider scoping to specific
   occurrences if QEMU adds more `"QEMU"` literals
 
-## qemu/package.nix:144 — ACPI OEM ID
+## qemu/post-patch.nix — ACPI OEM ID
 
-- **Anchor:** `"ALASKA"` (include/hw/acpi/aml-build.h)
+- **Anchor:** `"${patchedOemId}"` -- `"ALASKA"` on AMD, `"INTEL "` on Intel
+  (include/hw/acpi/aml-build.h)
 - **Replacement:** `"${acpiOemId}"`
-- **Tool:** `sed -i 's|"ALASKA"|...|g'`
+- **Tool:** `sed -i 's|"${patchedOemId}"|...|g'`
 - **Guard:** `"${acpiOemId}"` must appear after sed
 - **Counters:** AutoVirt SETS this (replaces `"BOCHS "`); our sed
   reverses AutoVirt's choice
-- **Breaks when:** AutoVirt changes the default OEM ID (e.g., from
-  `"ALASKA"` to `"INT  "`); sed would no-op silently and FATAL would
-  pass on the existing `"ALASKA"` literal
-- **Repair:** Update the anchor to match AutoVirt's new value;
-  consider asserting that AutoVirt's anchor IS present before sedding
+- **Breaks when:** AutoVirt changes the OEM ID for a vendor. The anchor is
+  no longer hardcoded -- it comes from `lib/autovirt-patches.nix` `traits`,
+  keyed by `cpuVendor` -- so the AMD and Intel patches no longer collide.
+  A changed upstream value still no-ops silently, which the per-vendor
+  `sed-contract-qemu-<vendor>` guard catches.
+- **Repair:** Update `traits.<vendor>.patchedOemId` in
+  `lib/autovirt-patches.nix`
 
-## qemu/package.nix:149 — ACPI OEM Table ID
+## qemu/post-patch.nix — ACPI OEM Table ID
 
-- **Anchor:** `"A M I   "` (8 chars, padded; include/hw/acpi/aml-build.h)
+- **Anchor:** `"${patchedOemTableId}"` -- `"A M I   "` on AMD, `"U Rvp   "`
+  on Intel (8 chars, padded; include/hw/acpi/aml-build.h)
 - **Replacement:** `"${acpiOemTableId}"`
-- **Tool:** `sed -i 's|"A M I   "|...|g'`
+- **Tool:** `sed -i 's|"${patchedOemTableId}"|...|g'`
 - **Guard:** `"${acpiOemTableId}"` must appear after sed
 - **Counters:** AutoVirt SETS this (replaces `"BXPC    "`)
-- **Breaks when:** AutoVirt changes the default table ID
-- **Repair:** Update the anchor to match AutoVirt's new value
+- **Breaks when:** AutoVirt changes the table ID for a vendor
+- **Repair:** Update `traits.<vendor>.patchedOemTableId` in
+  `lib/autovirt-patches.nix`
 
-## qemu/package.nix:157 — IDE main disk model
+## qemu/post-patch.nix -- aml_string format-security workaround
+
+- **Anchor:** `aml_string(win_osi[n].osi)` (hw/i386/acpi-build.c)
+- **Replacement:** `aml_string("%s", win_osi[n].osi)`
+- **Tool:** `sed -i` + absence grep
+- **Counters:** Not a stealth counter -- a build fix. `aml_string` is
+  `G_GNUC_PRINTF(1,2)`, and AutoVirt's `_OSI` loop passes a variable as
+  the format, which nixpkgs' `-Werror=format-security` rejects
+- **Breaks when:** AutoVirt fixes it upstream (the sed no-ops, the absence
+  grep still passes) or renames the loop variable (the compiler then fails
+  loudly, which is the real backstop). See AutoVirt issue #169
+- **Repair:** Drop this block once upstream carries the fix
+
+## qemu/post-patch.nix -- ICH9 LPC bridge placement
+
+- **Anchor:** `#define ICH9_LPC_DEV` / `ICH9_LPC_FUNC`
+  (include/hw/southbridge/ich9.h)
+- **Replacement:** `31` and `0` -- stock Q35 `00:1f.0`
+- **Tool:** `sed -i` + `grep -qE` guard on each
+- **Counters:** AMD-v11.0.2 moves LPC to device 20; AMD-v11.0.0 and the
+  Intel patches leave it alone, so on Intel this is a no-op whose guard
+  still passes because stock QEMU already carries 31/0
+- **Breaks when:** the pairing with `ovmf/package.nix` is broken. OVMF
+  probes the PM register block at `0x1f:0`; if QEMU publishes LPC
+  elsewhere the guest hangs in firmware with **no console output at all**.
+  Upstream is itself inconsistent here -- its EDK2 patch addresses
+  `0x14:3` while its QEMU patch sets `ICH9_LPC_FUNC 0`. See AutoVirt
+  issue #170
+- **Repair:** Keep this revert and the OVMF PM revert in lockstep; both
+  are contract-guarded (`ich9-lpc-dev-stock-q35`,
+  `ich9-lpc-func-stock-q35`, `pm-register-address`)
+
+## qemu/post-patch.nix — IDE main disk model
 
 - **Anchor:** `Samsung SSD 980 500GB` (hw/ide/core.c)
 - **Replacement:** `${diskModel}`
@@ -185,7 +224,7 @@ first signal that an anchor has moved.
 - **Breaks when:** AutoVirt changes the default IDE disk model
 - **Repair:** Update the anchor to match AutoVirt's new value
 
-## qemu/package.nix:159 — IDE CF-ATA disk model
+## qemu/post-patch.nix — IDE CF-ATA disk model
 
 - **Anchor:** `Hitachi HMS360404D5CF00` (hw/ide/core.c)
 - **Replacement:** `${diskModel}`
@@ -195,7 +234,7 @@ first signal that an anchor has moved.
 - **Breaks when:** AutoVirt changes the default CF-ATA model
 - **Repair:** Update the anchor
 
-## qemu/package.nix:161 — IDE drive serial
+## qemu/post-patch.nix — IDE drive serial
 
 - **Anchor:** `s->drive_serial_str[0] = '\\\\0';` (the 4-backslash is
   Nix+sed double-escape for a literal `\'0`; hw/ide/core.c)
@@ -208,7 +247,7 @@ first signal that an anchor has moved.
   `memset(..., 0, sizeof(...))`)
 - **Repair:** Update the anchor + re-derive the sed's backslash escapes
 
-## qemu/package.nix:168 — IDE optical drive model
+## qemu/post-patch.nix — IDE optical drive model
 
 - **Anchor:** `HL-DT-ST BD-RE WH16NS60` (hw/ide/core.c)
 - **Replacement:** `${opticalModel}`
@@ -218,7 +257,7 @@ first signal that an anchor has moved.
 - **Breaks when:** AutoVirt changes the default optical model
 - **Repair:** Update the anchor
 
-## qemu/package.nix:179 — MCH host-bridge device ID
+## qemu/post-patch.nix — MCH host-bridge device ID
 
 - **Anchor:** `define PCI_DEVICE_ID_INTEL_P35_MCH      0x14d8`
   (include/hw/pci/pci_ids.h)
@@ -234,7 +273,7 @@ first signal that an anchor has moved.
   would fail
 - **Repair:** Update the anchor + the FATAL guard
 
-## qemu/package.nix:186 — MCH host-bridge vendor (declarative)
+## qemu/post-patch.nix — MCH host-bridge vendor (declarative)
 
 - **Anchor:** `k->vendor_id = PCI_VENDOR_ID_AMD;` (the file under
   `hw/pci-host/` that AutoVirt set this in)
@@ -272,7 +311,7 @@ first signal that an anchor has moved.
 
 ---
 
-## ovmf/package.nix:48 — Firmware vendor string
+## ovmf/package.nix — Firmware vendor string
 
 - **Anchor:** `L"EDK II"` (MdeModulePkg/MdeModulePkg.dec +
   OvmfPkg/OvmfPkgX64.dsc)
@@ -285,7 +324,7 @@ first signal that an anchor has moved.
 - **Repair:** Update the file list in the sed; consider scoping
   the guard to a glob that catches the new file
 
-## ovmf/package.nix:60 — BGRT module strip (DSC)
+## ovmf/package.nix — BGRT module strip (DSC)
 
 - **Anchor:** `BootGraphicsResourceTableDxe` (OvmfPkg/OvmfPkgX64.dsc)
 - **Replacement:** (deleted)
@@ -296,7 +335,7 @@ first signal that an anchor has moved.
   silently. The guard catches this (string still present = fail)
 - **Repair:** Update the anchor to the new module name
 
-## ovmf/package.nix:60 — BGRT module strip (FDF)
+## ovmf/package.nix — BGRT module strip (FDF)
 
 - **Anchor:** `BootGraphicsResourceTableDxe` (OvmfPkg/OvmfPkgX64.fdf)
 - **Replacement:** (deleted)
@@ -304,7 +343,7 @@ first signal that an anchor has moved.
 - **Guard:** grep -q must NOT find the string in .fdf
 - **Breaks when:** Same as DSC strip
 
-## ovmf/package.nix:61 — LogoDxe module strip (FDF)
+## ovmf/package.nix — LogoDxe module strip (FDF)
 
 - **Anchor:** `LogoDxe` (OvmfPkg/OvmfPkgX64.fdf)
 - **Replacement:** (deleted)
@@ -314,7 +353,7 @@ first signal that an anchor has moved.
 - **Breaks when:** AutoVirt renames LogoDxe
 - **Repair:** Update the anchor
 
-## ovmf/package.nix:79 — OVMF MCH device ID
+## ovmf/package.nix — OVMF MCH device ID
 
 - **Anchor:** `define INTEL_Q35_MCH_DEVICE_ID    0x14d8`
   (OvmfPkg/Include/IndustryStandard/Q35MchIch9.h)
@@ -325,7 +364,7 @@ first signal that an anchor has moved.
 - **Breaks when:** AutoVirt renames the macro
 - **Repair:** Update the anchor
 
-## ovmf/package.nix:43 — AutoVirt BaseTools hunk filter
+## ovmf/package.nix — AutoVirt BaseTools hunk filter
 
 - **Anchor:** filterdiff `-x '*/BaseTools/*'` (applied to the AutoVirt
   EDK2 patch)
@@ -343,7 +382,7 @@ first signal that an anchor has moved.
   catch a leaked BaseTools hunk -- strengthen if this becomes an
   issue
 
-## ovmf/package.nix:58 -- BGRT FDF guard
+## ovmf/package.nix -- BGRT FDF guard
 
 - **Anchor:** `BootGraphicsResourceTableDxe` (OvmfPkg/OvmfPkgX64.fdf)
 - **Replacement:** (deleted)
