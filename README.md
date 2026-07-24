@@ -33,7 +33,7 @@ For long-form references beyond the quick start below, see:
 
 | Package | Description |
 |---|---|
-| **qemu-stealth** | Patched QEMU with AutoVirt AMD hardware-emulation patches + configurable hardware identifiers (EDID, ACPI OEM, disk/optical models, SCSI vendor, disk serial customization, fw_cfg DMA signature) |
+| **qemu-stealth** | Patched QEMU with AutoVirt hardware-emulation patches + configurable hardware identifiers (EDID, ACPI OEM, disk/optical models, SCSI vendor, disk serial customization, fw_cfg DMA signature) |
 | **ovmf-stealth** | Patched EDK2/OVMF firmware: clears VirtualMachine bit in SMBIOS Type 0, replaces Red Hat PCI vendor IDs, overrides ACPI OEM fields, strips BGRT boot logo (VMAware indicator). Overridable: `secureBoot`, `msVarsTemplate`, `tpmSupport` |
 | **acpi-ssdt-stealth** | Compiled ACPI SSDT tables providing emulated embedded controller, fan, thermal zone, battery, power/sleep buttons, timers |
 | **smbios-stealth-tables** | Binary SMBIOS tables for types QEMU cannot build via CLI (Type 7 cache, Types 26-29 probes) |
@@ -107,11 +107,23 @@ imports = [ inputs.vfio-stealth.nixosModules.default ];
 nixpkgs.overlays = [ inputs.vfio-stealth.overlays.default ];
 ```
 
+`overlays.default` provides `qemu-stealth` / `ovmf-stealth` (AMD) and
+`qemu-stealth-intel` / `ovmf-stealth-intel`. Both vendors are built and
+contract-tested; `cpuVendor` selects the AutoVirt patch family and the ACPI
+OEM identity.
+
+One limitation on Intel: the kernel-level stealth (`timing.enable`,
+`cpuidSpoof.enable`, `cpuidPassthrough.enable`) is AMD/SVM-only -- those
+patches target `arch/x86/kvm/svm/svm.c`, which `kvm-intel` never executes.
+An assertion refuses that combination rather than shipping a feature that
+silently does nothing. QEMU and OVMF stealth apply on both.
+
 Enable stealth with your own hardware strings:
 
 ```nix
 myModules.vfio.stealth = {
   enable = true;
+  cpuVendor = "amd"; # or "intel" -- required, no default
   smbios = {
     manufacturer = "Your Motherboard Manufacturer";
     product = "Your Motherboard Model";
@@ -134,6 +146,7 @@ All options live under `myModules.vfio.stealth.*`. Module options, build-time `q
 ```nix
 myModules.vfio.stealth = {
   enable = true;
+  cpuVendor = "amd"; # or "intel" -- required, no default
   smbios = {
     manufacturer = "Micro-Star International Co., Ltd.";
     product = "MAG X670E TOMAHAWK WIFI";
@@ -191,6 +204,7 @@ nixpkgs.overlays = [
 ```nix
 myModules.vfio.stealth = {
   enable = true;
+  cpuVendor = "amd"; # or "intel" -- required, no default
   smbios = {
     manufacturer = "Gigabyte Technology Co., Ltd.";
     product = "B650 AORUS ELITE AX";

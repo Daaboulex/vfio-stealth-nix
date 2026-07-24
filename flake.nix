@@ -107,6 +107,8 @@
 
           checks.autovirt-patch-contract = pkgs.callPackage ./tests/autovirt-patch-contract.nix { };
 
+          checks.options-documented = pkgs.callPackage ./tests/options-documented.nix { };
+
           checks.kernel-anchor-contract = pkgs.callPackage ./tests/kernel-anchor-contract.nix {
             cachyosLtoLatest =
               inputs.nix-cachyos-kernel.legacyPackages.x86_64-linux.linuxPackages-cachyos-latest-lto;

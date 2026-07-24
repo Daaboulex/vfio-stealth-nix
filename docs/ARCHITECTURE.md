@@ -12,9 +12,19 @@ vfio-stealth-nix/
 ├── module.nix               # myModules.vfio.stealth.* options + assertions
 ├── lib.nix                  # libvirt domain rewriter (NixVirt int typing,
 │                            # vendor_id, kvm-hidden, emulated-battery wiring)
+├── lib/
+│   ├── autovirt-patches.nix # Fail-closed resolver: picks the AutoVirt patch
+│   │                        # for the cpuVendor family + QEMU series being
+│   │                        # built; per-vendor ACPI OEM anchors
+│   └── kernel-capabilities.nix  # Parses a kernel .config into a Hyper-V
+│                            # capability set for lib.mkStealthFeatures
+├── version.json             # autovirt rev + the BetterTiming commit
+│                            # kernel/timing-patch.nix was hand-ported from
 ├── qemu/
-│   └── package.nix          # qemu-stealth — patched QEMU + AutoVirt patches
-│                            # + EDID + ACPI OEM + disk/optical model overrides
+│   ├── package.nix          # qemu-stealth — patched QEMU + AutoVirt patches
+│   │                        # + EDID + ACPI OEM + disk/optical model overrides
+│   └── post-patch.nix       # Applies the AutoVirt patch at zero fuzz, then
+│                            # the identity seds and Q35 reversions
 ├── ovmf/
 │   └── package.nix          # ovmf-stealth — patched EDK2/OVMF firmware,
 │                            # SMBIOS Type 0 VirtualMachine bit cleared,
@@ -43,8 +53,16 @@ vfio-stealth-nix/
 │   ├── verify-stealth.ps1   # 37-vector detection check (run inside VM)
 │   ├── cleanup-registry.ps1 # Registry artifact removal (admin, run once)
 │   └── verify-host.sh       # Host-side sanity checks
+├── tests/
+│   ├── autovirt-patch-contract.nix  # Resolver: version ordering, vendor
+│   │                        # selection, fail-closed cases (fixtures/)
+│   ├── sed-contract-qemu.nix    # Per-vendor mirror of the real QEMU build
+│   ├── sed-contract-edk2.nix    # Per-vendor mirror of the OVMF postPatch
+│   ├── kernel-anchor-contract.nix   # Kernel sed anchors vs real sources
+│   └── lib-output-contract.nix  # mkStealthFeatures output guards
 ├── scripts/
-│   ├── update.sh            # AutoVirt + BetterTiming flake-input bumper
+│   ├── update.sh            # AutoVirt input bumper; runs the full check
+│   │                        # suite before a green auto-push
 │   └── check-kernel-patches.sh  # Validate kernel patch anchors
 ├── .github/
 │   ├── workflows/{ci,update,maintenance}.yml
