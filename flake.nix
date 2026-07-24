@@ -18,10 +18,6 @@
       url = "github:Scrut1ny/AutoVirt";
       flake = false;
     };
-    better-timing = {
-      url = "github:SamuelTulach/BetterTiming";
-      flake = false;
-    };
     # CachyOS kernel packaging — used by the kernel-anchor-contract
     # test to verify the awk anchors in the user's actual production
     # kernel source (CachyOS's BORE/LTO/Zen4 patches + upstream Linux).
@@ -72,11 +68,14 @@
 
           checks.sed-contract-qemu = pkgs.callPackage ./tests/sed-contract-qemu.nix {
             inherit inputs;
+            qemu-stealth = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
           };
 
           checks.sed-contract-edk2 = pkgs.callPackage ./tests/sed-contract-edk2.nix {
             inherit inputs;
           };
+
+          checks.autovirt-patch-contract = pkgs.callPackage ./tests/autovirt-patch-contract.nix { };
 
           checks.kernel-anchor-contract = pkgs.callPackage ./tests/kernel-anchor-contract.nix {
             cachyosLtoLatest =

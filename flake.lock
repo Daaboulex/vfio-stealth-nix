@@ -3,32 +3,16 @@
     "autovirt": {
       "flake": false,
       "locked": {
-        "lastModified": 1784644341,
-        "narHash": "sha256-CNp/MKH/PXeDEEqN9U2zbcbne8JxcD9sd7XbkA4VC9s=",
+        "lastModified": 1784868952,
+        "narHash": "sha256-8Rz29xQHDZpZhx3KVOT0dw0yf3bFLexJQx4SUqT2iww=",
         "owner": "Scrut1ny",
         "repo": "AutoVirt",
-        "rev": "dc67aee3787c86f1504d32c769c3480c7fdedef3",
+        "rev": "747cf5c18a7fe2da08a177339c64268f8b1cd977",
         "type": "github"
       },
       "original": {
         "owner": "Scrut1ny",
         "repo": "AutoVirt",
-        "type": "github"
-      }
-    },
-    "better-timing": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1604149405,
-        "narHash": "sha256-gKTa7u7qz2GPr5szQxragcW93KjyGphHQNJnLbqP3PE=",
-        "owner": "SamuelTulach",
-        "repo": "BetterTiming",
-        "rev": "3d95a8fe8a9e6f072c7732e83c6cca43023aa4a7",
-        "type": "github"
-      },
-      "original": {
-        "owner": "SamuelTulach",
-        "repo": "BetterTiming",
         "type": "github"
       }
     },
@@ -259,7 +243,6 @@
     "root": {
       "inputs": {
         "autovirt": "autovirt",
-        "better-timing": "better-timing",
         "flake-parts": "flake-parts",
         "git-hooks": "git-hooks",
         "nix-cachyos-kernel": "nix-cachyos-kernel",

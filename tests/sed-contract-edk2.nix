@@ -7,13 +7,9 @@
 }:
 
 let
-  autovirtPatch =
-    let
-      candidates = builtins.filter (n: lib.hasPrefix "AMD-edk2-stable" n && lib.hasSuffix ".patch" n) (
-        builtins.attrNames (builtins.readDir "${inputs.autovirt}/patches/EDK2")
-      );
-    in
-    "${inputs.autovirt}/patches/EDK2/${builtins.head (lib.sort (a: b: a > b) candidates)}";
+  autovirtPatch = (import ../lib/autovirt-patches.nix { inherit lib; }).edk2 {
+    inherit (inputs) autovirt;
+  };
 
   # The OVMF postPatch as a Nix function: applies the filterdiff-trimmed
   # AutoVirt patch + the 10 hardware-identity seds to a source tree. Same

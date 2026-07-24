@@ -362,17 +362,24 @@ in
         # consumer's domain XML must not include <panic>; there is no
         # QEMU command-line flag to suppress it. verify-host.sh checks.
         # CPU identity (per-VM)
-        ++ lib.optionals (cpuIdentity != null && cpuIdentity ? modelId && cpuIdentity.modelId != null) [
+        ++ lib.optionals (cpuIdentity != null && (cpuIdentity.modelId or null) != null) [
           "-global"
           "cpu.model-id=${cpuIdentity.modelId}"
           "-smbios"
           "type=4,sock_pfx=${smbios.socketPrefix},manufacturer=${
-            escapeSmbios (cpuIdentity.manufacturer or "Advanced Micro Devices, Inc.")
+            escapeSmbios (
+              if (cpuIdentity.manufacturer or null) != null then
+                cpuIdentity.manufacturer
+              else
+                "Advanced Micro Devices, Inc."
+            )
           },version=${escapeSmbios cpuIdentity.modelId}${
-            lib.optionalString (cpuIdentity.maxSpeed != null) ",max-speed=${toString cpuIdentity.maxSpeed}"
+            lib.optionalString (
+              (cpuIdentity.maxSpeed or null) != null
+            ) ",max-speed=${toString cpuIdentity.maxSpeed}"
           }${
             lib.optionalString (
-              cpuIdentity.currentSpeed != null
+              (cpuIdentity.currentSpeed or null) != null
             ) ",current-speed=${toString cpuIdentity.currentSpeed}"
           }"
         ]

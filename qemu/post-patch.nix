@@ -1,6 +1,6 @@
 {
   lib,
-  autovirt,
+  autovirtPatch,
   edidManufacturer,
   edidSerial,
   edidProductCode,
@@ -19,26 +19,20 @@
 }:
 
 ''
-  echo "=== Applying EDK2/OVMF patch ==="
-    # nixpkgs builds OVMF separately; roms/edk2 is absent in the normal
-    # derivation, so this block is a no-op.  Kept for standalone builds.
-    if [ -d roms/edk2 ]; then
-      EDK2_PATCH=""
-      for p in "${autovirt}"/patches/EDK2/AMD-edk2-stable*.patch; do
-        if [ -f "$p" ]; then EDK2_PATCH="$p"; break; fi
-      done
-      if [ -z "$EDK2_PATCH" ]; then
-        echo "FATAL: no AMD EDK2 patch found in ${autovirt}/patches/EDK2/"
-        ls -la "${autovirt}/patches/EDK2/" 2>/dev/null || true
-        exit 1
-      fi
-      echo "Using EDK2 patch: $(basename "$EDK2_PATCH")"
-      patch -d roms/edk2 -p1 < "$EDK2_PATCH" || {
-        echo "FATAL: EDK2 patch failed"
-        exit 1
-      }
-      substituteInPlace roms/edk2/OvmfPkg/OvmfPkgX64.dsc \
-        --replace-warn 'L"EDK II"' 'L"American Megatrends Inc."' || true
+  echo "=== Applying AutoVirt QEMU patch: $(basename ${autovirtPatch}) ==="
+    # -F0: a stealth hunk that only applies with fuzz may land in the wrong
+    # place and silently produce a detectable or unbootable emulator.
+    patch -p1 -F0 -i ${autovirtPatch} || {
+      echo "FATAL: AutoVirt QEMU patch did not apply with zero fuzz"
+      exit 1
+    }
+
+    # aml_string is G_GNUC_PRINTF(1,2); AutoVirt's _OSI loop passes a variable
+    # as the format, which nixpkgs' -Werror=format-security rejects.
+    sed -i 's|aml_string(win_osi\[n\].osi)|aml_string("%s", win_osi[n].osi)|' hw/i386/acpi-build.c
+    if grep -q 'aml_string(win_osi\[n\]\.osi)' hw/i386/acpi-build.c; then
+      echo "FATAL: AutoVirt _OSI loop still passes a non-literal format to aml_string"
+      exit 1
     fi
 
     echo "=== Customizing hardware identifiers ==="

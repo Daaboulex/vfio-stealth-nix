@@ -13,16 +13,7 @@ let
   # - Replaces Red Hat PCI vendor IDs with AMD/Intel
   # - Renames VMM-prefixed variables
   # - Overrides ACPI OEM fields
-  autovirtPatch =
-    let
-      candidates = builtins.filter (n: lib.hasPrefix "AMD-edk2-stable" n && lib.hasSuffix ".patch" n) (
-        builtins.attrNames (builtins.readDir "${autovirt}/patches/EDK2")
-      );
-    in
-    assert lib.assertMsg (
-      candidates != [ ]
-    ) "ovmf-stealth: no AMD-edk2-stable*.patch found in autovirt/patches/EDK2";
-    "${autovirt}/patches/EDK2/${builtins.head (lib.sort (a: b: a > b) candidates)}";
+  autovirtPatch = (import ../lib/autovirt-patches.nix { inherit lib; }).edk2 { inherit autovirt; };
 in
 # Apply patches directly to OVMF via overrideAttrs — nixpkgs OVMF uses
 # edk2.src (the raw source), so patching edk2 via overrideAttrs is a

@@ -16,11 +16,13 @@ err() { echo "::error::$*"; }
 output "package_name" "vfio-stealth"
 
 # --- Read current revs from version.json ---
+# betterTiming is NOT a build input: kernel/timing-patch.nix is a hand-port, and
+# this rev records which upstream commit it was ported from.
 CURRENT_AV=$(jq -r '.autovirt.rev' version.json)
-CURRENT_BT=$(jq -r '.betterTiming.rev' version.json)
-CURRENT_VERSION="${CURRENT_AV:0:7}-${CURRENT_BT:0:7}"
+PORTED_BT=$(jq -r '.betterTiming.rev' version.json)
+CURRENT_VERSION="${CURRENT_AV:0:7}"
 output "old_version" "$CURRENT_VERSION"
-log "Current: autovirt=${CURRENT_AV:0:7} betterTiming=${CURRENT_BT:0:7}"
+log "Current: autovirt=${CURRENT_AV:0:7} (timing-patch ported from BetterTiming ${PORTED_BT:0:7})"
 
 # --- Fetch latest upstream commits ---
 fetch_latest() {
@@ -43,18 +45,17 @@ LATEST_AV=$(fetch_latest "curl -sfL 'https://api.github.com/repos/Scrut1ny/AutoV
   exit 2
 }
 
-LATEST_BT=$(fetch_latest "curl -sfL 'https://api.github.com/repos/SamuelTulach/BetterTiming/commits/master' | jq -r '.sha'") || {
-  warn "Failed to fetch latest BetterTiming commit"
-  output "updated" "false"
-  exit 2
-}
+LATEST_BT=$(fetch_latest "curl -sfL 'https://api.github.com/repos/SamuelTulach/BetterTiming/commits/master' | jq -r '.sha'") || LATEST_BT=""
+if [ -n "$LATEST_BT" ] && [ "$LATEST_BT" != "$PORTED_BT" ]; then
+  warn "BetterTiming moved ${PORTED_BT:0:7} -> ${LATEST_BT:0:7}: kernel/timing-patch.nix is a hand-port -- re-review it, then set version.json .betterTiming.rev to the rev you ported"
+fi
 
 output "upstream_url" "https://github.com/Scrut1ny/AutoVirt/commit/${LATEST_AV}"
 
-log "Latest: autovirt=${LATEST_AV:0:7} betterTiming=${LATEST_BT:0:7}"
+log "Latest: autovirt=${LATEST_AV:0:7}"
 
 # --- Compare ---
-if [ "$CURRENT_AV" = "$LATEST_AV" ] && [ "$CURRENT_BT" = "$LATEST_BT" ]; then
+if [ "$CURRENT_AV" = "$LATEST_AV" ]; then
   log "Already up to date"
   output "updated" "false"
   exit 0
@@ -63,20 +64,18 @@ fi
 log "Update found"
 output "updated" "true"
 
-NEW_VERSION="${LATEST_AV:0:7}-${LATEST_BT:0:7}"
+NEW_VERSION="${LATEST_AV:0:7}"
 output "new_version" "$NEW_VERSION"
 
 # --- Update version.json ---
 DATE=$(date +%Y-%m-%d)
-jq --arg av "$LATEST_AV" --arg bt "$LATEST_BT" --arg d "$DATE" \
-  --arg avs "${LATEST_AV:0:7}" --arg bts "${LATEST_BT:0:7}" \
-  '.autovirt.rev = $av | .autovirt.version = $avs | .autovirt.date = $d |
-   .betterTiming.rev = $bt | .betterTiming.version = $bts | .betterTiming.date = $d' \
+jq --arg av "$LATEST_AV" --arg d "$DATE" --arg avs "${LATEST_AV:0:7}" \
+  '.autovirt.rev = $av | .autovirt.version = $avs | .autovirt.date = $d' \
   version.json > version.json.tmp && mv version.json.tmp version.json
 
 # --- Update flake inputs ---
 log "Updating flake inputs..."
-nix flake update autovirt better-timing
+nix flake update autovirt
 
 # --- Verification chain ---
 log "Step 1/3: Eval check"
@@ -86,9 +85,9 @@ if ! nix flake check --no-build 2>&1; then
   exit 1
 fi
 
-log "Step 2/3: Build qemu-stealth"
-if ! nix build .#default --no-link --print-build-logs 2>&1; then
-  err "Build failed after update"
+log "Step 2/3: Full check suite (qemu-stealth + ovmf-stealth + sed contracts + boot smoke)"
+if ! nix flake check --print-build-logs 2>&1; then
+  err "Check suite failed after update"
   output "error_type" "build-error"
   exit 1
 fi

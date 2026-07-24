@@ -1,6 +1,8 @@
 # BetterTiming TSC compensation patch (postPatch script)
 #
-# Based on SamuelTulach/BetterTiming, adapted for CachyOS 6.19+ kernel.
+# Hand-ported from SamuelTulach/BetterTiming @ 3d95a8f, adapted for CachyOS
+# 6.19+ kernel. Not a build input; version.json .betterTiming.rev records the
+# ported-from commit and scripts/update.sh flags when upstream moves past it.
 # Provides realistic VM exit timing by tracking cumulative exit time and
 # subtracting it from TSC reads inside the guest.
 #
