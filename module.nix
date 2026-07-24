@@ -18,6 +18,18 @@ in
   options.myModules.vfio.stealth = {
     enable = lib.mkEnableOption "VFIO hardware emulation stack";
 
+    cpuVendor = lib.mkOption {
+      type = lib.types.nullOr (
+        lib.types.enum [
+          "amd"
+          "intel"
+        ]
+      );
+      default = null;
+      description = "Host CPU vendor. Selects the AutoVirt patch set and the ACPI OEM identity the QEMU postPatch rewrites. There is deliberately no default: a mismatch builds cleanly and yields a guest whose spoofed CPU vendor contradicts the host.";
+      example = "amd";
+    };
+
     # --- Kernel-level patches ---
     # These compile directly into the host kernel to handle low-level
     # hypervisor indicators (timing side-channels, CPUID enumeration).
@@ -610,6 +622,16 @@ in
           "vfio.stealth: kernel-dependent hypervFeatures.* are enabled but kernelCapabilities is null. The lib will assume the host kernel supports them -- if it does not, libvirt will fail with 'host doesn't support hyperv X' at VM start. Set myModules.vfio.stealth.kernelCapabilities = vfio-stealth-nix.lib.kernelCapabilities.fromConfigPath \"\${config.boot.kernelPackages.kernel}/.config\"; (or set the attrset by hand) to declare your kernel's real capabilities.";
 
     assertions = [
+      {
+        assertion = cfg.cpuVendor != null;
+        message = "myModules.vfio.stealth.cpuVendor must be set to \"amd\" or \"intel\": it selects the AutoVirt patch set and the ACPI OEM identity, and guessing it yields a guest whose spoofed CPU vendor contradicts the host";
+      }
+      {
+        assertion =
+          cfg.cpuVendor != "intel"
+          || !(cfg.timing.enable || cfg.cpuidSpoof.enable || cfg.cpuidPassthrough.enable);
+        message = "myModules.vfio.stealth: kernel-level stealth is AMD/SVM-only -- timing-patch.nix, cpuid-patch.nix and cpuid-disable.nix all target arch/x86/kvm/svm/svm.c, which kvm-intel never executes, so on an Intel host they would apply to the kernel source and change nothing at runtime. Set timing.enable, cpuidSpoof.enable and cpuidPassthrough.enable to false; QEMU and OVMF stealth still apply.";
+      }
       {
         assertion = !(cfg.cpuidPassthrough.enable && cfg.hypervMode == "enlightened");
         message = "myModules.vfio.stealth: cpuidPassthrough disables CPUID interception -- Hyper-V enlightenments (hypervMode=enlightened) will be invisible to the guest; set hypervMode to hidden";

@@ -4,6 +4,7 @@
   fetchurl,
   python3Packages,
   autovirt,
+  cpuVendor,
   # EDID: Generic ASUS monitor
   edidManufacturer ? "ACI",
   edidSerial ? "VG248QE",
@@ -51,10 +52,14 @@ let
         ];
       });
 
-  autovirtPatch = (import ../lib/autovirt-patches.nix { inherit lib; }).qemu {
-    inherit autovirt;
+  autovirtPatches = import ../lib/autovirt-patches.nix { inherit lib; };
+
+  autovirtPatch = autovirtPatches.qemu {
+    inherit autovirt cpuVendor;
     qemuVersion = qemuBase.version;
   };
+
+  inherit (autovirtPatches.traits.${cpuVendor}) patchedOemId patchedOemTableId;
 in
 
 (qemuBase.override {
@@ -68,6 +73,8 @@ in
         inherit
           lib
           autovirtPatch
+          patchedOemId
+          patchedOemTableId
           edidManufacturer
           edidSerial
           edidProductCode

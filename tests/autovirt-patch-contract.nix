@@ -9,7 +9,19 @@ let
 
   resolves = expr: builtins.tryEval (builtins.seq expr true);
 
-  qemuFor = qemuVersion: resolve.qemu { inherit autovirt qemuVersion; };
+  qemuFor =
+    qemuVersion:
+    resolve.qemu {
+      inherit autovirt qemuVersion;
+      cpuVendor = "amd";
+    };
+
+  intelFor =
+    qemuVersion:
+    resolve.qemu {
+      inherit autovirt qemuVersion;
+      cpuVendor = "intel";
+    };
 
   cases = [
     {
@@ -29,10 +41,37 @@ let
     }
     {
       name = "edk2-picks-highest-tag";
-      ok = lib.hasSuffix "AMD-edk2-stable202605.patch" (resolve.edk2 { inherit autovirt; });
+      ok = lib.hasSuffix "AMD-edk2-stable202605.patch" (
+        resolve.edk2 {
+          inherit autovirt;
+          cpuVendor = "amd";
+        }
+      );
       detail = "expected AMD-edk2-stable202605.patch, got ${
-        baseNameOf (resolve.edk2 { inherit autovirt; })
+        baseNameOf (
+          resolve.edk2 {
+            inherit autovirt;
+            cpuVendor = "amd";
+          }
+        )
       }";
+    }
+    {
+      name = "intel-vendor-selects-intel-patch";
+      ok = lib.hasSuffix "Intel-v11.0.10.patch" (intelFor "11.0.1");
+      detail = "expected Intel-v11.0.10.patch, got ${baseNameOf (intelFor "11.0.1")}";
+    }
+    {
+      name = "unknown-vendor-fails-closed";
+      ok =
+        !(resolves (
+          resolve.qemu {
+            inherit autovirt;
+            qemuVersion = "11.0.1";
+            cpuVendor = "sparc";
+          }
+        )).success;
+      detail = "resolver accepted an unknown cpuVendor";
     }
   ];
 

@@ -2,21 +2,32 @@
   lib,
   runCommand,
   inputs,
+  cpuVendor,
   qemu-stealth,
 }:
 
 let
-  autovirtPatch = (import ../lib/autovirt-patches.nix { inherit lib; }).qemu {
+  autovirtPatches = import ../lib/autovirt-patches.nix { inherit lib; };
+
+  autovirtPatch = autovirtPatches.qemu {
     inherit (inputs) autovirt;
+    inherit cpuVendor;
     qemuVersion = qemu-stealth.version;
   };
+
+  inherit (autovirtPatches.traits.${cpuVendor}) patchedOemId patchedOemTableId;
 
   nixpkgsPatches = lib.concatMapStringsSep "\n" (p: "patch -p1 -i ${p}") (
     qemu-stealth.patches or [ ]
   );
 
   postPatch = import ../qemu/post-patch.nix {
-    inherit lib autovirtPatch;
+    inherit
+      lib
+      autovirtPatch
+      patchedOemId
+      patchedOemTableId
+      ;
     edidManufacturer = "ACI";
     edidSerial = "VG248QE";
     edidProductCode = "0x2480";
@@ -221,15 +232,15 @@ in
 # the same postPatch (which applies the AutoVirt patch at zero fuzz and runs
 # the identity seds). The postPatch's FATAL guards fire here; the per-sed
 # grep guards below catch silent no-ops the FATAL might miss.
-runCommand "sed-contract-qemu" { } ''
+runCommand "sed-contract-qemu-${cpuVendor}" { } ''
     src=$(mktemp -d)
     tar -xf ${qemu-stealth.src} -C "$src" --strip-components=1
     chmod -R u+w "$src"
     cd "$src"
     ${nixpkgsPatches}
     ${postPatch}
-    echo "=== sed-contract-qemu: per-sed guard assertions ==="
+    echo "=== sed-contract-qemu-${cpuVendor}: per-sed guard assertions ==="
   ${allGuardChecks}
-    echo "sed-contract-qemu: all ${toString (lib.length guards)} guards passed"
+    echo "sed-contract-qemu-${cpuVendor}: all ${toString (lib.length guards)} guards passed"
     touch $out
 ''

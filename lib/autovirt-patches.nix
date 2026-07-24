@@ -21,17 +21,39 @@ let
       "(none)"
     else
       lib.concatMapStringsSep ", " (v: "${prefix}${v}.patch") versions;
+
+  traits = {
+    amd = {
+      family = "AMD";
+      patchedOemId = "ALASKA";
+      patchedOemTableId = "A M I   ";
+    };
+    intel = {
+      family = "Intel";
+      patchedOemId = "INTEL ";
+      patchedOemTableId = "U Rvp   ";
+    };
+  };
+
+  familyOf =
+    cpuVendor:
+    assert lib.assertMsg (traits ? ${cpuVendor})
+      "vfio-stealth: unknown cpuVendor ${cpuVendor}; expected one of ${lib.concatStringsSep ", " (builtins.attrNames traits)}";
+    traits.${cpuVendor}.family;
 in
 
 {
+  inherit traits;
+
   qemu =
     {
       autovirt,
       qemuVersion,
+      cpuVendor,
     }:
     let
       dir = "${autovirt}/patches/QEMU";
-      prefix = "AMD-v";
+      prefix = "${familyOf cpuVendor}-v";
       all = versionsIn dir prefix;
       series = lib.versions.majorMinor qemuVersion;
       inSeries = builtins.filter (v: lib.versions.majorMinor v == series) all;
@@ -46,10 +68,10 @@ in
     render dir prefix inSeries;
 
   edk2 =
-    { autovirt }:
+    { autovirt, cpuVendor }:
     let
       dir = "${autovirt}/patches/EDK2";
-      prefix = "AMD-edk2-stable";
+      prefix = "${familyOf cpuVendor}-edk2-stable";
       all = versionsIn dir prefix;
     in
     assert lib.assertMsg (builtins.pathExists dir)

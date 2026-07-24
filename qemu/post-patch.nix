@@ -1,6 +1,8 @@
 {
   lib,
   autovirtPatch,
+  patchedOemId,
+  patchedOemTableId,
   edidManufacturer,
   edidSerial,
   edidProductCode,
@@ -88,12 +90,12 @@
       --replace-fail '"QEMU"' '"${scsiVendor}"'
 
     # ACPI OEM: replace values in aml-build.h
-    sed -i 's|"ALASKA"|"${acpiOemId}"|g' include/hw/acpi/aml-build.h
+    sed -i 's|"${patchedOemId}"|"${acpiOemId}"|g' include/hw/acpi/aml-build.h
     if ! grep -q '"${acpiOemId}"' include/hw/acpi/aml-build.h; then
       echo "FATAL: ACPI OEM ID replacement to ${acpiOemId} did not apply"
       exit 1
     fi
-    sed -i 's|"A M I   "|"${acpiOemTableId}"|g' include/hw/acpi/aml-build.h
+    sed -i 's|"${patchedOemTableId}"|"${acpiOemTableId}"|g' include/hw/acpi/aml-build.h
     if ! grep -q '"${acpiOemTableId}"' include/hw/acpi/aml-build.h; then
       echo "FATAL: ACPI OEM Table ID replacement did not apply"
       exit 1
