@@ -13,58 +13,10 @@ let
     inherit cpuVendor;
   };
 
-  # The OVMF postPatch as a Nix function: applies the filterdiff-trimmed
-  # AutoVirt patch + the 10 hardware-identity seds to a source tree. Same
-  # code path as the production build; both must stay in lockstep.
-  ovmfPostPatch = ''
-    echo "=== OVMF-stealth: applying AutoVirt EDK2 patch (BaseTools excluded) ==="
-    filterdiff -x '*/BaseTools/*' ${autovirtPatch} | patch -p1 --no-backup-if-mismatch
-    echo "=== OVMF-stealth: AutoVirt patch applied ==="
-
-    sed -i 's|L"EDK II"|L"American Megatrends Inc."|g' \
-      MdeModulePkg/MdeModulePkg.dec OvmfPkg/OvmfPkgX64.dsc 2>/dev/null || true
-    if grep -rq 'L"EDK II"' MdeModulePkg/MdeModulePkg.dec OvmfPkg/OvmfPkgX64.dsc; then
-      echo "FATAL: firmware vendor string still contains L\"EDK II\""
-      exit 1
-    fi
-
-    sed -i '/BootGraphicsResourceTableDxe/d' OvmfPkg/OvmfPkgX64.dsc OvmfPkg/OvmfPkgX64.fdf
-    sed -i '/LogoDxe/d' OvmfPkg/OvmfPkgX64.fdf
-    if grep -q 'BootGraphicsResourceTableDxe' OvmfPkg/OvmfPkgX64.dsc; then
-      echo "FATAL: BootGraphicsResourceTableDxe still in DSC"; exit 1
-    fi
-    if grep -q 'BootGraphicsResourceTableDxe' OvmfPkg/OvmfPkgX64.fdf; then
-      echo "FATAL: BootGraphicsResourceTableDxe still in FDF"; exit 1
-    fi
-    if grep -q 'LogoDxe' OvmfPkg/OvmfPkgX64.fdf; then
-      echo "FATAL: LogoDxe still in FDF"; exit 1
-    fi
-
-    sed -i 's/define INTEL_Q35_MCH_DEVICE_ID.*$/define INTEL_Q35_MCH_DEVICE_ID    0x29C0/' \
-      OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
-    if ! grep -q 'INTEL_Q35_MCH_DEVICE_ID.*0x29C0' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
-      echo "FATAL: MCH device ID revert failed"
-      grep -n 'MCH_DEVICE_ID\|0x14[dD]8\|0x29[cC]0' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h || true
-      exit 1
-    fi
-    sed -i 's|PCI_LIB_ADDRESS (0, 0x14, 3,|PCI_LIB_ADDRESS (0, 0x1f, 0,|g' \
-      OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
-    sed -i 's|EFI_PCI_ADDRESS (0, 0x14, 3,|EFI_PCI_ADDRESS (0, 0x1f, 0,|g' \
-      OvmfPkg/Include/IndustryStandard/Q35MchIch9.h
-    if ! grep -q 'PCI_LIB_ADDRESS (0, 0x1f, 0,' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
-      echo "FATAL: PM PCI_LIB_ADDRESS revert to (0x1f,0) failed"
-      exit 1
-    fi
-    if ! grep -q 'EFI_PCI_ADDRESS (0, 0x1f, 0,' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
-      echo "FATAL: PM EFI_PCI_ADDRESS revert to (0x1f,0) failed"
-      exit 1
-    fi
-    if grep -n 'PCI_LIB_ADDRESS (0, 0x14, 3,\|EFI_PCI_ADDRESS (0, 0x14, 3' OvmfPkg/Include/IndustryStandard/Q35MchIch9.h; then
-      echo "FATAL: PM register address still at AutoVirt (0x14,3)"
-      exit 1
-    fi
-
-  '';
+  # The production OVMF postPatch itself -- ONE source, imported by both
+  # ovmf/package.nix and this contract, so the replay can never drift from
+  # what the build actually runs.
+  ovmfPostPatch = import ../ovmf/post-patch.nix { inherit autovirtPatch; };
 
   # Per-sed guard: (name, file path, pattern the sed is required to
   # leave in the post-patch file). BGRT/LogoDxe are strip seds (the
