@@ -26,12 +26,12 @@ let
   cases = [
     {
       name = "qemu-picks-highest-by-version-not-string-order";
-      ok = lib.hasSuffix "AMD-v11.0.10.patch" (qemuFor "11.0.1");
+      ok = baseNameOf (qemuFor "11.0.1") == "AMD-v11.0.10.patch";
       detail = "expected AMD-v11.0.10.patch, got ${baseNameOf (qemuFor "11.0.1")}";
     }
     {
       name = "qemu-ignores-other-vendor-prefix";
-      ok = !lib.hasInfix "Intel-" (qemuFor "11.0.1");
+      ok = !lib.hasPrefix "Intel-" (baseNameOf (qemuFor "11.0.1"));
       detail = "resolver selected an Intel patch: ${baseNameOf (qemuFor "11.0.1")}";
     }
     {
@@ -41,12 +41,13 @@ let
     }
     {
       name = "edk2-picks-highest-tag";
-      ok = lib.hasSuffix "AMD-edk2-stable202605.patch" (
-        resolve.edk2 {
-          inherit autovirt;
-          cpuVendor = "amd";
-        }
-      );
+      ok =
+        baseNameOf (
+          resolve.edk2 {
+            inherit autovirt;
+            cpuVendor = "amd";
+          }
+        ) == "AMD-edk2-stable202605.patch";
       detail = "expected AMD-edk2-stable202605.patch, got ${
         baseNameOf (
           resolve.edk2 {
@@ -58,7 +59,7 @@ let
     }
     {
       name = "intel-vendor-selects-intel-patch";
-      ok = lib.hasSuffix "Intel-v11.0.10.patch" (intelFor "11.0.1");
+      ok = baseNameOf (intelFor "11.0.1") == "Intel-v11.0.10.patch";
       detail = "expected Intel-v11.0.10.patch, got ${baseNameOf (intelFor "11.0.1")}";
     }
     {

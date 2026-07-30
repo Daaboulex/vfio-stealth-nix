@@ -13,7 +13,7 @@ let
 
   render =
     dir: prefix: versions:
-    "${dir}/${prefix}${newest versions}.patch";
+    dir + "/${prefix}${newest versions}.patch";
 
   inventory =
     prefix: versions:
@@ -52,17 +52,17 @@ in
       cpuVendor,
     }:
     let
-      dir = "${autovirt}/patches/QEMU";
+      dir = autovirt + "/patches/QEMU";
       prefix = "${familyOf cpuVendor}-v";
       all = versionsIn dir prefix;
       series = lib.versions.majorMinor qemuVersion;
       inSeries = builtins.filter (v: lib.versions.majorMinor v == series) all;
     in
     assert lib.assertMsg (builtins.pathExists dir)
-      "qemu-stealth: ${dir} is absent - AutoVirt restructured patches/";
+      "qemu-stealth: ${toString dir} is absent - AutoVirt restructured patches/";
     assert lib.assertMsg (inSeries != [ ]) ''
       qemu-stealth: AutoVirt ships no ${prefix}${series}.x patch for the QEMU being built (${qemuVersion}).
-      Available in ${dir}: ${inventory prefix all}
+      Available in ${toString dir}: ${inventory prefix all}
       Move nixpkgs - or the version floor in qemu/package.nix - to the QEMU series AutoVirt patches.
     '';
     render dir prefix inSeries;
@@ -70,12 +70,12 @@ in
   edk2 =
     { autovirt, cpuVendor }:
     let
-      dir = "${autovirt}/patches/EDK2";
+      dir = autovirt + "/patches/EDK2";
       prefix = "${familyOf cpuVendor}-edk2-stable";
       all = versionsIn dir prefix;
     in
     assert lib.assertMsg (builtins.pathExists dir)
-      "ovmf-stealth: ${dir} is absent - AutoVirt restructured patches/";
-    assert lib.assertMsg (all != [ ]) "ovmf-stealth: AutoVirt ships no ${prefix}<tag>.patch in ${dir}";
+      "ovmf-stealth: ${toString dir} is absent - AutoVirt restructured patches/";
+    assert lib.assertMsg (all != [ ]) "ovmf-stealth: AutoVirt ships no ${prefix}<tag>.patch in ${toString dir}";
     render dir prefix all;
 }
