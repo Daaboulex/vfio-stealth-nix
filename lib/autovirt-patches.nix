@@ -76,6 +76,8 @@ in
     in
     assert lib.assertMsg (builtins.pathExists dir)
       "ovmf-stealth: ${toString dir} is absent - AutoVirt restructured patches/";
-    assert lib.assertMsg (all != [ ]) "ovmf-stealth: AutoVirt ships no ${prefix}<tag>.patch in ${toString dir}";
+    assert lib.assertMsg (
+      all != [ ]
+    ) "ovmf-stealth: AutoVirt ships no ${prefix}<tag>.patch in ${toString dir}";
     render dir prefix all;
 }
