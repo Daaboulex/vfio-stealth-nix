@@ -399,7 +399,4 @@ opt-in table and the `kernelCapabilities` auto-detection helper.
 GPL-2.0 (kernel patches mandate GPL)
 
 <!-- BEGIN generated:footer -->
----
-
-*Maintained as part of the [Daaboulex](https://github.com/Daaboulex) NixOS ecosystem.*
 <!-- END generated:footer -->
