@@ -9,7 +9,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     std = {
-      url = "github:Daaboulex/nix-packaging-standard?ref=v2.20.0";
+      url = "github:Daaboulex/nix-packaging-standard?ref=v2.21.0";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.git-hooks.follows = "git-hooks";
     };
@@ -81,6 +81,11 @@
             module = ./module.nix;
             config.myModules.vfio.stealth.enable = true;
             config.myModules.vfio.stealth.cpuVendor = "amd";
+            config.myModules.vfio.stealth.smbios.manufacturer = "ASUSTeK COMPUTER INC.";
+            config.myModules.vfio.stealth.smbios.product = "ROG STRIX X670E-E GAMING WIFI";
+            config.myModules.vfio.stealth.smbios.baseBoardSerial = "230820681900773";
+            config.myModules.vfio.stealth.disk.serial = "S6B2NS0TB12345X";
+            config.myModules.vfio.stealth.hypervVendorId = "AuthenticAMD";
           };
 
           checks.sed-contract-qemu = pkgs.callPackage ./tests/sed-contract-qemu.nix {
