@@ -86,6 +86,14 @@
             config.myModules.vfio.stealth.smbios.baseBoardSerial = "230820681900773";
             config.myModules.vfio.stealth.disk.serial = "S6B2NS0TB12345X";
             config.myModules.vfio.stealth.hypervVendorId = "AuthenticAMD";
+            config.myModules.vfio.stealth.smbios.memory.manufacturer = "G.Skill";
+            config.myModules.vfio.stealth.smbios.onboardDevices = [
+              {
+                designation = "Onboard Ethernet";
+                kind = "ethernet";
+                instance = 1;
+              }
+            ];
           };
 
           checks.sed-contract-qemu = pkgs.callPackage ./tests/sed-contract-qemu.nix {
