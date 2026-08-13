@@ -6,9 +6,9 @@ set -euo pipefail
 # Contract: exit 0 = success/no-update, exit 1 = failed, exit 2 = network error
 
 OUTPUT_FILE="${GITHUB_OUTPUT:-/tmp/update-outputs.env}"
-: > "$OUTPUT_FILE"
+: >"$OUTPUT_FILE"
 
-output() { echo "$1=$2" >> "$OUTPUT_FILE"; }
+output() { echo "$1=$2" >>"$OUTPUT_FILE"; }
 log() { echo "==> $*"; }
 warn() { echo "::warning::$*"; }
 err() { echo "::error::$*"; }
@@ -71,7 +71,7 @@ output "new_version" "$NEW_VERSION"
 DATE=$(date +%Y-%m-%d)
 jq --arg av "$LATEST_AV" --arg d "$DATE" --arg avs "${LATEST_AV:0:7}" \
   '.autovirt.rev = $av | .autovirt.version = $avs | .autovirt.date = $d' \
-  version.json > version.json.tmp && mv version.json.tmp version.json
+  version.json >version.json.tmp && mv version.json.tmp version.json
 
 # --- Update flake inputs ---
 log "Updating flake inputs..."

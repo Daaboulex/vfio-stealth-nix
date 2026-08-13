@@ -41,7 +41,7 @@ let
     let
       hasConfigOption = opt: builtins.match ".*CONFIG_${opt}=y[ \t]*.*" configText != null;
       kernelDeps = lib.mapAttrs (
-        feature: requiredOpts: lib.all hasConfigOption requiredOpts
+        _feature: requiredOpts: lib.all hasConfigOption requiredOpts
       ) featureRequires;
     in
     kernelDeps // lib.genAttrs universalFeatures (_: true);

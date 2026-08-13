@@ -158,13 +158,9 @@ let
 
   enlightenedArgs = enlightened.qemuArgs testCpuIdentity;
   hiddenArgs = hidden.qemuArgs testCpuIdentity;
-  supportedArgs = supported.qemuArgs testCpuIdentity;
-  unsupportedArgs = unsupported.qemuArgs testCpuIdentity;
 
   argsJson = builtins.toJSON enlightenedArgs;
   hiddenArgsJson = builtins.toJSON hiddenArgs;
-  supportedArgsJson = builtins.toJSON supportedArgs;
-  unsupportedArgsJson = builtins.toJSON unsupportedArgs;
   featuresJson = builtins.toJSON enlightened.features;
   hiddenFeaturesJson = builtins.toJSON hidden.features;
   supportedFeaturesJson = builtins.toJSON supported.features;
@@ -172,13 +168,9 @@ let
   defaultFeaturesJson = builtins.toJSON default.features;
   clockJson = builtins.toJSON enlightened.clock;
   hiddenClockJson = builtins.toJSON hidden.clock;
-  supportedClockJson = builtins.toJSON supported.clock;
-  unsupportedClockJson = builtins.toJSON unsupported.clock;
   sysinfoJson = builtins.toJSON enlightened.sysinfo;
-  cpuFeaturesJson = builtins.toJSON enlightened.cpuFeatures;
   hiddenCpuFeaturesJson = builtins.toJSON hidden.cpuFeatures;
   devicesJson = builtins.toJSON enlightened.devicesToRemove;
-  supportedWarningsJson = builtins.toJSON supported.warnings;
   unsupportedWarningsJson = builtins.toJSON unsupported.warnings;
 
   perVmCpuIdentity = {

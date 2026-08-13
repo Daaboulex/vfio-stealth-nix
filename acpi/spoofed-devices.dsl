@@ -2,7 +2,7 @@
  * Intel ACPI Component Architecture
  * AML/ASL+ Disassembler version 20240927 (64-bit version)
  * Copyright (c) 2000 - 2023 Intel Corporation
- * 
+ *
  * Disassembling to symbolic ASL+ operators
  *
  * Disassembly of CUSTOM.aml
@@ -164,4 +164,3 @@ DefinitionBlock ("", "SSDT", 1, "ALASKA", "A M I   ", 0x20250321)
         }
     }
 }
-
