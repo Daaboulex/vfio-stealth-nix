@@ -21,10 +21,10 @@ import struct
 import sys
 from dataclasses import dataclass
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def pack_strings(*strings: str) -> bytes:
     """Encode the unformatted (string) area of an SMBIOS structure.
@@ -127,20 +127,22 @@ def build_type7(entry: CacheEntry) -> bytes:
     sram_current = 0x0002
 
     formatted = struct.pack(
-        "<BBH"    # type, length, handle
-        "B"       # socket designation (string ref 1 — BYTE per spec)
-        "H"       # cache configuration
-        "H"       # maximum cache size (legacy)
-        "H"       # installed size (legacy)
-        "H"       # supported SRAM type
-        "H"       # current SRAM type
-        "B"       # cache speed (0 = unknown)
-        "B"       # error correction type
-        "B"       # system cache type
-        "B"       # associativity
-        "I"       # maximum cache size 2 (SMBIOS 3.1+)
-        "I",      # installed cache size 2 (SMBIOS 3.1+)
-        7, TYPE7_LENGTH, entry.handle,
+        "<BBH"  # type, length, handle
+        "B"  # socket designation (string ref 1 — BYTE per spec)
+        "H"  # cache configuration
+        "H"  # maximum cache size (legacy)
+        "H"  # installed size (legacy)
+        "H"  # supported SRAM type
+        "H"  # current SRAM type
+        "B"  # cache speed (0 = unknown)
+        "B"  # error correction type
+        "B"  # system cache type
+        "B"  # associativity
+        "I"  # maximum cache size 2 (SMBIOS 3.1+)
+        "I",  # installed cache size 2 (SMBIOS 3.1+)
+        7,
+        TYPE7_LENGTH,
+        entry.handle,
         1,  # string ref 1 = designation
         entry.config,
         legacy_size,
@@ -169,27 +171,29 @@ def build_type26(
     handle: int = 0x1A00,
     description: str = "Voltage Probe",
     location_status: int = 0x67,  # location=7(motherboard), status=3(OK)
-    max_mv: int = 15000,     # 1500.0 mV (units: 1/10 mV)
-    min_mv: int = 8000,      # 800.0 mV
-    resolution: int = 1,     # 0.1 mV
-    tolerance: int = 50,     # 5.0 mV
-    accuracy: int = 100,     # 1.00% (units: 1/100 %)
+    max_mv: int = 15000,  # 1500.0 mV (units: 1/10 mV)
+    min_mv: int = 8000,  # 800.0 mV
+    resolution: int = 1,  # 0.1 mV
+    tolerance: int = 50,  # 5.0 mV
+    accuracy: int = 100,  # 1.00% (units: 1/100 %)
     oem: int = 0,
     nominal_mv: int = 12000,  # 1200.0 mV
 ) -> bytes:
     """Build a Type 26 (Voltage Probe) SMBIOS binary structure."""
     formatted = struct.pack(
-        "<BBH"    # type, length, handle
-        "B"       # description (string ref 1 — BYTE per spec)
-        "B"       # location and status
-        "h"       # maximum value (signed, 1/10 mV)
-        "h"       # minimum value (signed, 1/10 mV)
-        "H"       # resolution (1/10 mV)
-        "H"       # tolerance (1/10 mV)
-        "H"       # accuracy (1/100 %)
-        "I"       # OEM-defined
-        "h",      # nominal value (signed, 1/10 mV)
-        26, TYPE26_LENGTH, handle,
+        "<BBH"  # type, length, handle
+        "B"  # description (string ref 1 — BYTE per spec)
+        "B"  # location and status
+        "h"  # maximum value (signed, 1/10 mV)
+        "h"  # minimum value (signed, 1/10 mV)
+        "H"  # resolution (1/10 mV)
+        "H"  # tolerance (1/10 mV)
+        "H"  # accuracy (1/100 %)
+        "I"  # OEM-defined
+        "h",  # nominal value (signed, 1/10 mV)
+        26,
+        TYPE26_LENGTH,
+        handle,
         1,  # string ref
         location_status,
         max_mv,
@@ -237,14 +241,16 @@ def build_type27(
 ) -> bytes:
     """Build a Type 27 (Cooling Device) SMBIOS binary structure."""
     formatted = struct.pack(
-        "<BBH"    # type, length, handle
-        "H"       # temperature probe handle
-        "B"       # device type and status
-        "B"       # cooling unit group (BYTE per DSP0134 Table 100)
-        "I"       # OEM-defined
-        "H"       # nominal speed (RPM)
-        "B",      # description (string ref 1) — 2.7+ field
-        27, TYPE27_LENGTH, handle,
+        "<BBH"  # type, length, handle
+        "H"  # temperature probe handle
+        "B"  # device type and status
+        "B"  # cooling unit group (BYTE per DSP0134 Table 100)
+        "I"  # OEM-defined
+        "H"  # nominal speed (RPM)
+        "B",  # description (string ref 1) — 2.7+ field
+        27,
+        TYPE27_LENGTH,
+        handle,
         temp_probe_handle,
         device_type_status,
         cooling_group,
@@ -267,27 +273,29 @@ def build_type28(
     handle: int = 0x1C00,
     description: str = "CPU Thermal Probe",
     location_status: int = 0x67,  # location=7(motherboard), status=3(OK)
-    max_temp: int = 1050,    # 105.0 °C (units: 1/10 °C)
-    min_temp: int = 100,     # 10.0 °C
-    resolution: int = 10,    # 1.0 °C (units: 1/1000 °C)
-    tolerance: int = 20,     # 2.0 °C (units: 1/10 °C)
-    accuracy: int = 100,     # 1.00% (units: 1/100 %)
+    max_temp: int = 1050,  # 105.0 °C (units: 1/10 °C)
+    min_temp: int = 100,  # 10.0 °C
+    resolution: int = 10,  # 1.0 °C (units: 1/1000 °C)
+    tolerance: int = 20,  # 2.0 °C (units: 1/10 °C)
+    accuracy: int = 100,  # 1.00% (units: 1/100 %)
     oem: int = 0,
     nominal_temp: int = 450,  # 45.0 °C
 ) -> bytes:
     """Build a Type 28 (Temperature Probe) SMBIOS binary structure."""
     formatted = struct.pack(
-        "<BBH"    # type, length, handle
-        "B"       # description (string ref 1 — BYTE per spec)
-        "B"       # location and status
-        "h"       # maximum value (signed, 1/10 °C)
-        "h"       # minimum value (signed, 1/10 °C)
-        "H"       # resolution (1/1000 °C)
-        "H"       # tolerance (1/10 °C)
-        "H"       # accuracy (1/100 %)
-        "I"       # OEM-defined
-        "h",      # nominal value (signed, 1/10 °C)
-        28, TYPE28_LENGTH, handle,
+        "<BBH"  # type, length, handle
+        "B"  # description (string ref 1 — BYTE per spec)
+        "B"  # location and status
+        "h"  # maximum value (signed, 1/10 °C)
+        "h"  # minimum value (signed, 1/10 °C)
+        "H"  # resolution (1/1000 °C)
+        "H"  # tolerance (1/10 °C)
+        "H"  # accuracy (1/100 %)
+        "I"  # OEM-defined
+        "h",  # nominal value (signed, 1/10 °C)
+        28,
+        TYPE28_LENGTH,
+        handle,
         1,  # string ref
         location_status,
         max_temp,
@@ -313,27 +321,29 @@ def build_type29(
     handle: int = 0x1D00,
     description: str = "Current Probe",
     location_status: int = 0x67,  # location=7(motherboard), status=3(OK)
-    max_val: int = 30000,    # 3000.0 mA (units: 1/10 mA)
-    min_val: int = 100,      # 10.0 mA
-    resolution: int = 1,     # 0.1 mA
-    tolerance: int = 50,     # 5.0 mA
-    accuracy: int = 100,     # 1.00%
+    max_val: int = 30000,  # 3000.0 mA (units: 1/10 mA)
+    min_val: int = 100,  # 10.0 mA
+    resolution: int = 1,  # 0.1 mA
+    tolerance: int = 50,  # 5.0 mA
+    accuracy: int = 100,  # 1.00%
     oem: int = 0,
     nominal_val: int = 5000,  # 500.0 mA
 ) -> bytes:
     """Build a Type 29 (Electrical Current Probe) SMBIOS binary structure."""
     formatted = struct.pack(
-        "<BBH"    # type, length, handle
-        "B"       # description (string ref 1 — BYTE per spec)
-        "B"       # location and status
-        "h"       # maximum value (signed, 1/10 mA)
-        "h"       # minimum value (signed, 1/10 mA)
-        "H"       # resolution (1/10 mA)
-        "H"       # tolerance (1/10 mA)
-        "H"       # accuracy (1/100 %)
-        "I"       # OEM-defined
-        "h",      # nominal value (signed, 1/10 mA)
-        29, TYPE29_LENGTH, handle,
+        "<BBH"  # type, length, handle
+        "B"  # description (string ref 1 — BYTE per spec)
+        "B"  # location and status
+        "h"  # maximum value (signed, 1/10 mA)
+        "h"  # minimum value (signed, 1/10 mA)
+        "H"  # resolution (1/10 mA)
+        "H"  # tolerance (1/10 mA)
+        "H"  # accuracy (1/100 %)
+        "I"  # OEM-defined
+        "h",  # nominal value (signed, 1/10 mA)
+        29,
+        TYPE29_LENGTH,
+        handle,
         1,  # string ref
         location_status,
         max_val,
@@ -351,6 +361,7 @@ def build_type29(
 # ---------------------------------------------------------------------------
 # Generation
 # ---------------------------------------------------------------------------
+
 
 def generate_all(
     output_dir: str,
@@ -435,10 +446,10 @@ EXPECTED_FILES = {
     "type7-l1.bin": (7, TYPE7_LENGTH),
     "type7-l2.bin": (7, TYPE7_LENGTH),
     "type7-l3.bin": (7, TYPE7_LENGTH),
-    "type26.bin":   (26, TYPE26_LENGTH),
-    "type27.bin":   (27, TYPE27_LENGTH),
-    "type28.bin":   (28, TYPE28_LENGTH),
-    "type29.bin":   (29, TYPE29_LENGTH),
+    "type26.bin": (26, TYPE26_LENGTH),
+    "type27.bin": (27, TYPE27_LENGTH),
+    "type28.bin": (28, TYPE28_LENGTH),
+    "type29.bin": (29, TYPE29_LENGTH),
 }
 
 
@@ -457,7 +468,7 @@ def verify_table(path: str, expected_type: int, expected_length: int) -> list[st
         errors.append(f"{name}: file too small ({len(data)} bytes, need >= 4)")
         return errors
 
-    stype, slength, shandle = struct.unpack_from("<BBH", data, 0)
+    stype, slength, _shandle = struct.unpack_from("<BBH", data, 0)
 
     if stype != expected_type:
         errors.append(f"{name}: type byte = {stype}, expected {expected_type}")
@@ -499,23 +510,31 @@ def verify_table(path: str, expected_type: int, expected_length: int) -> list[st
     if stype == 7:
         ref = struct.unpack_from("<B", data, 4)[0]
         if ref < 1 or ref > max_ref:
-            errors.append(f"{name}: socket designation string ref {ref} out of range [1, {max_ref}]")
+            errors.append(
+                f"{name}: socket designation string ref {ref} out of range [1, {max_ref}]"
+            )
     elif stype in (26, 28, 29):
         ref = struct.unpack_from("<B", data, 4)[0]
         if ref < 1 or ref > max_ref:
-            errors.append(f"{name}: description string ref {ref} out of range [1, {max_ref}]")
+            errors.append(
+                f"{name}: description string ref {ref} out of range [1, {max_ref}]"
+            )
     elif stype == 27:
         # Description ref at offset 0Fh (last byte of formatted area)
         ref = struct.unpack_from("<B", data, slength - 1)[0]
         if ref < 1 or ref > max_ref:
-            errors.append(f"{name}: description string ref {ref} out of range [1, {max_ref}]")
+            errors.append(
+                f"{name}: description string ref {ref} out of range [1, {max_ref}]"
+            )
 
     # Cross-reference check: Type 27 temp_probe_handle must match Type 28 handle.
     # If the relationship is broken, Win32_Fan returns empty (wbenny 2025 research).
     if stype == 27 and slength >= TYPE27_LENGTH:
         temp_handle = struct.unpack_from("<H", data, 4)[0]
         if temp_handle != 0xFFFE and temp_handle != 0x1C00:
-            errors.append(f"{name}: temp_probe_handle 0x{temp_handle:04X} does not match Type 28 handle 0x1C00")
+            errors.append(
+                f"{name}: temp_probe_handle 0x{temp_handle:04X} does not match Type 28 handle 0x1C00"
+            )
 
     # Type-specific field sanity checks
     if stype == 7 and slength >= TYPE7_LENGTH:
@@ -533,7 +552,11 @@ def verify_table(path: str, expected_type: int, expected_length: int) -> list[st
             errors.append(f"{name}: unexpected ECC type {ecc}")
 
         cache_type = struct.unpack_from("<B", data, 17)[0]  # offset 11h
-        if cache_type not in (CACHE_TYPE_INSTRUCTION, CACHE_TYPE_DATA, CACHE_TYPE_UNIFIED):
+        if cache_type not in (
+            CACHE_TYPE_INSTRUCTION,
+            CACHE_TYPE_DATA,
+            CACHE_TYPE_UNIFIED,
+        ):
             errors.append(f"{name}: unexpected cache type {cache_type}")
 
     return errors
@@ -564,28 +587,61 @@ def verify_all(directory: str) -> bool:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate or verify raw SMBIOS binary tables for QEMU injection"
     )
-    parser.add_argument("--verify", metavar="DIR",
-                        help="Verify previously generated tables in DIR (no generation)")
-    parser.add_argument("--output-dir", metavar="DIR",
-                        help="Output directory for generated .bin files")
-    parser.add_argument("--cache-l1", type=int, default=512,
-                        help="L1 data cache size in KB (default: 512)")
-    parser.add_argument("--cache-l2", type=int, default=8192,
-                        help="L2 unified cache size in KB (default: 8192)")
-    parser.add_argument("--cache-l3", type=int, default=32768,
-                        help="L3 unified cache size in KB (default: 32768)")
-    parser.add_argument("--assoc-l1", type=int, default=ASSOC_L1_DEFAULT,
-                        help=f"L1 associativity (SMBIOS Type 7 byte, default: {ASSOC_L1_DEFAULT} = 8-way)")
-    parser.add_argument("--assoc-l2", type=int, default=ASSOC_L2_DEFAULT,
-                        help=f"L2 associativity (SMBIOS Type 7 byte, default: {ASSOC_L2_DEFAULT} = 8-way)")
-    parser.add_argument("--assoc-l3", type=int, default=ASSOC_L3_DEFAULT,
-                        help=f"L3 associativity (SMBIOS Type 7 byte, default: {ASSOC_L3_DEFAULT} = 16-way V-Cache)")
-    parser.add_argument("--ecc", type=int, default=ECC_DEFAULT,
-                        help=f"Error correction type (SMBIOS Type 7 byte, default: {ECC_DEFAULT} = Unknown; consumer Ryzen has no ECC)")
+    parser.add_argument(
+        "--verify",
+        metavar="DIR",
+        help="Verify previously generated tables in DIR (no generation)",
+    )
+    parser.add_argument(
+        "--output-dir", metavar="DIR", help="Output directory for generated .bin files"
+    )
+    parser.add_argument(
+        "--cache-l1",
+        type=int,
+        default=512,
+        help="L1 data cache size in KB (default: 512)",
+    )
+    parser.add_argument(
+        "--cache-l2",
+        type=int,
+        default=8192,
+        help="L2 unified cache size in KB (default: 8192)",
+    )
+    parser.add_argument(
+        "--cache-l3",
+        type=int,
+        default=32768,
+        help="L3 unified cache size in KB (default: 32768)",
+    )
+    parser.add_argument(
+        "--assoc-l1",
+        type=int,
+        default=ASSOC_L1_DEFAULT,
+        help=f"L1 associativity (SMBIOS Type 7 byte, default: {ASSOC_L1_DEFAULT} = 8-way)",
+    )
+    parser.add_argument(
+        "--assoc-l2",
+        type=int,
+        default=ASSOC_L2_DEFAULT,
+        help=f"L2 associativity (SMBIOS Type 7 byte, default: {ASSOC_L2_DEFAULT} = 8-way)",
+    )
+    parser.add_argument(
+        "--assoc-l3",
+        type=int,
+        default=ASSOC_L3_DEFAULT,
+        help=f"L3 associativity (SMBIOS Type 7 byte, default: {ASSOC_L3_DEFAULT} = 16-way V-Cache)",
+    )
+    parser.add_argument(
+        "--ecc",
+        type=int,
+        default=ECC_DEFAULT,
+        help=f"Error correction type (SMBIOS Type 7 byte, default: {ECC_DEFAULT} = Unknown; consumer Ryzen has no ECC)",
+    )
 
     args = parser.parse_args()
 
