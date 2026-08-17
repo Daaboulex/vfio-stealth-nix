@@ -2,14 +2,14 @@
   lib,
   runCommand,
   patchutils,
-  inputs,
+  autovirt,
   cpuVendor,
   OVMF,
 }:
 
 let
   autovirtPatch = (import ../lib/autovirt-patches.nix { inherit lib; }).edk2 {
-    inherit (inputs) autovirt;
+    inherit autovirt;
     inherit cpuVendor;
   };
 

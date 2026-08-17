@@ -1,0 +1,8 @@
+AutoVirt QEMU and EDK2 stealth patches, vendored.
+
+Origin:   github:Scrut1ny/AutoVirt at 190569cc940fb5366b095d5ca70b478769e65216
+Retrieved: 2026-08-17, from the local nix store; the upstream GitHub account no
+           longer exists and returns 404, so this is the surviving copy.
+License:   the patches derive from QEMU (GPL-2.0-or-later) and EDK2; the added
+           hw/net/rtl8125.c declares GPL-2.0-or-later. AutoVirt's own scripts
+           were GPL-3.0 and are deliberately not vendored here.

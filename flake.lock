@@ -1,21 +1,5 @@
 {
   "nodes": {
-    "autovirt": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1786204637,
-        "narHash": "sha256-NiFiy0L+lz9PRACrccSnrRO7Vmpwby1cnv4COM3E1Co=",
-        "owner": "Scrut1ny",
-        "repo": "AutoVirt",
-        "rev": "190569cc940fb5366b095d5ca70b478769e65216",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Scrut1ny",
-        "repo": "AutoVirt",
-        "type": "github"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -208,7 +192,6 @@
     },
     "root": {
       "inputs": {
-        "autovirt": "autovirt",
         "flake-parts": "flake-parts",
         "git-hooks": "git-hooks",
         "nix-cachyos-kernel": "nix-cachyos-kernel",

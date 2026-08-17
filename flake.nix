@@ -14,10 +14,6 @@
       inputs.git-hooks.follows = "git-hooks";
     };
 
-    autovirt = {
-      url = "github:Scrut1ny/AutoVirt";
-      flake = false;
-    };
     # CachyOS kernel packaging — used by the kernel-anchor-contract
     # test to verify the awk anchors in the user's actual production
     # kernel source (CachyOS's BORE/LTO/Zen4 patches + upstream Linux).
@@ -55,21 +51,22 @@
         { pkgs, ... }:
         {
           pre-commit.settings.hooks.shfmt.excludes = [ "^guest/" ];
+          pre-commit.settings.excludes = [ "^vendor/" ];
 
           packages.default = pkgs.callPackage ./qemu/package.nix {
-            inherit (inputs) autovirt;
+            autovirt = ./vendor/autovirt;
             cpuVendor = "amd";
           };
           packages.qemu-stealth-intel = pkgs.callPackage ./qemu/package.nix {
-            inherit (inputs) autovirt;
+            autovirt = ./vendor/autovirt;
             cpuVendor = "intel";
           };
           packages.ovmf-stealth = pkgs.callPackage ./ovmf/package.nix {
-            inherit (inputs) autovirt;
+            autovirt = ./vendor/autovirt;
             cpuVendor = "amd";
           };
           packages.ovmf-stealth-intel = pkgs.callPackage ./ovmf/package.nix {
-            inherit (inputs) autovirt;
+            autovirt = ./vendor/autovirt;
             cpuVendor = "intel";
           };
           packages.acpi-ssdt-stealth = pkgs.callPackage ./acpi/package.nix { };
@@ -99,24 +96,24 @@
           };
 
           checks.sed-contract-qemu = pkgs.callPackage ./tests/sed-contract-qemu.nix {
-            inherit inputs;
+            autovirt = ./vendor/autovirt;
             cpuVendor = "amd";
             qemu-stealth = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
           };
 
           checks.sed-contract-qemu-intel = pkgs.callPackage ./tests/sed-contract-qemu.nix {
-            inherit inputs;
+            autovirt = ./vendor/autovirt;
             cpuVendor = "intel";
             qemu-stealth = self.packages.${pkgs.stdenv.hostPlatform.system}.qemu-stealth-intel;
           };
 
           checks.sed-contract-edk2 = pkgs.callPackage ./tests/sed-contract-edk2.nix {
-            inherit inputs;
+            autovirt = ./vendor/autovirt;
             cpuVendor = "amd";
           };
 
           checks.sed-contract-edk2-intel = pkgs.callPackage ./tests/sed-contract-edk2.nix {
-            inherit inputs;
+            autovirt = ./vendor/autovirt;
             cpuVendor = "intel";
           };
 
