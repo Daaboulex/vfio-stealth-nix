@@ -2,7 +2,17 @@
 
 ''
   echo "=== OVMF-stealth: applying AutoVirt EDK2 patch (BaseTools excluded) ==="
-  filterdiff -x '*/BaseTools/*' ${autovirtPatch} | patch -p1 --no-backup-if-mismatch
+  filterdiff -x '*/BaseTools/*' ${autovirtPatch} > autovirt-edk2-filtered.patch
+  if [ "$(grep -c '^@@' autovirt-edk2-filtered.patch)" -eq 0 ]; then
+    echo "FATAL: filterdiff yielded no hunks from ${autovirtPatch} -- patch would have been a silent no-op"
+    exit 1
+  fi
+  # -F0: a hunk landing with fuzz can yield firmware that merely looks stealthed.
+  patch -p1 -F0 --no-backup-if-mismatch -i autovirt-edk2-filtered.patch || {
+    echo "FATAL: AutoVirt EDK2 patch did not apply with zero fuzz"
+    exit 1
+  }
+  rm -f autovirt-edk2-filtered.patch
   echo "=== OVMF-stealth: AutoVirt patch applied ==="
 
   # Replace firmware vendor string. The PCD default L"EDK II" lives in
