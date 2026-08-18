@@ -120,6 +120,7 @@
           checks.autovirt-patch-contract = pkgs.callPackage ./tests/autovirt-patch-contract.nix { };
 
           checks.qemu-ceiling-contract = pkgs.callPackage ./tests/ceiling-contract.nix { };
+          checks.update-gap-contract = pkgs.callPackage ./tests/update-gap-contract.nix { };
 
           checks.options-documented = pkgs.callPackage ./tests/options-documented.nix { };
 

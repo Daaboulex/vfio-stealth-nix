@@ -4,23 +4,17 @@ set -euo pipefail
 # Custom update script for vfio-stealth-nix
 # AutoVirt upstream is deleted (~2026-05); its patches are vendored in
 # vendor/autovirt. This script watches the live forks for a patch newer than
-# what is vendored, so the canonical update workflow files an issue the day
-# one exists. Adoption stays a hand decision (see docs/RELEASE-PROCEDURE.md).
-# Contract: exit 0 = nothing newer, exit 1 = manual port needed or upstream
-# gone, exit 2 = transient network failure.
-
-OUTPUT_FILE="${GITHUB_OUTPUT:-/tmp/update-outputs.env}"
-: >"$OUTPUT_FILE"
+# what is vendored, and nixpkgs-unstable for a QEMU series no vendored patch
+# covers, so the canonical update workflow files an issue the day either
+# appears. Adoption stays a hand decision (see docs/RELEASE-PROCEDURE.md).
+# Contract: exit 0 = nothing to do, exit 1 = manual port needed, upstream
+# gone, or a patch gap (error_type says which), exit 2 = transient network
+# failure.
 
 output() { echo "$1=$2" >>"$OUTPUT_FILE"; }
 log() { echo "==> $*"; }
 warn() { echo "::warning::$*"; }
 err() { echo "::error::$*"; }
-
-output "package_name" "vfio-stealth"
-output "updated" "false"
-
-VENDOR_DIR="vendor/autovirt/patches/QEMU"
 
 newest_series() {
   local vendor="$1"
@@ -29,6 +23,30 @@ newest_series() {
     sort -V |
     tail -1
 }
+
+amd_series_set() {
+  ls "$VENDOR_DIR" |
+    sed -n 's/^AMD-v\([0-9][0-9]*\.[0-9][0-9]*\)\.[0-9][0-9.]*\.patch$/\1/p' |
+    sort -u
+}
+
+qemu_gap_for() {
+  local qemu_version="$1" series
+  series="${qemu_version%.*}"
+  if ! amd_series_set | grep -qx "$series"; then
+    printf '%s' "$qemu_version"
+  fi
+}
+
+[[ ${BASH_SOURCE[0]} == "$0" ]] || return 0
+
+OUTPUT_FILE="${GITHUB_OUTPUT:-/tmp/update-outputs.env}"
+: >"$OUTPUT_FILE"
+
+output "package_name" "vfio-stealth"
+output "updated" "false"
+
+VENDOR_DIR="vendor/autovirt/patches/QEMU"
 
 AMD_OURS=$(newest_series AMD)
 INTEL_OURS=$(newest_series Intel)
@@ -94,6 +112,17 @@ if [ -s "$TMP/cands" ]; then
     output "error_type" "manual-port-needed"
     exit 1
   fi
+fi
+
+NP_QEMU=$(nix eval --raw 'github:NixOS/nixpkgs/nixos-unstable#qemu.version' 2>/dev/null) || NP_QEMU=""
+if [ -z "$NP_QEMU" ] || [ "$NP_QEMU" = "null" ]; then
+  warn "could not determine nixpkgs-unstable's QEMU version; skipping the patch-gap check"
+elif [ -n "$(qemu_gap_for "$NP_QEMU")" ]; then
+  warn "nixpkgs-unstable ships QEMU ${NP_QEMU}; no vendored AMD patch for series ${NP_QEMU%.*} - consumers ride the ceiling tarball until one lands"
+  output "new_version" "$NP_QEMU"
+  output "upstream_url" "https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/applications/virtualization/qemu/package.nix"
+  output "error_type" "patch-gap"
+  exit 1
 fi
 
 CURRENT_BT=$(jq -r '.betterTiming.rev' version.json)

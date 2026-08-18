@@ -15,7 +15,7 @@ BetterTiming) and our own sed-based reversions. Every dep in the
 input set can move. This procedure minimises the surface area of
 breakage.
 
-## The QEMU ceiling
+## The QEMU floor and ceiling
 
 The vendored patch inventory `vendor/autovirt/patches/QEMU/` is the
 single source of truth. `qemu/package.nix` derives the newest patched
@@ -106,10 +106,12 @@ nixpkgs`) or fix the anchors first.
 
 ## Adopting a newer AutoVirt patch
 
-`scripts/update.sh` watches the live AutoVirt forks daily. A fork
-patch newer than what we vendor exits 1 with `manual-port-needed`, so
-the canonical update workflow files an issue. Adoption is always a
-hand decision:
+`scripts/update.sh` watches the live AutoVirt forks daily and
+nixpkgs-unstable's QEMU version. A fork patch newer than what we
+vendor exits 1 with `manual-port-needed`, and a nixpkgs QEMU series no
+vendored patch covers exits 1 with `patch-gap` -- either way the
+canonical update workflow files a deduplicated issue that closes
+itself on the next green run. Adoption is always a hand decision:
 
 1. Review the patch by hand -- it comes from a third-party fork,
    never auto-adopted.
@@ -188,10 +190,15 @@ Each contract test is a `checks.<system>.<name>` derivation in
 - `checks.autovirt-patch-contract`: pins the vendor-inventory
   resolver -- newest patch per vendor by version order, not string
   order; unknown vendor and a QEMU outside the patched series fail
-  closed.
+  closed; `qemuSeries` lists the patched series per vendor.
 - `checks.qemu-ceiling-contract`: pins the floor/ceiling base
-  selection -- pass-through inside the band, tarball builds outside
-  it, and fail-closed on a missing hash or a ceiling below the floor.
+  selection -- pass-through inside the band, the ceiling tarball
+  outside it or for an in-band unpatched series, the floor tarball
+  below the floor, and fail-closed on a missing hash, a ceiling below
+  the floor, or an unpatched floor series.
+- `checks.update-gap-contract`: pins the patch-gap probe in
+  `scripts/update.sh` -- which QEMU versions count as covered by the
+  vendored AMD series and which count as a gap.
 - `checks.kernel-anchor-contract`: extracts both the nixpkgs
   `linux_latest` source AND the CachyOS LTO latest source from
   `xddxdd/nix-cachyos-kernel`; asserts every awk anchor in

@@ -82,6 +82,21 @@ in
     assert lib.assertMsg (all != [ ]) "qemu-stealth: no ${prefix}<series>.patch in ${toString dir}";
     newest all;
 
+  qemuSeries =
+    {
+      autovirt,
+      cpuVendor,
+    }:
+    let
+      dir = autovirt + "/patches/QEMU";
+      prefix = "${familyOf cpuVendor}-v";
+      all = versionsIn dir prefix;
+    in
+    assert lib.assertMsg (builtins.pathExists dir)
+      "qemu-stealth: ${toString dir} is absent - AutoVirt restructured patches/";
+    assert lib.assertMsg (all != [ ]) "qemu-stealth: no ${prefix}<series>.patch in ${toString dir}";
+    lib.unique (map lib.versions.majorMinor all);
+
   edk2 =
     { autovirt, cpuVendor }:
     let

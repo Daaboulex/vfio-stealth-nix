@@ -74,6 +74,20 @@ let
         )).success;
       detail = "resolver accepted an unknown cpuVendor";
     }
+    {
+      name = "qemu-series-lists-unique-major-minor-per-vendor";
+      ok =
+        resolve.qemuSeries {
+          inherit autovirt;
+          cpuVendor = "amd";
+        } == [ "11.0" ]
+        &&
+          resolve.qemuSeries {
+            inherit autovirt;
+            cpuVendor = "intel";
+          } == [ "11.0" ];
+      detail = "expected [ \"11.0\" ] for both vendors on the fixture inventory";
+    }
   ];
 
   failures = builtins.filter (c: !c.ok) cases;
