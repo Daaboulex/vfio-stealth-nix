@@ -33,26 +33,24 @@ let
   # QEMU 10.2.2 hangs OVMF firmware; 11.0.1 is the oldest release verified good.
   minimumVersion = "11.0.1";
 
-  qemuBase =
-    if builtins.compareVersions qemu.version minimumVersion >= 0 then
-      qemu
-    else
-      qemu.overrideAttrs (old: {
-        version = minimumVersion;
-        src = fetchurl {
-          url = "https://download.qemu.org/qemu-${minimumVersion}.tar.xz";
-          hash = "sha256-DSNfWCAnjZFKMVXsJ6+OQljWl+qJKJVXCAfWnAy4zWQ=";
-        };
-        patches = [ ];
-        # QEMU 11's mkvenv needs Python packages that 10.2.x's packaging doesn't provide.
-        nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
-          python3Packages.setuptools
-          python3Packages.pip
-          python3Packages.wheel
-        ];
-      });
-
   autovirtPatches = import ../lib/autovirt-patches.nix { inherit lib; };
+
+  ceiling = autovirtPatches.ceiling { inherit autovirt cpuVendor; };
+
+  qemuBase = import ../lib/select-qemu-base.nix {
+    inherit
+      lib
+      qemu
+      fetchurl
+      python3Packages
+      minimumVersion
+      ceiling
+      ;
+    tarballHashes = {
+      "11.0.1" = "sha256-DSNfWCAnjZFKMVXsJ6+OQljWl+qJKJVXCAfWnAy4zWQ=";
+      "11.0.3" = "sha256-2l/P/DJ2KCBWi4KO1DCnKIZNNNULbS8wNYWXdgy7BSM=";
+    };
+  };
 
   autovirtPatch = autovirtPatches.qemu {
     inherit autovirt cpuVendor;

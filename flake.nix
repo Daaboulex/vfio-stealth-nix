@@ -119,6 +119,8 @@
 
           checks.autovirt-patch-contract = pkgs.callPackage ./tests/autovirt-patch-contract.nix { };
 
+          checks.qemu-ceiling-contract = pkgs.callPackage ./tests/ceiling-contract.nix { };
+
           checks.options-documented = pkgs.callPackage ./tests/options-documented.nix { };
 
           checks.kernel-anchor-contract = pkgs.callPackage ./tests/kernel-anchor-contract.nix {

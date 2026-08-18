@@ -2,8 +2,12 @@
 set -euo pipefail
 
 # Custom update script for vfio-stealth-nix
-# Tracks two upstreams: Scrut1ny/AutoVirt + SamuelTulach/BetterTiming
-# Contract: exit 0 = success/no-update, exit 1 = failed, exit 2 = network error
+# AutoVirt upstream is deleted (~2026-05); its patches are vendored in
+# vendor/autovirt. This script watches the live forks for a patch newer than
+# what is vendored, so the canonical update workflow files an issue the day
+# one exists. Adoption stays a hand decision (see docs/RELEASE-PROCEDURE.md).
+# Contract: exit 0 = nothing newer, exit 1 = manual port needed or upstream
+# gone, exit 2 = transient network failure.
 
 OUTPUT_FILE="${GITHUB_OUTPUT:-/tmp/update-outputs.env}"
 : >"$OUTPUT_FILE"
@@ -14,106 +18,94 @@ warn() { echo "::warning::$*"; }
 err() { echo "::error::$*"; }
 
 output "package_name" "vfio-stealth"
+output "updated" "false"
 
-# --- Read current revs from version.json ---
-# betterTiming is NOT a build input: kernel/timing-patch.nix is a hand-port, and
-# this rev records which upstream commit it was ported from.
-CURRENT_AV=$(jq -r '.autovirt.rev' version.json)
-PORTED_BT=$(jq -r '.betterTiming.rev' version.json)
-CURRENT_VERSION="${CURRENT_AV:0:7}"
-output "old_version" "$CURRENT_VERSION"
-log "Current: autovirt=${CURRENT_AV:0:7} (timing-patch ported from BetterTiming ${PORTED_BT:0:7})"
+VENDOR_DIR="vendor/autovirt/patches/QEMU"
 
-# --- Fetch latest upstream commits ---
-fetch_latest() {
-  local retries=3 delay=2
-  for i in $(seq 1 $retries); do
-    if RESULT=$(eval "$1" 2>/dev/null) && [ -n "$RESULT" ] && [ "$RESULT" != "null" ]; then
-      echo "$RESULT"
-      return 0
-    fi
-    echo "==> Retry $i/$retries (waiting ${delay}s)..." >&2
-    sleep $delay
-    delay=$((delay * 2))
-  done
-  return 1
+newest_series() {
+  local vendor="$1"
+  ls "$VENDOR_DIR" |
+    sed -n "s/^${vendor}-v\([0-9][0-9.]*\)\.patch$/\1/p" |
+    sort -V |
+    tail -1
 }
 
-LATEST_AV=$(fetch_latest "curl -sfL 'https://api.github.com/repos/Scrut1ny/AutoVirt/commits/main' | jq -r '.sha'") || {
-  warn "Failed to fetch latest AutoVirt commit"
-  output "updated" "false"
+AMD_OURS=$(newest_series AMD)
+INTEL_OURS=$(newest_series Intel)
+
+if [ -z "$AMD_OURS" ] || [ -z "$INTEL_OURS" ]; then
+  err "vendor patch inventory is empty or malformed in $VENDOR_DIR"
+  output "error_type" "inventory-error"
+  exit 1
+fi
+
+log "Vendored: AMD-v${AMD_OURS} Intel-v${INTEL_OURS}"
+output "old_version" "$AMD_OURS"
+
+FORKS=(
+  "Zhaodaidai"
+  "fortesoft-co"
+  "Keyemail"
+)
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+dead=0
+transient=0
+: >"$TMP/cands"
+
+for fork in "${FORKS[@]}"; do
+  code=$(curl -s -o "$TMP/body.json" -w '%{http_code}' \
+    "https://api.github.com/repos/${fork}/AutoVirt/contents/patches/QEMU" 2>/dev/null || true)
+  case "$code" in
+  200) ;;
+  404)
+    warn "fork ${fork}/AutoVirt is gone (404); drop it from FORKS in scripts/update.sh"
+    dead=$((dead + 1))
+    continue
+    ;;
+  *)
+    warn "fork ${fork}/AutoVirt: fetch failed (HTTP ${code:-000}) - transient"
+    transient=1
+    continue
+    ;;
+  esac
+  jq -r '.[].name' "$TMP/body.json" |
+    sed -n 's/^AMD-v\([0-9][0-9.]*\)\.patch$/\1/p' |
+    while read -r v; do echo "$v $fork"; done >>"$TMP/cands"
+done
+
+if [ "$dead" -ge "${#FORKS[@]}" ]; then
+  err "every watched fork is gone (404) - update FORKS in scripts/update.sh"
+  output "error_type" "upstream-gone"
+  exit 1
+fi
+
+if [ -s "$TMP/cands" ]; then
+  best_line=$(sort -V -k1,1 "$TMP/cands" | tail -1)
+  best_version=${best_line%% *}
+  best_fork=${best_line##* }
+  newest=$(printf '%s\n%s\n' "$AMD_OURS" "$best_version" | sort -V | tail -1)
+  if [ "$newest" = "$best_version" ] && [ "$best_version" != "$AMD_OURS" ]; then
+    warn "fork ${best_fork} ships AMD-v${best_version}.patch; we vendor AMD-v${AMD_OURS} - manual port needed"
+    output "new_version" "$best_version"
+    output "upstream_url" "https://github.com/${best_fork}/AutoVirt/blob/main/patches/QEMU/AMD-v${best_version}.patch"
+    output "error_type" "manual-port-needed"
+    exit 1
+  fi
+fi
+
+CURRENT_BT=$(jq -r '.betterTiming.rev' version.json)
+LATEST_BT=$(curl -sfL 'https://api.github.com/repos/SamuelTulach/BetterTiming/commits/master' 2>/dev/null | jq -r '.sha') || LATEST_BT=""
+if [ -n "$LATEST_BT" ] && [ "$LATEST_BT" != "null" ] && [ "$LATEST_BT" != "$CURRENT_BT" ]; then
+  warn "BetterTiming moved: kernel/timing-patch.nix is a hand-port -- re-review it, then set version.json .betterTiming.rev"
+fi
+
+if [ "$transient" -ne 0 ]; then
+  warn "some fork fetches failed transiently; re-checking tomorrow"
   exit 2
-}
-
-LATEST_BT=$(fetch_latest "curl -sfL 'https://api.github.com/repos/SamuelTulach/BetterTiming/commits/master' | jq -r '.sha'") || LATEST_BT=""
-if [ -n "$LATEST_BT" ] && [ "$LATEST_BT" != "$PORTED_BT" ]; then
-  warn "BetterTiming moved ${PORTED_BT:0:7} -> ${LATEST_BT:0:7}: kernel/timing-patch.nix is a hand-port -- re-review it, then set version.json .betterTiming.rev to the rev you ported"
 fi
 
-output "upstream_url" "https://github.com/Scrut1ny/AutoVirt/commit/${LATEST_AV}"
-
-log "Latest: autovirt=${LATEST_AV:0:7}"
-
-# --- Compare ---
-if [ "$CURRENT_AV" = "$LATEST_AV" ]; then
-  log "Already up to date"
-  output "updated" "false"
-  exit 0
-fi
-
-log "Update found"
-output "updated" "true"
-
-NEW_VERSION="${LATEST_AV:0:7}"
-output "new_version" "$NEW_VERSION"
-
-# --- Update version.json ---
-DATE=$(date +%Y-%m-%d)
-jq --arg av "$LATEST_AV" --arg d "$DATE" --arg avs "${LATEST_AV:0:7}" \
-  '.autovirt.rev = $av | .autovirt.version = $avs | .autovirt.date = $d' \
-  version.json >version.json.tmp && mv version.json.tmp version.json
-
-# --- Update flake inputs ---
-log "Updating flake inputs..."
-nix flake update autovirt
-
-# --- Verification chain ---
-log "Step 1/3: Eval check"
-if ! nix flake check --no-build 2>&1; then
-  err "Eval check failed after update"
-  output "error_type" "eval-error"
-  exit 1
-fi
-
-log "Step 2/3: Full check suite (qemu-stealth + ovmf-stealth + sed contracts + boot smoke)"
-if ! nix flake check --print-build-logs 2>&1; then
-  err "Check suite failed after update"
-  output "error_type" "build-error"
-  exit 1
-fi
-
-log "Step 3/3: ELF verification"
-nix build .#default
-# Verify the binary that actually matters — the stealth emulator. qemu is a
-# multi-output derivation (out/ga/doc/debug); the previous `find … | head -1`
-# grabbed an arbitrary first executable, which on that layout is qemu-ga (in
-# the separate `ga` output, not a plain ELF), so every real upstream bump
-# tripped "Not an ELF binary: result/bin/qemu-ga" (issue #5). Checking
-# qemu-system-x86_64 directly is robust to the output layout AND meaningful:
-# it proves the emulator built, not merely that *some* file is an ELF.
-QEMU_BIN="result/bin/qemu-system-x86_64"
-if [ ! -e "$QEMU_BIN" ]; then
-  err "qemu-system-x86_64 missing from build output"
-  output "error_type" "verification-error"
-  exit 1
-fi
-if ! file -L "$QEMU_BIN" | grep -q ELF; then
-  err "qemu-system-x86_64 is not an ELF binary: $(file -L "$QEMU_BIN" 2>&1)"
-  output "error_type" "verification-error"
-  exit 1
-fi
-log "Verified ELF: qemu-system-x86_64"
-rm -f result
-
-log "Update verified: $CURRENT_VERSION → $NEW_VERSION"
+log "no fork ships a patch newer than our vendored AMD-v${AMD_OURS}"
 exit 0
