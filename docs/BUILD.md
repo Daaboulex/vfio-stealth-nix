@@ -45,15 +45,17 @@ Each package output produces a verifiable artifact:
 
 ## Pre-commit hooks
 
-Hooks are installed automatically via `nix develop` (managed by
-`git-hooks.nix`):
+`nix develop` installs them. The set is not listed here: it comes from
+`flakeModules.base` in nix-packaging-standard, so any list in this file would
+be a second copy that drifts. Run the hooks to see the current set:
 
-- `treefmt` — runs `nixfmt-rfc-style` on changed `.nix` files
-- `nix-flake-check` — `nix flake check --no-build` on the staged tree
+```sh
+nix build .#checks.x86_64-linux.pre-commit --print-build-logs
+```
 
-A failing hook prints the exact command to reproduce. Bypassing hooks
-(`--no-verify`) is **not** allowed for this repo's branch protection
-ruleset — fix the violation and re-commit.
+A failing hook prints the exact command to reproduce. Bypassing with
+`--no-verify` is not allowed by this repo's branch protection ruleset -- fix
+the violation and re-commit.
 
 ## Tests
 

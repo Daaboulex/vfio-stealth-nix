@@ -20,34 +20,6 @@ echo "=== vfio-stealth host verification (domain: $DOMAIN) ==="
 echo ""
 
 # -----------------------------------------------------------------------
-# 1. BetterTiming kernel patch — check for markers in running kernel config
-# -----------------------------------------------------------------------
-if [[ -f /proc/config.gz ]]; then
-    # BetterTiming patches kvm_get_msr_common; check if KVM is built-in or module
-    if zcat /proc/config.gz | grep -q "CONFIG_KVM="; then
-        # Check kernel source markers via /sys if available, else check module symbols
-        if grep -q "total_exit_time" /proc/kallsyms 2>/dev/null; then
-            pass "BetterTiming: total_exit_time symbol found in kernel"
-        else
-            warn "BetterTiming: total_exit_time symbol not found (patch may not be applied)"
-        fi
-    else
-        skip "KVM not configured in kernel"
-    fi
-else
-    # Fallback: check loaded module
-    if lsmod | grep -q "^kvm "; then
-        if grep -q "total_exit_time" /proc/kallsyms 2>/dev/null; then
-            pass "BetterTiming: total_exit_time symbol found"
-        else
-            warn "BetterTiming: total_exit_time not in kallsyms (may need CONFIG_KALLSYMS_ALL)"
-        fi
-    else
-        skip "KVM module not loaded"
-    fi
-fi
-
-# -----------------------------------------------------------------------
 # 3. IOMMU groups — check for clean passthrough groups
 # -----------------------------------------------------------------------
 if [[ -d /sys/kernel/iommu_groups ]]; then
@@ -176,29 +148,30 @@ if [[ -n "${XML:-}" ]]; then
 fi
 
 # -----------------------------------------------------------------------
-# 9. BetterTiming — RDTSC interception handler in kallsyms
+# 9. BetterTiming — every patched handler present, or none of them
 # -----------------------------------------------------------------------
-if grep -q "handle_rdtsc_interception" /proc/kallsyms 2>/dev/null; then
-    pass "BetterTiming: handle_rdtsc_interception registered"
-else
-    fail "BetterTiming: handle_rdtsc_interception not in kallsyms (patch not applied?)"
-fi
-
-# -----------------------------------------------------------------------
-# 10. BetterTiming — stealth exit_reason wrappers
-# -----------------------------------------------------------------------
-STEALTH_WRAPPERS=0
-for sym in stealth_cpuid_interception stealth_wbinvd_interception stealth_xsetbv_interception stealth_invd_interception; do
+# The six handlers are real static functions, so they DO reach kallsyms. All
+# six or none is the only healthy state: a partial set means the patch applied
+# to some anchors and silently missed others. None at all is how a host with
+# timing.enable = false looks, which is a configuration and not a fault.
+BT_SYMS=(handle_rdtsc_interception handle_rdtscp_interception
+    stealth_cpuid_interception stealth_wbinvd_interception
+    stealth_xsetbv_interception stealth_invd_interception)
+BT_FOUND=0
+BT_MISSING=""
+for sym in "${BT_SYMS[@]}"; do
     if grep -q "$sym" /proc/kallsyms 2>/dev/null; then
-        STEALTH_WRAPPERS=$((STEALTH_WRAPPERS + 1))
+        BT_FOUND=$((BT_FOUND + 1))
+    else
+        BT_MISSING="$BT_MISSING $sym"
     fi
 done
-if [[ $STEALTH_WRAPPERS -eq 4 ]]; then
-    pass "BetterTiming: all 4 stealth exit wrappers present"
-elif [[ $STEALTH_WRAPPERS -gt 0 ]]; then
-    warn "BetterTiming: only $STEALTH_WRAPPERS/4 stealth exit wrappers found"
+if [[ $BT_FOUND -eq ${#BT_SYMS[@]} ]]; then
+    pass "BetterTiming: all ${#BT_SYMS[@]} patched handlers present"
+elif [[ $BT_FOUND -eq 0 ]]; then
+    skip "BetterTiming: not applied to this kernel (timing.enable off?)"
 else
-    fail "BetterTiming: no stealth exit wrappers in kallsyms"
+    fail "BetterTiming: only $BT_FOUND/${#BT_SYMS[@]} handlers present, missing:$BT_MISSING"
 fi
 
 # -----------------------------------------------------------------------

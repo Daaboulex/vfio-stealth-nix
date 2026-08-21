@@ -11,13 +11,13 @@ first signal that an anchor has moved.
 
 ## Reading order
 
-- `qemu/post-patch.nix` (35 substitutions): hardware identity, Q35 chipset
-  reversions, ICH9 LPC placement, PCI subsystem
-- `ovmf/package.nix` (6 substitutions + 1 filterdiff): firmware identity, MCH,
-  PM register address
-- `kernel/timing-patch.nix` (5 anchors): hand-ported BetterTiming TSC compensation
-- `kernel/cpuid-patch.nix` (2 anchors): Hypervisor-Phantom CPUID override
-- `kernel/cpuid-disable.nix` (2 anchors): CPUID passthrough (clear intercept)
+- `qemu/post-patch.nix`: hardware identity, Q35 chipset reversions, ICH9 LPC
+  placement, PCI subsystem
+- `ovmf/post-patch.nix`: firmware identity, MCH, PM register address
+
+Counts are deliberately not given here; they would be a second number to keep
+in step with the code. The kernel scripts are not catalogued at all -- see
+"kernel/*.nix" below for why.
 
 ---
 
@@ -288,7 +288,7 @@ first signal that an anchor has moved.
 - **Repair:** Update the grep pattern; the FATAL is loud so this
   fails LOUDLY
 
-## qemu/package.nix — PCI subsystem vendor (global default)
+## qemu/post-patch.nix — PCI subsystem vendor (global default)
 
 - **Anchor:** `PCI_SUBVENDOR_ID_REDHAT_QUMRANET  0x1af4` (include/hw/pci/pci.h)
 - **Replacement:** `PCI_SUBVENDOR_ID_REDHAT_QUMRANET  0x8086`
@@ -311,7 +311,7 @@ first signal that an anchor has moved.
 
 ---
 
-## ovmf/package.nix — Firmware vendor string
+## ovmf/post-patch.nix — Firmware vendor string
 
 - **Anchor:** `L"EDK II"` (MdeModulePkg/MdeModulePkg.dec +
   OvmfPkg/OvmfPkgX64.dsc)
@@ -324,7 +324,7 @@ first signal that an anchor has moved.
 - **Repair:** Update the file list in the sed; consider scoping
   the guard to a glob that catches the new file
 
-## ovmf/package.nix — BGRT module strip (DSC)
+## ovmf/post-patch.nix — BGRT module strip (DSC)
 
 - **Anchor:** `BootGraphicsResourceTableDxe` (OvmfPkg/OvmfPkgX64.dsc)
 - **Replacement:** (deleted)
@@ -335,7 +335,7 @@ first signal that an anchor has moved.
   silently. The guard catches this (string still present = fail)
 - **Repair:** Update the anchor to the new module name
 
-## ovmf/package.nix — BGRT module strip (FDF)
+## ovmf/post-patch.nix — BGRT module strip (FDF)
 
 - **Anchor:** `BootGraphicsResourceTableDxe` (OvmfPkg/OvmfPkgX64.fdf)
 - **Replacement:** (deleted)
@@ -343,7 +343,7 @@ first signal that an anchor has moved.
 - **Guard:** grep -q must NOT find the string in .fdf
 - **Breaks when:** Same as DSC strip
 
-## ovmf/package.nix — LogoDxe module strip (FDF)
+## ovmf/post-patch.nix — LogoDxe module strip (FDF)
 
 - **Anchor:** `LogoDxe` (OvmfPkg/OvmfPkgX64.fdf)
 - **Replacement:** (deleted)
@@ -353,7 +353,7 @@ first signal that an anchor has moved.
 - **Breaks when:** AutoVirt renames LogoDxe
 - **Repair:** Update the anchor
 
-## ovmf/package.nix — OVMF MCH device ID
+## ovmf/post-patch.nix — OVMF MCH device ID
 
 - **Anchor:** `define INTEL_Q35_MCH_DEVICE_ID    0x14d8`
   (OvmfPkg/Include/IndustryStandard/Q35MchIch9.h)
@@ -382,7 +382,7 @@ first signal that an anchor has moved.
   catch a leaked BaseTools hunk -- strengthen if this becomes an
   issue
 
-## ovmf/package.nix -- BGRT FDF guard
+## ovmf/post-patch.nix -- BGRT FDF guard
 
 - **Anchor:** `BootGraphicsResourceTableDxe` (OvmfPkg/OvmfPkgX64.fdf)
 - **Replacement:** (deleted)
