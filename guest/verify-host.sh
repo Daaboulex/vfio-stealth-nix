@@ -48,17 +48,6 @@ else
 fi
 
 # -----------------------------------------------------------------------
-# 2. CPUID emulation patch — check for Hypervisor-Phantom marker
-# -----------------------------------------------------------------------
-if grep -q "cpuid_leaf0_spoof" /proc/kallsyms 2>/dev/null; then
-    pass "CPUID override: cpuid_leaf0_spoof symbol found"
-elif grep -q "reenter_guest_fast" /proc/kallsyms 2>/dev/null; then
-    pass "CPUID override: reenter_guest_fast symbol found"
-else
-    warn "CPUID override: no Hypervisor-Phantom symbols in kallsyms"
-fi
-
-# -----------------------------------------------------------------------
 # 3. IOMMU groups — check for clean passthrough groups
 # -----------------------------------------------------------------------
 if [[ -d /sys/kernel/iommu_groups ]]; then
