@@ -322,13 +322,13 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 **BetterTiming** (`timing-patch.nix`):
 
 - Adds `last_exit_start` and `total_exit_time` fields to `struct kvm_vcpu`
-- Wraps `vcpu_enter_guest` to measure VM-exit duration
+- Adds `total_exit_time` to `struct kvm_vcpu`; every stealth exit handler self-times with `rdtsc()` and accumulates only its own duration
 - Patches `MSR_IA32_TSC` reads to return compensated (exit-time-subtracted) values
 - Enables RDTSC + RDTSCP interception in SVM `init_vmcb`
 - Adds `handle_rdtsc_interception` handler that returns compensated TSC
 - Adds `handle_rdtscp_interception` handler returning compensated TSC + TSC_AUX in ECX
-- Wraps CPUID, WBINVD, XSETBV, INVD exit handlers to tag `exit_reason=0xDEAD` for timing compensation
-- Disables KVM hypercall instruction patching (`emulator_fix_hypercall` always injects #UD)
+- Wraps the CPUID, WBINVD, XSETBV and INVD exit handlers so each accumulates its own execution time
+- Disables KVM hypercall instruction patching by forcing the `KVM_X86_QUIRK_FIX_HYPERCALL_INSN` check true, so VMCALL/VMMCALL always injects #UD. This is host-wide: every VM on the host gets #UD, so Linux guests lose KVM paravirt features (kvmclock, PV TLB flush)
 
 **CPUID emulation** (`cpuid-patch.nix`):
 

@@ -58,12 +58,11 @@ vfio-stealth-nix/
 │   │                        # selection, fail-closed cases (fixtures/)
 │   ├── sed-contract-qemu.nix    # Per-vendor mirror of the real QEMU build
 │   ├── sed-contract-edk2.nix    # Per-vendor mirror of the OVMF postPatch
-│   ├── kernel-anchor-contract.nix   # Kernel sed anchors vs real sources
+│   ├── kernel-postpatch-fits.nix    # Real patch scripts vs real kernel sources
 │   └── lib-output-contract.nix  # mkStealthFeatures output guards
 ├── scripts/
-│   ├── update.sh            # AutoVirt input bumper; runs the full check
-│   │                        # suite before a green auto-push
-│   └── check-kernel-patches.sh  # Validate kernel patch anchors
+│   └── update.sh            # AutoVirt input bumper; runs the full check
+│                            # suite before a green auto-push
 ├── .github/
 │   ├── workflows/{ci,update,maintenance}.yml
 │   └── update.json
@@ -101,9 +100,11 @@ See README "What the patches do" for the detailed breakdown of each patch.
 2. **CPUID emulation** (`kernel/cpuid-patch.nix`) -- Hypervisor-Phantom leaf 0 override without full VM exit
 3. **CPUID passthrough** (`kernel/cpuid-disable.nix`) -- exit-less CPUID, guest runs at native hardware speed
 
-Patches target function signatures and symbol names, not line numbers,
-for resilience across kernel versions. Validated via CI against
-nixpkgs latest kernel (see `scripts/check-kernel-patches.sh`).
+Patches target function names and symbol names, not line numbers or
+argument names, for resilience across kernel versions. Every edit verifies
+its own effect, and `checks.kernel-postpatch-fits-cachyos` /
+`checks.kernel-postpatch-fits-upstream` run the real scripts against the
+CachyOS and nixpkgs-latest kernel sources in CI.
 See README §Kernel Integration for the wiring snippets
 (CachyOS + stock kernel variants).
 

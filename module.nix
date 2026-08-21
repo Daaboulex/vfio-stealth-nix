@@ -8,6 +8,7 @@ let
   cfg = config.myModules.vfio.stealth;
 
   # These are shell script strings (postPatch fragments), not .patch files.
+  kernelPrelude = import ./kernel/prelude.nix;
   timingPatchScript = import ./kernel/timing-patch.nix;
   cpuidPatchScript = import ./kernel/cpuid-patch.nix;
   cpuidDisableScript = import ./kernel/cpuid-disable.nix;
@@ -38,7 +39,7 @@ in
       enable = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "BetterTiming TSC compensation (hides VM exit timing from guests). Compensates RDTSC timing deltas from VM exits across CPUID/VMCALL.";
+        description = "BetterTiming TSC compensation (hides VM exit timing from guests). Compensates RDTSC timing deltas from VM exits across CPUID/VMCALL. Also disables KVM hypercall instruction patching HOST-WIDE, so every VM on this host gets #UD for VMCALL/VMMCALL and Linux guests lose KVM paravirt features (kvmclock, PV TLB flush).";
       };
     };
 
@@ -716,11 +717,15 @@ in
     readOnly = true;
     internal = true;
     default =
-      lib.optionalString (cfg.enable && cfg.timing.enable) timingPatchScript
-      + lib.optionalString (
-        cfg.enable && cfg.cpuidSpoof.enable && !cfg.cpuidPassthrough.enable
-      ) cpuidPatchScript
-      + lib.optionalString (cfg.enable && cfg.cpuidPassthrough.enable) cpuidDisableScript;
+      let
+        scripts =
+          lib.optionalString (cfg.enable && cfg.timing.enable) timingPatchScript
+          + lib.optionalString (
+            cfg.enable && cfg.cpuidSpoof.enable && !cfg.cpuidPassthrough.enable
+          ) cpuidPatchScript
+          + lib.optionalString (cfg.enable && cfg.cpuidPassthrough.enable) cpuidDisableScript;
+      in
+      lib.optionalString (scripts != "") kernelPrelude + scripts;
     description = "Combined kernel postPatch script. Apply via kernel overrideAttrs in host config.";
   };
 }

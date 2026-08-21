@@ -53,7 +53,8 @@ nix flake check .#checks.x86_64-linux.sed-contract-qemu
 nix flake check .#checks.x86_64-linux.sed-contract-edk2
 nix flake check .#checks.x86_64-linux.autovirt-patch-contract
 nix flake check .#checks.x86_64-linux.qemu-ceiling-contract
-nix flake check .#checks.x86_64-linux.kernel-anchor-contract
+nix flake check .#checks.x86_64-linux.kernel-postpatch-fits-cachyos
+nix flake check .#checks.x86_64-linux.kernel-postpatch-fits-upstream
 nix flake check .#checks.x86_64-linux.lib-output-contract
 nix flake check .#checks.x86_64-linux.boot-smoke
 ```
@@ -83,8 +84,8 @@ nix flake update nix-cachyos-kernel
 ```
 
 This is on HEAD; no specific version to inspect. The
-`kernel-anchor-contract` test will fire if a CachyOS patch moves
-an awk anchor.
+`kernel-postpatch-fits-cachyos` check will fire if a CachyOS or upstream
+change moves an anchor the patch scripts edit.
 
 ### 3. Bump the contract test against the NEW dep first
 
@@ -199,13 +200,13 @@ Each contract test is a `checks.<system>.<name>` derivation in
 - `checks.update-gap-contract`: pins the patch-gap probe in
   `scripts/update.sh` -- which QEMU versions count as covered by the
   vendored AMD series and which count as a gap.
-- `checks.kernel-anchor-contract`: extracts both the nixpkgs
-  `linux_latest` source AND the CachyOS LTO latest source from
-  `xddxdd/nix-cachyos-kernel`; asserts every awk anchor in
-  `kernel/*.nix` exists at least once; warns (does NOT fail) if
-  the match count exceeds the awk-target's safe maximum (which
-  would mean a brace-variant of the anchor has appeared in the
-  kernel source).
+- `checks.kernel-postpatch-fits-cachyos` and
+  `checks.kernel-postpatch-fits-upstream`: unpack the CachyOS LTO latest
+  source from `xddxdd/nix-cachyos-kernel` and the nixpkgs `linux_latest`
+  source, then RUN the real `kernel/*.nix` scripts against them, once per
+  enable-combination. Each script verifies every edit it makes, so an
+  anchor that moved fails the check by name instead of silently applying
+  nothing. Both fail-closed; neither prints a failure and then passes.
 - `checks.boot-smoke`: actual QEMU + OVMF build with the patched
   sources; boots a minimal NixOS guest to multi-user target.
   This is the end-to-end smoke test; the contract tests above

@@ -103,7 +103,7 @@ before push to `main`.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `nix build` fails with `cannot resolve goto reenter_guest_fast` | Kernel newer than the patch target | Run `scripts/check-kernel-patches.sh` against the kernel source to identify broken anchors, then update the patch file |
+| `nix build` fails with `cannot resolve goto reenter_guest_fast` | Kernel newer than the patch target | Run `nix build .#checks.x86_64-linux.kernel-postpatch-fits-cachyos`; it names the edit that no longer lands. Re-aim that edit in `kernel/*.nix` |
 | Eval error: `option myModules.vfio.stealth.kernel.timing.enable already declared` | Loaded both this flake's module and an outdated copy from another flake | Drop the duplicate `imports` entry — only one stealth module per system |
 | `iasl` complains about ACPI SSDT compilation in `acpi-ssdt-stealth` | Outdated `iasl` (older than 20240927) | Bump nixpkgs input or `inputs.nixpkgs.follows = "nixpkgs";` to use the host's nixpkgs |
 | Guest still detected as VM despite `myModules.vfio.stealth.enable = true` | One of the kernel patches not applied | Confirm `boot.kernelPackages` is wired to a kernel built with `_kernelPostPatch` appended (see README §Kernel Integration) |

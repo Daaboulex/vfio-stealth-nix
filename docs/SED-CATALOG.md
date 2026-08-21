@@ -393,129 +393,14 @@ first signal that an anchor has moved.
 
 ---
 
-## kernel/timing-patch.nix:19 — kvm_vcpu.valid_wakeup
+## kernel/*.nix -- not catalogued here
 
-- **Anchor:** `bool valid_wakeup;` (include/linux/kvm_host.h)
-- **Tool:** sed `/bool valid_wakeup;/a\` (insert timing fields after)
-- **Guard:** FATAL if anchor not found
-- **Counters:** Adds `last_exit_start` and `total_exit_time` fields
-  to struct kvm_vcpu
-- **Breaks when:** Kernel renames the field (e.g., to `pending_wakeup`)
-
-## kernel/timing-patch.nix:31 — MSR_IA32_TSC case in kvm_get_msr_common
-
-- **Anchor:** `case MSR_IA32_TSC: {` (arch/x86/kvm/x86.c)
-- **Tool:** awk (rewrites the whole block)
-- **Guard:** FATAL if anchor not found
-- **Counters:** TSC compensation in the MSR read handler
-- **Breaks when:** Kernel adds another brace variant of this case label
-  (the awk matches the FIRST occurrence; future-you may need to
-  disambiguate with a more specific anchor)
-- **Repair:** The `tests/kernel-anchor-contract.nix` check asserts
-  the match count is 1; if it grows, the test fails LOUDLY
-
-## kernel/timing-patch.nix:60 — svm_set_intercept INTERCEPT_RSM
-
-- **Anchor:** `svm_set_intercept(svm, INTERCEPT_RSM);`
-  (arch/x86/kvm/svm/svm.c, in init_vmcb)
-- **Tool:** sed `/.../a\` (insert RDTSC/RDTSCP intercepts)
-- **Guard:** FATAL if anchor not found
-- **Counters:** Enables RDTSC/RDTSCP interception in init_vmcb
-- **Breaks when:** Kernel renames INTERCEPT_RSM (very stable enum)
-
-## kernel/timing-patch.nix:74 — svm_exit_handlers table
-
-- **Anchor:** `static int (*const svm_exit_handlers[])` (svm.c)
-- **Tool:** sed `/^static int (\*const svm_exit_handlers\[\])/i\`
-  (insert stealth wrapper functions before the table)
-- **Guard:** none (the wrapper functions are still inserted even
-  if the table name moves; the sed becomes a no-op for the table
-  registration but the new functions are defined and never called —
-  silent failure)
-- **Breaks when:** Kernel renames `svm_exit_handlers`. The insertion
-  still happens but the function registration in the table breaks.
-- **Repair:** Update the anchor; consider asserting the table name
-  is in the source before sedding
-
-## kernel/timing-patch.nix:148 — AVIC_UNACCELERATED_ACCESS entry
-
-- **Anchor:** `[SVM_EXIT_AVIC_UNACCELERATED_ACCESS].*=.*avic_unaccelerated_access_interception`
-  (svm.c, the exit-handler table)
-- **Tool:** sed `/.../a\` (insert RDTSC entry after)
-- **Guard:** FATAL if anchor not found
-- **Counters:** Anchor for the RDTSC entry insertion in the table
-- **Breaks when:** Kernel renames the AVIC handler
-
-## kernel/timing-patch.nix:158 — RDTSCP entry in handler table
-
-- **Anchor:** `[SVM_EXIT_RDTSCP].*=.*kvm_handle_invalid_op,` (svm.c)
-- **Tool:** sed `s/[SVM_EXIT_RDTSCP].*=.*kvm_handle_invalid_op,/[SVM_EXIT_RDTSC]\t\t\t= handle_rdtscp_interception,/`
-- **Guard:** FATAL if anchor not found
-- **Counters:** Replaces the upstream kvm_handle_invalid_op mapping
-  with our handle_rdtscp_interception
-- **Breaks when:** Kernel removes the kvm_handle_invalid_op fallback
-  (e.g., always uses the proper handler) — sed no-ops, our RDTSCP
-  handler isn't registered, RDTSCP is no-op'd in the guest
-
-## kernel/timing-patch.nix:182 — KVM_X86_QUIRK_FIX_HYPERCALL_INSN check
-
-- **Anchor:** `if (!kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_FIX_HYPERCALL_INSN))`
-  (arch/x86/kvm/x86.c)
-- **Tool:** sed `s/if (!kvm_check_has_quirk(...))/if (1)/`
-- **Guard:** FATAL if anchor not found
-- **Counters:** Disables KVM's hypercall instruction patching
-- **Breaks when:** Kernel renames the quirk (e.g., to
-  `KVM_X86_QUIRK_DISABLE_HYPERCALL_PATCH`)
-
----
-
-## kernel/cpuid-patch.nix:22 — svm_vcpu_enter_exit call site
-
-- **Anchor:** `svm_vcpu_enter_exit(vcpu, spec_ctrl_intercepted);`
-  (arch/x86/kvm/svm/svm.c, the call in svm_vcpu_run)
-- **Tool:** sed `/.../i\` (insert `reenter_guest_fast:` label before)
-- **Guard:** FATAL if anchor not found
-- **Counters:** The label for the CPUID leaf 0 override's goto
-- **Breaks when:** Kernel changes the call site signature
-
-## kernel/cpuid-patch.nix:38 — svm_vcpu_enter_exit (insertion site)
-
-- **Anchor:** same as above (the call site)
-- **Tool:** sed `/^\tsvm_vcpu_enter_exit(vcpu, spec_ctrl_intercepted);$/a\`
-  (insert the CPUID override block after)
-- **Guard:** FATAL if anchor not found
-- **Counters:** The CPUID leaf 0 override block
-- **Breaks when:** same as above
-
-## kernel/cpuid-patch.nix:50 — svm_set_intercept INTERCEPT_RSM
-
-- **Anchor:** `svm_set_intercept(svm, INTERCEPT_RSM);` (svm.c)
-- **Tool:** sed `/.../a\` (clear RDTSC/RDTSCP intercepts)
-- **Guard:** FATAL if anchor not found
-- **Counters:** Clears RDTSC/RDTSCP interception (complementary to
-  BetterTiming's intercept-enable)
-- **Breaks when:** same as timing-patch's INTERCEPT_RSM anchor
-
----
-
-## kernel/cpuid-disable.nix:47 — svm_set_intercept INTERCEPT_RSM
-
-- **Anchor:** `svm_set_intercept(svm, INTERCEPT_RSM);` (svm.c)
-- **Tool:** sed `/.../a\` (clear INTERCEPT_CPUID)
-- **Guard:** FATAL if anchor not found
-- **Counters:** Disables CPUID interception (CPUID passthrough)
-- **Breaks when:** same INTERCEPT_RSM refactor risk
-
-## kernel/cpuid-disable.nix:60 — pre_svm_run function definition
-
-- **Anchor:** `static int pre_svm_run(struct kvm_vcpu *vcpu)` (svm.c)
-- **Tool:** sed range `/^static int pre_svm_run(struct kvm_vcpu \*vcpu)/,/^}/` (insert INTERCEPT_CPUID clear inside)
-- **Guard:** WARN (not FATAL) if anchor not found; the init_vmcb
-  clear is sufficient for non-nested
-- **Counters:** Belt-and-suspenders: clears INTERCEPT_CPUID on every
-  VMRUN
-- **Breaks when:** Kernel refactors pre_svm_run (split for big-PIC,
-  renamed, etc.)
+The kernel scripts are not restated in this catalog. Each of their edits
+now verifies its own effect (`landed` / `gone` / `exactly_one` from
+`kernel/prelude.nix`), and `checks.kernel-postpatch-fits-cachyos` and
+`checks.kernel-postpatch-fits-upstream` run the real scripts against real
+kernel sources for every enable-combination. A copy of the anchors here
+could only drift from the scripts that own them.
 
 ---
 
@@ -526,6 +411,9 @@ When a sed is added or moved:
 1. Add or update the section here
 2. Add the corresponding guard in `tests/sed-contract-qemu.nix` or
    `tests/sed-contract-edk2.nix`
-3. Add the corresponding awk anchor in `tests/kernel-anchor-contract.nix`
-4. Run `nix flake check` — the contract test must pass with the
+3. Run `nix flake check` -- the contract test must pass with the
    new anchor against the current upstream
+
+Kernel scripts need no catalog entry: add the edit in `kernel/*.nix`
+followed by a `landed` (or `gone`) call naming what it must produce, and
+`checks.kernel-postpatch-fits-*` covers it automatically.

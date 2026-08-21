@@ -14,12 +14,8 @@
       inputs.git-hooks.follows = "git-hooks";
     };
 
-    # CachyOS kernel packaging — used by the kernel-anchor-contract
-    # test to verify the awk anchors in the user's actual production
-    # kernel source (CachyOS's BORE/LTO/Zen4 patches + upstream Linux).
-    # Tracking `master` (latest) so the contract test follows the
-    # user's rolling kernel; if a CachyOS bump moves an anchor, the
-    # test fails LOUDLY at `nix flake check` time, not at boot.
+    # CachyOS kernel packaging, tracking master so kernel-postpatch-fits-cachyos
+    # runs the real patch scripts against the rolling production kernel source.
     nix-cachyos-kernel = {
       url = "github:xddxdd/nix-cachyos-kernel";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -124,9 +120,15 @@
 
           checks.options-documented = pkgs.callPackage ./tests/options-documented.nix { };
 
-          checks.kernel-anchor-contract = pkgs.callPackage ./tests/kernel-anchor-contract.nix {
-            cachyosLtoLatest =
-              inputs.nix-cachyos-kernel.legacyPackages.x86_64-linux.linuxPackages-cachyos-latest-lto;
+          checks.kernel-postpatch-fits-cachyos = pkgs.callPackage ./tests/kernel-postpatch-fits.nix {
+            sourceName = "cachyos-lto-latest";
+            kernelSrc =
+              inputs.nix-cachyos-kernel.legacyPackages.x86_64-linux.linuxPackages-cachyos-latest-lto.kernel.src;
+          };
+
+          checks.kernel-postpatch-fits-upstream = pkgs.callPackage ./tests/kernel-postpatch-fits.nix {
+            sourceName = "upstream-latest";
+            kernelSrc = pkgs.linux_latest.src;
           };
 
           checks.lib-output-contract = pkgs.callPackage ./tests/lib-output-contract.nix {
