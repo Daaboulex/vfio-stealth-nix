@@ -118,6 +118,42 @@
           checks.qemu-ceiling-contract = pkgs.callPackage ./tests/ceiling-contract.nix { };
           checks.update-gap-contract = pkgs.callPackage ./tests/update-gap-contract.nix { };
 
+          # The catalog rotted once already: seven entries still named
+          # qemu/package.nix after those seds moved into post-patch.nix, and
+          # nothing noticed. Two invariants, both cheap, both silent until
+          # something actually drifts.
+          checks.sed-catalog-lean =
+            pkgs.runCommand "sed-catalog-lean"
+              {
+                catalog = ./docs/SED-CATALOG.md;
+                repo = self;
+              }
+              ''
+                bad=0
+
+                while IFS= read -r f; do
+                  [ -n "$f" ] || continue
+                  if [ ! -e "$repo/$f" ]; then
+                    echo "::error::SED-CATALOG.md documents '$f', which does not exist. The edit moved; re-point the heading."
+                    bad=1
+                  elif ! grep -qE 'substituteInPlace|sed -i|awk |filterdiff' "$repo/$f"; then
+                    echo "::error::SED-CATALOG.md documents '$f', but that file performs no text rewrite any more."
+                    echo "This is how it rotted last time: the file still existed, the seds had moved out of it."
+                    bad=1
+                  fi
+                done < <(grep -oE '^## [a-zA-Z0-9_./-]+\.nix' "$catalog" | sed 's/^## //' | sort -u)
+
+                if grep -nE '\*\*(Anchor|Replacement|Tool|Guard):\*\*' "$catalog"; then
+                  echo "::error::SED-CATALOG.md restates what post-patch.nix owns (lines above)."
+                  echo "Those fields drift silently and the sed-contract checks already verify them. Delete them."
+                  bad=1
+                fi
+
+                [ "$bad" = 0 ] || exit 1
+                echo "sed-catalog-lean: every documented file exists, and nothing the code owns is restated"
+                touch "$out"
+              '';
+
           checks.options-documented = pkgs.callPackage ./tests/options-documented.nix { };
 
           checks.kernel-postpatch-fits-cachyos = pkgs.callPackage ./tests/kernel-postpatch-fits.nix {
