@@ -176,7 +176,7 @@ fi
 # 8. ACPI tables loaded
 # -----------------------------------------------------------------------
 if [[ -n "${XML:-}" ]]; then
-    ACPI_TABLES=$(echo "$XML" | grep -c "acpitable" 2>/dev/null || echo "0")
+    ACPI_TABLES=$(echo "$XML" | grep -c "acpitable" 2>/dev/null) || ACPI_TABLES=0
     if [[ "$ACPI_TABLES" -ge 2 ]]; then
         pass "ACPI: $ACPI_TABLES custom tables loaded"
     elif [[ "$ACPI_TABLES" -ge 1 ]]; then
