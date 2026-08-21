@@ -131,6 +131,17 @@
             kernelSrc = pkgs.linux_latest.src;
           };
 
+          checks.kernel-kvm-compiles-cachyos = pkgs.callPackage ./tests/kernel-kvm-compiles.nix {
+            sourceName = "cachyos-lto-latest";
+            kernel =
+              inputs.nix-cachyos-kernel.legacyPackages.x86_64-linux.linuxPackages-cachyos-latest-lto.kernel;
+          };
+
+          checks.kernel-kvm-compiles-upstream = pkgs.callPackage ./tests/kernel-kvm-compiles.nix {
+            sourceName = "upstream-latest";
+            kernel = pkgs.linux_latest;
+          };
+
           checks.lib-output-contract = pkgs.callPackage ./tests/lib-output-contract.nix {
             inherit (self.packages.${pkgs.stdenv.hostPlatform.system})
               acpi-ssdt-stealth
