@@ -30,13 +30,25 @@
       imports = [ inputs.std.flakeModules.base ];
 
       flake.overlays.default = final: _prev: {
-        qemu-stealth = self.packages.${final.stdenv.hostPlatform.system}.default;
-        qemu-stealth-intel = self.packages.${final.stdenv.hostPlatform.system}.qemu-stealth-intel;
-        ovmf-stealth-intel = self.packages.${final.stdenv.hostPlatform.system}.ovmf-stealth-intel;
-        ovmf-stealth = self.packages.${final.stdenv.hostPlatform.system}.ovmf-stealth;
-        acpi-ssdt-stealth = self.packages.${final.stdenv.hostPlatform.system}.acpi-ssdt-stealth;
-        smbios-extract = self.packages.${final.stdenv.hostPlatform.system}.smbios-extract;
-        smbios-stealth-tables = self.packages.${final.stdenv.hostPlatform.system}.smbios-stealth-tables;
+        qemu-stealth = final.callPackage ./qemu/package.nix {
+          autovirt = ./vendor/autovirt;
+          cpuVendor = "amd";
+        };
+        qemu-stealth-intel = final.callPackage ./qemu/package.nix {
+          autovirt = ./vendor/autovirt;
+          cpuVendor = "intel";
+        };
+        ovmf-stealth = final.callPackage ./ovmf/package.nix {
+          autovirt = ./vendor/autovirt;
+          cpuVendor = "amd";
+        };
+        ovmf-stealth-intel = final.callPackage ./ovmf/package.nix {
+          autovirt = ./vendor/autovirt;
+          cpuVendor = "intel";
+        };
+        acpi-ssdt-stealth = final.callPackage ./acpi/package.nix { };
+        smbios-extract = final.callPackage ./smbios/package.nix { };
+        smbios-stealth-tables = final.callPackage ./smbios/tables-package.nix { };
       };
 
       flake.nixosModules.default = import ./module.nix;
