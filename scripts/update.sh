@@ -31,9 +31,10 @@ amd_series_set() {
 }
 
 qemu_gap_for() {
-  local qemu_version="$1" series
+  local qemu_version="$1" series amd_series
   series="${qemu_version%.*}"
-  if ! amd_series_set | grep -qx "$series"; then
+  amd_series=$(amd_series_set || true)
+  if ! grep -qx "$series" <<<"$amd_series"; then
     printf '%s' "$qemu_version"
   fi
 }

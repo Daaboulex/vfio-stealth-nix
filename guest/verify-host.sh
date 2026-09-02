@@ -65,14 +65,14 @@ if command -v virsh &>/dev/null; then
     XML=$(virsh dumpxml "$DOMAIN" 2>/dev/null || true)
     if [[ -n "$XML" ]]; then
         # Check sysinfo smbios block
-        if echo "$XML" | grep -q "<sysinfo type='smbios'>"; then
+        if grep -q "<sysinfo type='smbios'>" <<<"$XML"; then
             pass "SMBIOS: sysinfo block present in domain XML"
         else
             fail "SMBIOS: no sysinfo block in domain XML"
         fi
 
         # Check os smbios mode
-        if echo "$XML" | grep -q "smbios mode='sysinfo'"; then
+        if grep -q "smbios mode='sysinfo'" <<<"$XML"; then
             pass "SMBIOS: os smbios mode=sysinfo set"
         else
             fail "SMBIOS: os smbios mode not set to sysinfo"
@@ -115,13 +115,13 @@ fi
 # 7. KVM hidden + Hyper-V vendor_id
 # -----------------------------------------------------------------------
 if [[ -n "${XML:-}" ]]; then
-    if echo "$XML" | grep -q "<hidden state='on'/>"; then
+    if grep -q "<hidden state='on'/>" <<<"$XML"; then
         pass "KVM hidden: enabled"
     else
         fail "KVM hidden: not set in domain XML"
     fi
 
-    if echo "$XML" | grep -q "vendor_id"; then
+    if grep -q "vendor_id" <<<"$XML"; then
         VENDOR_ID=$(echo "$XML" | grep "vendor_id" | sed "s/.*value='\([^']*\)'.*/\1/")
         if [[ "$VENDOR_ID" == "Microsoft Hv" || "$VENDOR_ID" == "KVMKVMKVM" || "$VENDOR_ID" == "AMDisbetter!" ]]; then
             fail "Hyper-V vendor_id is a known VM value: $VENDOR_ID"
@@ -178,12 +178,12 @@ fi
 # 11. Kernel boot params: kvm_amd.vls=0 + vgif=0
 # -----------------------------------------------------------------------
 CMDLINE=$(cat /proc/cmdline)
-if echo "$CMDLINE" | grep -q "kvm_amd.vls=0"; then
+if grep -q "kvm_amd.vls=0" <<<"$CMDLINE"; then
     pass "Kernel param: kvm_amd.vls=0"
 else
     fail "Kernel param: kvm_amd.vls=0 missing"
 fi
-if echo "$CMDLINE" | grep -q "kvm_amd.vgif=0"; then
+if grep -q "kvm_amd.vgif=0" <<<"$CMDLINE"; then
     pass "Kernel param: kvm_amd.vgif=0"
 else
     fail "Kernel param: kvm_amd.vgif=0 missing"
@@ -192,7 +192,7 @@ fi
 # -----------------------------------------------------------------------
 # 12. Kernel boot params: tsc=reliable
 # -----------------------------------------------------------------------
-if echo "$CMDLINE" | grep -q "tsc=reliable"; then
+if grep -q "tsc=reliable" <<<"$CMDLINE"; then
     pass "Kernel param: tsc=reliable"
 else
     warn "Kernel param: tsc=reliable not set"
@@ -215,7 +215,7 @@ if [[ -n "${XML:-}" ]]; then
     QEMU_PATH=$(echo "$XML" | grep -oP '/nix/store/[^<"]+qemu-system-x86_64' | head -1 || true)
     if [[ -n "$QEMU_PATH" ]]; then
         QEMU_STORE=$(readlink -f "$QEMU_PATH" 2>/dev/null || echo "$QEMU_PATH")
-        if echo "$QEMU_STORE" | grep -q "qemu-stealth"; then
+        if grep -q "qemu-stealth" <<<"$QEMU_STORE"; then
             pass "QEMU: using qemu-stealth"
         else
             fail "QEMU: stock QEMU, not qemu-stealth"
@@ -229,46 +229,48 @@ fi
 if [[ -n "${QEMU_PATH:-}" ]]; then
     QEMU_BIN=$(readlink -f "$QEMU_PATH" 2>/dev/null || echo "$QEMU_PATH")
     if [[ -x "$QEMU_BIN" ]]; then
+        QEMU_STRINGS=$(strings "$QEMU_BIN" || true)
+
         # EDID manufacturer
-        if strings "$QEMU_BIN" | grep -q "RHT"; then
+        if grep -q "RHT" <<<"$QEMU_STRINGS"; then
             fail "EDID still contains RHT manufacturer"
         else
             pass "EDID: RHT manufacturer string replaced"
         fi
 
         # ACPI OEM IDs
-        if strings "$QEMU_BIN" | grep -q "BOCHS "; then
+        if grep -q "BOCHS " <<<"$QEMU_STRINGS"; then
             fail "ACPI still contains BOCHS OEM ID"
         else
             pass "ACPI: BOCHS OEM ID replaced"
         fi
-        if strings "$QEMU_BIN" | grep -q "BXPC    "; then
+        if grep -q "BXPC    " <<<"$QEMU_STRINGS"; then
             fail "ACPI still contains BXPC table ID"
         else
             pass "ACPI: BXPC table ID replaced"
         fi
 
         # IDE/disk model strings
-        if strings "$QEMU_BIN" | grep -q "QEMU HARDDISK"; then
+        if grep -q "QEMU HARDDISK" <<<"$QEMU_STRINGS"; then
             fail "IDE still contains QEMU HARDDISK"
         else
             pass "IDE: QEMU HARDDISK replaced"
         fi
-        if strings "$QEMU_BIN" | grep -q "QEMU DVD-ROM"; then
+        if grep -q "QEMU DVD-ROM" <<<"$QEMU_STRINGS"; then
             fail "IDE still contains QEMU DVD-ROM"
         else
             pass "IDE: QEMU DVD-ROM replaced"
         fi
 
         # SCSI vendor identity
-        if strings "$QEMU_BIN" | grep -q "QEMU    "; then
+        if grep -q "QEMU    " <<<"$QEMU_STRINGS"; then
             fail "SCSI still contains QEMU vendor"
         else
             pass "SCSI: QEMU vendor string replaced"
         fi
 
         # USB HID identifiers
-        if strings "$QEMU_BIN" | grep -q "QEMU USB"; then
+        if grep -q "QEMU USB" <<<"$QEMU_STRINGS"; then
             fail "USB HID still contains QEMU identifiers"
         else
             pass "USB: QEMU USB identifiers replaced"
@@ -285,7 +287,7 @@ fi
 # Q35 does not auto-create pvpanic; it only appears if libvirt adds <panic>.
 # -----------------------------------------------------------------------
 if [[ -n "${XML:-}" ]]; then
-    if echo "$XML" | grep -q '<panic'; then
+    if grep -q '<panic' <<<"$XML"; then
         fail "pvpanic device present in domain XML (<panic> element exposes ACPI HID QEMU0001)"
     else
         pass "No pvpanic <panic> element in domain XML"
