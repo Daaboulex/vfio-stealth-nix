@@ -9,7 +9,7 @@ integration is layered.
 ```text
 vfio-stealth-nix/
 ├── flake.nix                # packages, overlays.default, nixosModules.default
-├── module.nix               # myModules.vfio.stealth.* options + assertions
+├── module.nix               # virtualisation.vfio-stealth.* options + assertions
 ├── lib.nix                  # libvirt domain rewriter (NixVirt int typing,
 │                            # vendor_id, kvm-hidden, emulated-battery wiring)
 ├── lib/
@@ -37,11 +37,11 @@ vfio-stealth-nix/
 │   └── package.nix          # Compiles DSL → AML, bundles as derivation
 ├── kernel/
 │   ├── timing-patch.nix     # BetterTiming TSC compensation
-│   │                        # → exposed via _kernelPostPatch
+│   │                        # → exposed via kernelPostPatch
 │   ├── cpuid-patch.nix      # Hypervisor-Phantom CPUID leaf 0 override
-│   │                        # → exposed via _kernelPostPatch
+│   │                        # → exposed via kernelPostPatch
 │   └── cpuid-disable.nix    # Exit-less CPUID passthrough (AMD SVM)
-│                            # → exposed via _kernelPostPatch
+│                            # → exposed via kernelPostPatch
 ├── smbios/
 │   ├── package.nix          # smbios-extract — host SMBIOS dump +
 │   │                        # anonymization helper
@@ -78,11 +78,11 @@ vfio-stealth-nix/
 |---|---|---|
 | `qemu-stealth` (qemu/package.nix) | build-time args (`edid*`, `disk*`, `optical*`, `acpiOem*`) — overlay or `callPackage` | EDID display identity, disk/optical model strings, disk serial, ACPI OEM IDs, fw_cfg DMA signature + ACPI device removal |
 | `ovmf-stealth` (ovmf/package.nix) | inherited via overlay — no module options | OVMF SMBIOS Type 0 (VirtualMachine bit), Red Hat PCI vendor IDs (1AF4/1B36→1022, 1234→1002), ACPI OEM fields, BGRT table (TianoCore CRC identifier) |
-| `module.nix` `smbios.*` | `myModules.vfio.stealth.smbios.*` | SMBIOS Types 1, 2, 4, 7, 8, 9, 11, 17, 26, 27, 28, 29, 41 (system, baseboard incl. version/serial/asset/location, processor, cache, port connector, system slots, OEM strings, memory, voltage/cooling/temperature/current probes, onboard devices) |
-| `module.nix` `acpiSsdt.*` | `myModules.vfio.stealth.acpiSsdt.*` | ACPI SSDT (EC, fan, thermal zone with fluctuation, battery, buttons, timers) |
-| `module.nix` `kernel.*` (timing + cpuidSpoof + cpuidPassthrough) | `myModules.vfio.stealth.{timing,cpuidSpoof,cpuidPassthrough}.*` | RDTSC/RDTSCP timing, CPUID vendor string + hypervisor bit, CPUID execution timing |
-| `module.nix` `kernelParams.*` | `myModules.vfio.stealth.kernelParams.{maxCState,tscReliable}` | TSC stability, TSC source selection, SVM params (kvm_amd.vls=0, kvm_amd.vgif=0) |
-| `module.nix` `aperfMperf` | `myModules.vfio.stealth.aperfMperf` | IA32_APERF/MPERF MSR passthrough (covers IET) |
+| `module.nix` `smbios.*` | `virtualisation.vfio-stealth.smbios.*` | SMBIOS Types 1, 2, 4, 7, 8, 9, 11, 17, 26, 27, 28, 29, 41 (system, baseboard incl. version/serial/asset/location, processor, cache, port connector, system slots, OEM strings, memory, voltage/cooling/temperature/current probes, onboard devices) |
+| `module.nix` `acpiSsdt.*` | `virtualisation.vfio-stealth.acpiSsdt.*` | ACPI SSDT (EC, fan, thermal zone with fluctuation, battery, buttons, timers) |
+| `module.nix` `kernel.*` (timing + cpuidSpoof + cpuidPassthrough) | `virtualisation.vfio-stealth.{timing,cpuidSpoof,cpuidPassthrough}.*` | RDTSC/RDTSCP timing, CPUID vendor string + hypervisor bit, CPUID execution timing |
+| `module.nix` `kernelParams.*` | `virtualisation.vfio-stealth.kernelParams.{maxCState,tscReliable}` | TSC stability, TSC source selection, SVM params (kvm_amd.vls=0, kvm_amd.vgif=0) |
+| `module.nix` `aperfMperf` | `virtualisation.vfio-stealth.aperfMperf` | IA32_APERF/MPERF MSR passthrough (covers IET) |
 | `module.nix` `stripVirtio` / `spoofMac` / `macPrefix` | top-level toggles | VirtIO PCI vendor ID, MAC OUI customization (default: D8:BB:C1, Realtek) |
 | `lib.nix` (libvirt rewriter) | applied to `services.virtualisation.vms.<name>` | KVM hidden bit, Hyper-V vendor_id override, emulated-battery wiring, HPET present=true, KVM MSR enforce (kvm-pv-enforce-cpuid=on), hypercall patching disable |
 | `acpi/*.dsl` | compiled AML embedded in `acpi-ssdt-stealth` | ACPI SSDT runtime indicators |
@@ -91,7 +91,7 @@ vfio-stealth-nix/
 
 ## Kernel-integration layering
 
-The module exposes `myModules.vfio.stealth._kernelPostPatch` -- a shell
+The module exposes `virtualisation.vfio-stealth.kernelPostPatch` -- a shell
 script string meant to be appended to `linux*.kernel.overrideAttrs`'s
 `postPatch`. Three composable patch sets target the KVM/SVM subsystem.
 See README "What the patches do" for the detailed breakdown of each patch.

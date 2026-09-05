@@ -12,7 +12,7 @@ runCommand "options-documented" { } ''
 
   if [ -n "$missing" ]; then
     echo "::error::docs/OPTIONS.md does not mention:$missing"
-    echo "Every myModules.vfio.stealth option must be documented; add a row for each."
+    echo "Every virtualisation.vfio-stealth option must be documented; add a row for each."
     exit 1
   fi
 

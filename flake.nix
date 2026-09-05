@@ -86,15 +86,15 @@
             inherit (pkgs.stdenv.hostPlatform) system;
             overlays = [ self.overlays.default ];
             module = ./module.nix;
-            config.myModules.vfio.stealth.enable = true;
-            config.myModules.vfio.stealth.cpuVendor = "amd";
-            config.myModules.vfio.stealth.smbios.manufacturer = "ASUSTeK COMPUTER INC.";
-            config.myModules.vfio.stealth.smbios.product = "ROG STRIX X670E-E GAMING WIFI";
-            config.myModules.vfio.stealth.smbios.baseBoardSerial = "230820681900773";
-            config.myModules.vfio.stealth.disk.serial = "S6B2NS0TB12345X";
-            config.myModules.vfio.stealth.hypervVendorId = "AuthenticAMD";
-            config.myModules.vfio.stealth.smbios.memory.manufacturer = "G.Skill";
-            config.myModules.vfio.stealth.smbios.onboardDevices = [
+            config.virtualisation.vfio-stealth.enable = true;
+            config.virtualisation.vfio-stealth.cpuVendor = "amd";
+            config.virtualisation.vfio-stealth.smbios.manufacturer = "ASUSTeK COMPUTER INC.";
+            config.virtualisation.vfio-stealth.smbios.product = "ROG STRIX X670E-E GAMING WIFI";
+            config.virtualisation.vfio-stealth.smbios.baseBoardSerial = "230820681900773";
+            config.virtualisation.vfio-stealth.disk.serial = "S6B2NS0TB12345X";
+            config.virtualisation.vfio-stealth.hypervVendorId = "AuthenticAMD";
+            config.virtualisation.vfio-stealth.smbios.memory.manufacturer = "G.Skill";
+            config.virtualisation.vfio-stealth.smbios.onboardDevices = [
               {
                 designation = "Onboard Ethernet";
                 kind = "ethernet";

@@ -1,12 +1,12 @@
 # vfio-stealth-nix — Option Reference
 
 Companion to the top-level [README](../README.md). All options live
-under the `myModules.vfio.stealth.*` namespace. EDID / disk / optical /
+under the `virtualisation.vfio-stealth.*` namespace. EDID / disk / optical /
 ACPI OEM strings have both module options (for discoverability) and
 build-time `qemu-stealth` arguments (for compilation). The build-time
 arguments are listed separately at the bottom.
 
-Canonical reference for all `myModules.vfio.stealth.*` options and
+Canonical reference for all `virtualisation.vfio-stealth.*` options and
 `qemu-stealth` build-time arguments.
 
 ## Core
@@ -70,7 +70,7 @@ host config:
 ```nix
 { config, pkgs, vfio-stealth-nix, ... }:
 {
-  myModules.vfio.stealth.kernelCapabilities =
+  virtualisation.vfio-stealth.kernelCapabilities =
     vfio-stealth-nix.lib.kernelCapabilities.fromConfigPath
       "${config.boot.kernelPackages.kernel}/.config";
 }
@@ -81,7 +81,7 @@ at a path the consumer knows exists (e.g. a gunzipped copy of
 `/proc/config.gz` placed in the Nix store), or set the attrset by hand:
 
 ```nix
-myModules.vfio.stealth.kernelCapabilities = {
+virtualisation.vfio-stealth.kernelCapabilities = {
   vpindex = true;
   synic = true;
   stimer = true;
@@ -167,7 +167,7 @@ nixpkgs.overlays = [
 
 ### EDID (display identity)
 
-The module also exposes `myModules.vfio.stealth.edid.*` options
+The module also exposes `virtualisation.vfio-stealth.edid.*` options
 (`manufacturer`, `serial`, `productCode`, `dpi`, `week`, `year`) that
 document the target EDID values for discoverability. The actual EDID
 binary is compiled by the build-time arguments below.
@@ -185,7 +185,7 @@ binary is compiled by the build-time arguments below.
 
 ### Disk / optical
 
-The module also exposes `myModules.vfio.stealth.disk.*` options (`model`,
+The module also exposes `virtualisation.vfio-stealth.disk.*` options (`model`,
 `serial`, `opticalModel`) that document the target disk identity values
 for discoverability. The actual strings are compiled into QEMU by the
 build-time arguments below.
@@ -200,7 +200,7 @@ build-time arguments below.
 
 ### ACPI OEM
 
-The module also exposes `myModules.vfio.stealth.acpiOem.*` options (`id`,
+The module also exposes `virtualisation.vfio-stealth.acpiOem.*` options (`id`,
 `tableId`) that document the target ACPI OEM identity values for
 discoverability. The actual table headers are compiled into QEMU by the
 build-time arguments below.
@@ -234,5 +234,5 @@ build-time arguments below.
 
 | Attribute               | Type                | Description                                                                                                                                                                                                         |
 | ----------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_kernelPostPatch`      | shell-script string | Append to `boot.kernelPackages.kernel.overrideAttrs.postPatch` to apply BetterTiming + CPUID emulation/passthrough to the kernel build. See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §Kernel-integration layering. |
-| `_libtpmsIdentityPatch` | shell-script string | Append to `libtpms.overrideAttrs.postPatch` to replace hardcoded IBM/swtpm identity with configured TPM manufacturer/model.                                                                                         |
+| `kernelPostPatch`      | shell-script string | Append to `boot.kernelPackages.kernel.overrideAttrs.postPatch` to apply BetterTiming + CPUID emulation/passthrough to the kernel build. See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §Kernel-integration layering. |
+| `libtpmsIdentityPatch` | shell-script string | Append to `libtpms.overrideAttrs.postPatch` to replace hardcoded IBM/swtpm identity with configured TPM manufacturer/model.                                                                                         |

@@ -27,7 +27,7 @@ For long-form references beyond the quick start below, see:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — directory layout, component-to-file mapping, kernel-integration boundary
 - [`docs/BUILD.md`](docs/BUILD.md) — operator commands: dev shell, formatters, hooks, tests, update contract, troubleshooting
-- [`docs/OPTIONS.md`](docs/OPTIONS.md) — canonical `myModules.vfio.stealth.*` option reference
+- [`docs/OPTIONS.md`](docs/OPTIONS.md) — canonical `virtualisation.vfio-stealth.*` option reference
 
 ## Components
 
@@ -121,7 +121,7 @@ silently does nothing. QEMU and OVMF stealth apply on both.
 Enable stealth with your own hardware strings:
 
 ```nix
-myModules.vfio.stealth = {
+virtualisation.vfio-stealth = {
   enable = true;
   cpuVendor = "amd"; # or "intel" -- required, no default
   smbios = {
@@ -133,7 +133,7 @@ myModules.vfio.stealth = {
 
 ## Configuration Reference
 
-All options live under `myModules.vfio.stealth.*`. Module options, build-time `qemu-stealth` arguments, and read-only outputs are documented in [`docs/OPTIONS.md`](docs/OPTIONS.md).
+All options live under `virtualisation.vfio-stealth.*`. Module options, build-time `qemu-stealth` arguments, and read-only outputs are documented in [`docs/OPTIONS.md`](docs/OPTIONS.md).
 
 ## Example Configurations
 
@@ -144,7 +144,7 @@ All options live under `myModules.vfio.stealth.*`. Module options, build-time `q
 ### Example 1: MSI + Corsair + BenQ + WD
 
 ```nix
-myModules.vfio.stealth = {
+virtualisation.vfio-stealth = {
   enable = true;
   cpuVendor = "amd"; # or "intel" -- required, no default
   smbios = {
@@ -202,7 +202,7 @@ nixpkgs.overlays = [
 ### Example 2: Gigabyte + Crucial + LG + Seagate
 
 ```nix
-myModules.vfio.stealth = {
+virtualisation.vfio-stealth = {
   enable = true;
   cpuVendor = "amd"; # or "intel" -- required, no default
   smbios = {
@@ -293,7 +293,7 @@ Read-only verification script that checks detection vectors from inside the Wind
 
 ## Kernel Integration
 
-The module exposes `myModules.vfio.stealth._kernelPostPatch` -- a shell script string that patches the kernel source tree via sed/awk. It combines BetterTiming (TSC compensation) and CPUID emulation (Hypervisor-Phantom) based on your config.
+The module exposes `virtualisation.vfio-stealth.kernelPostPatch` -- a shell script string that patches the kernel source tree via sed/awk. It combines BetterTiming (TSC compensation) and CPUID emulation (Hypervisor-Phantom) based on your config.
 
 The patches target function signatures and symbol names, not line numbers, for resilience across kernel versions. CI validates anchors against nixpkgs latest kernel on every push.
 
@@ -302,7 +302,7 @@ The patches target function signatures and symbol names, not line numbers, for r
 ```nix
 boot.kernelPackages = pkgs.linuxPackagesFor (
   pkgs.linuxPackages_cachyos.kernel.overrideAttrs (old: {
-    postPatch = (old.postPatch or "") + config.myModules.vfio.stealth._kernelPostPatch;
+    postPatch = (old.postPatch or "") + config.virtualisation.vfio-stealth.kernelPostPatch;
   })
 );
 ```
@@ -312,7 +312,7 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 ```nix
 boot.kernelPackages = pkgs.linuxPackagesFor (
   pkgs.linux_latest.overrideAttrs (old: {
-    postPatch = (old.postPatch or "") + config.myModules.vfio.stealth._kernelPostPatch;
+    postPatch = (old.postPatch or "") + config.virtualisation.vfio-stealth.kernelPostPatch;
   })
 );
 ```

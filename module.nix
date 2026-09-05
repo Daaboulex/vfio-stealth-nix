@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.myModules.vfio.stealth;
+  cfg = config.virtualisation.vfio-stealth;
 
   # These are shell script strings (postPatch fragments), not .patch files.
   kernelPrelude = import ./kernel/prelude.nix;
@@ -16,7 +16,7 @@ in
 {
   _class = "nixos";
 
-  options.myModules.vfio.stealth = {
+  options.virtualisation.vfio-stealth = {
     enable = lib.mkEnableOption "VFIO hardware emulation stack";
 
     cpuVendor = lib.mkOption {
@@ -586,25 +586,25 @@ in
   config = lib.mkIf cfg.enable {
     warnings =
       lib.optional (cfg.smbios.manufacturer == "To Be Filled By O.E.M.")
-        "vfio.stealth: smbios.manufacturer is the default placeholder -- set to your real board manufacturer from dmidecode"
+        "vfio-stealth: smbios.manufacturer is the default placeholder -- set to your real board manufacturer from dmidecode"
       ++
         lib.optional (cfg.smbios.product == "To Be Filled By O.E.M.")
-          "vfio.stealth: smbios.product is the default placeholder -- set to your real board model from dmidecode"
+          "vfio-stealth: smbios.product is the default placeholder -- set to your real board model from dmidecode"
       ++
         lib.optional (cfg.hypervVendorId == "AuthAMDRyzen")
-          "vfio.stealth: hypervVendorId is the project default 'AuthAMDRyzen' -- customize to a unique 1-12 char string to avoid stealth-config fingerprinting"
+          "vfio-stealth: hypervVendorId is the project default 'AuthAMDRyzen' -- customize to a unique 1-12 char string to avoid stealth-config fingerprinting"
       ++
         lib.optional (cfg.disk.serial == "Default string")
-          "vfio.stealth: disk.serial is a placeholder -- set to a realistic serial from smartctl or dmidecode"
+          "vfio-stealth: disk.serial is a placeholder -- set to a realistic serial from smartctl or dmidecode"
       ++
         lib.optional (cfg.smbios.baseBoardSerial == "Default string")
-          "vfio.stealth: smbios.baseBoardSerial is a placeholder -- set to your real serial from dmidecode -t 2"
+          "vfio-stealth: smbios.baseBoardSerial is a placeholder -- set to your real serial from dmidecode -t 2"
       ++
         lib.optional (cfg.smbios.memory.manufacturer == "Unknown")
-          "vfio.stealth: smbios.memory.manufacturer is 'Unknown' -- set to your real DIMM vendor from dmidecode -t 17"
+          "vfio-stealth: smbios.memory.manufacturer is 'Unknown' -- set to your real DIMM vendor from dmidecode -t 17"
       ++
         lib.optional (cfg.smbios.onboardDevices == [ ])
-          "vfio.stealth: smbios.onboardDevices is empty (no SMBIOS Type 41) -- set to match your board from dmidecode -t 41"
+          "vfio-stealth: smbios.onboardDevices is empty (no SMBIOS Type 41) -- set to match your board from dmidecode -t 41"
       ++
         lib.optional
           (
@@ -620,34 +620,34 @@ in
               || cfg.hypervFeatures.runtime
             )
           )
-          "vfio.stealth: kernel-dependent hypervFeatures.* are enabled but kernelCapabilities is null. The lib will assume the host kernel supports them -- if it does not, libvirt will fail with 'host doesn't support hyperv X' at VM start. Set myModules.vfio.stealth.kernelCapabilities = vfio-stealth-nix.lib.kernelCapabilities.fromConfigPath \"\${config.boot.kernelPackages.kernel}/.config\"; (or set the attrset by hand) to declare your kernel's real capabilities.";
+          "vfio-stealth: kernel-dependent hypervFeatures.* are enabled but kernelCapabilities is null. The lib will assume the host kernel supports them -- if it does not, libvirt will fail with 'host doesn't support hyperv X' at VM start. Set virtualisation.vfio-stealth.kernelCapabilities = vfio-stealth-nix.lib.kernelCapabilities.fromConfigPath \"\${config.boot.kernelPackages.kernel}/.config\"; (or set the attrset by hand) to declare your kernel's real capabilities.";
 
     assertions = [
       {
         assertion = cfg.cpuVendor != null;
-        message = "myModules.vfio.stealth.cpuVendor must be set to \"amd\" or \"intel\": it selects the AutoVirt patch set and the ACPI OEM identity, and guessing it yields a guest whose spoofed CPU vendor contradicts the host";
+        message = "virtualisation.vfio-stealth.cpuVendor must be set to \"amd\" or \"intel\": it selects the AutoVirt patch set and the ACPI OEM identity, and guessing it yields a guest whose spoofed CPU vendor contradicts the host";
       }
       {
         assertion =
           cfg.cpuVendor != "intel"
           || !(cfg.timing.enable || cfg.cpuidSpoof.enable || cfg.cpuidPassthrough.enable);
-        message = "myModules.vfio.stealth: kernel-level stealth is AMD/SVM-only -- timing-patch.nix, cpuid-patch.nix and cpuid-disable.nix all target arch/x86/kvm/svm/svm.c, which kvm-intel never executes, so on an Intel host they would apply to the kernel source and change nothing at runtime. Set timing.enable, cpuidSpoof.enable and cpuidPassthrough.enable to false; QEMU and OVMF stealth still apply.";
+        message = "virtualisation.vfio-stealth: kernel-level stealth is AMD/SVM-only -- timing-patch.nix, cpuid-patch.nix and cpuid-disable.nix all target arch/x86/kvm/svm/svm.c, which kvm-intel never executes, so on an Intel host they would apply to the kernel source and change nothing at runtime. Set timing.enable, cpuidSpoof.enable and cpuidPassthrough.enable to false; QEMU and OVMF stealth still apply.";
       }
       {
         assertion = !(cfg.cpuidPassthrough.enable && cfg.hypervMode == "enlightened");
-        message = "myModules.vfio.stealth: cpuidPassthrough disables CPUID interception -- Hyper-V enlightenments (hypervMode=enlightened) will be invisible to the guest; set hypervMode to hidden";
+        message = "virtualisation.vfio-stealth: cpuidPassthrough disables CPUID interception -- Hyper-V enlightenments (hypervMode=enlightened) will be invisible to the guest; set hypervMode to hidden";
       }
       {
         assertion = builtins.stringLength cfg.disk.model <= 40;
-        message = "myModules.vfio.stealth.disk.model: must be at most 40 characters (ATA-8 model string limit); got ${toString (builtins.stringLength cfg.disk.model)}";
+        message = "virtualisation.vfio-stealth.disk.model: must be at most 40 characters (ATA-8 model string limit); got ${toString (builtins.stringLength cfg.disk.model)}";
       }
       {
         assertion = builtins.stringLength cfg.acpiOem.id == 6;
-        message = "myModules.vfio.stealth.acpiOem.id: must be exactly 6 characters; got ${toString (builtins.stringLength cfg.acpiOem.id)}";
+        message = "virtualisation.vfio-stealth.acpiOem.id: must be exactly 6 characters; got ${toString (builtins.stringLength cfg.acpiOem.id)}";
       }
       {
         assertion = builtins.stringLength cfg.acpiOem.tableId == 8;
-        message = "myModules.vfio.stealth.acpiOem.tableId: must be exactly 8 characters; got ${toString (builtins.stringLength cfg.acpiOem.tableId)}";
+        message = "virtualisation.vfio-stealth.acpiOem.tableId: must be exactly 8 characters; got ${toString (builtins.stringLength cfg.acpiOem.tableId)}";
       }
     ];
 
@@ -682,11 +682,10 @@ in
   };
 
   # Expose libtpms identity patch for host-level integration.
-  # Apply via: libtpms.overrideAttrs (old: { postPatch = (old.postPatch or "") + cfg._libtpmsIdentityPatch; });
-  options.myModules.vfio.stealth._libtpmsIdentityPatch = lib.mkOption {
+  # Apply via: libtpms.overrideAttrs (old: { postPatch = (old.postPatch or "") + cfg.libtpmsIdentityPatch; });
+  options.virtualisation.vfio-stealth.libtpmsIdentityPatch = lib.mkOption {
     type = lib.types.str;
     readOnly = true;
-    internal = true;
     default = lib.optionalString (cfg.enable && cfg.tpm.harden) ''
       echo "=== libtpms identity patch: ${cfg.tpm.manufacturer} / ${cfg.tpm.model} ==="
       # The C source uses backslash-escaped quotes inside string literals,
@@ -712,10 +711,9 @@ in
   };
 
   # Expose patch scripts for host-level kernel integration
-  options.myModules.vfio.stealth._kernelPostPatch = lib.mkOption {
+  options.virtualisation.vfio-stealth.kernelPostPatch = lib.mkOption {
     type = lib.types.str;
     readOnly = true;
-    internal = true;
     default =
       let
         scripts =

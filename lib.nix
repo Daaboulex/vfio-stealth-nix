@@ -120,7 +120,7 @@ in
         let
           req = cap.featureRequires.${f} or [ ];
         in
-        "vfio.stealth: hypervFeatures.${f} = true but the host kernel does not advertise it (missing CONFIG: ${lib.concatStringsSep ", " req}). The feature has been dropped so libvirt can start the VM. To silence this, set hypervFeatures.${f} = false or verify the kernel was built with the required CONFIG options."
+        "vfio-stealth: hypervFeatures.${f} = true but the host kernel does not advertise it (missing CONFIG: ${lib.concatStringsSep ", " req}). The feature has been dropped so libvirt can start the VM. To silence this, set hypervFeatures.${f} = false or verify the kernel was built with the required CONFIG options."
       ) droppedFeatures;
     in
     {
