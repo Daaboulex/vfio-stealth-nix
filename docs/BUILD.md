@@ -82,6 +82,19 @@ Secure Boot is disabled because the NixOS test kernel is unsigned. It keeps the
 `kvm` system feature nixpkgs puts on a VM test, so it needs a builder exposing
 `/dev/kvm`; GitHub's x86 runners do.
 
+It then runs `stealth-detect` inside that guest and requires two of the rewrites
+`qemu/post-patch.nix` performs to be visible from in there: ACPI tables carrying
+the configured OEM id rather than `BOCHS`/`BXPC`, and PCI subsystem ids that are
+not QEMU's `0x1af4:0x1100`. The sed contracts prove an edit landed in QEMU's
+source; this is what proves the result reached a booted guest.
+
+The SMBIOS rewrites are deliberately not asserted here, and cannot be. The
+nixpkgs kernel builds with `CONFIG_DMIID=n` and `CONFIG_DMI_SYSFS=n`, so
+`/sys/class/dmi/id` does not exist in a NixOS guest and `dmi-identity` reports
+`unknown` rather than `clean`. Covering SMBIOS from inside a guest needs either a
+kernel rebuilt with those options or a distro guest that ships them;
+`guest/verify-stealth.ps1` covers it on the Windows side instead.
+
 The `detect-finds-plain-virt` check (`checks.aarch64-linux.detect-finds-plain-virt`)
 boots a plain aarch64 NixOS guest and requires `stealth-detect` to exit 1 with
 `dt-machine-compatible`, `dt-psci-conduit` and `virtio-bus` firing. A detector that
