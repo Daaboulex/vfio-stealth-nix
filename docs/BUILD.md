@@ -95,6 +95,13 @@ nixpkgs kernel builds with `CONFIG_DMIID=n` and `CONFIG_DMI_SYSFS=n`, so
 kernel rebuilt with those options or a distro guest that ships them;
 `guest/verify-stealth.ps1` covers it on the Windows side instead.
 
+`acpi-hypervisor-id` is likewise not asserted here. That guest's FADT is
+revision 3, which predates the ACPI 6.0 Hypervisor Vendor Identity field, so the
+vector reports `unknown` rather than reading anything. It is the strongest tell
+on the `virt` machine, whose FADT is revision 6, and effectively an ARM-only
+vector in this repo. `detect-fixture-contract` is what exercises it, in all
+three states.
+
 The `detect-finds-plain-virt` check (`checks.aarch64-linux.detect-finds-plain-virt`)
 boots a plain aarch64 NixOS guest and requires `stealth-detect` to exit 1 with
 `dt-machine-compatible`, `dt-psci-conduit` and `virtio-bus` firing. A detector that
