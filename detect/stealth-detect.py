@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report, per vector, whether an aarch64 guest can tell it is virtualized.
+"""Report, per vector, whether a Linux guest can tell it is virtualized.
 
 Exit 1 when any vector reports "detected", 0 otherwise. A vector that cannot be
 read reports "unknown" and never "clean": an unreadable source is an absent
@@ -72,6 +72,8 @@ HYPERVISOR_STRINGS = (
 )
 
 ACPI_OEM_STRINGS = ("BOCHS", "BXPC", "LINUX", "QEMU", "VRTUAL")
+
+QEMU_DEFAULT_SUBSYSTEM = (0x1AF4, 0x1100)
 
 PARAVIRT_PCI_VENDORS = {
     0x1AF4: "Red Hat / virtio",
@@ -240,6 +242,7 @@ def acpi_oem(src: Sources) -> Finding:
             f"no {src.acpi_tables} (guest booted without ACPI)",
         )
     hits: list[str] = []
+    seen_oem: set[str] = set()
     read_any = False
     try:
         tables = sorted(src.acpi_tables.iterdir())
@@ -252,6 +255,7 @@ def acpi_oem(src: Sources) -> Finding:
         read_any = True
         oem_id = header[10:16].decode("ascii", "replace").strip()
         oem_table_id = header[16:24].decode("ascii", "replace").strip()
+        seen_oem.add(f"{oem_id}/{oem_table_id}")
         for marker in matching_markers(oem_id + " " + oem_table_id, ACPI_OEM_STRINGS):
             hits.append(
                 f"{table.name}: OEM {oem_id!r}/{oem_table_id!r} contains {marker!r}"
@@ -261,7 +265,9 @@ def acpi_oem(src: Sources) -> Finding:
     if hits:
         return Finding("acpi-oem", DETECTED, "; ".join(hits))
     return Finding(
-        "acpi-oem", CLEAN, f"{len(tables)} ACPI tables carry no emulator OEM string"
+        "acpi-oem",
+        CLEAN,
+        f"{len(tables)} ACPI tables, OEM {'/'.join(sorted(seen_oem))}",
     )
 
 
@@ -298,6 +304,31 @@ def pci_vendor(src: Sources) -> Finding:
         return Finding("pci-vendor", DETECTED, "; ".join(hits))
     return Finding(
         "pci-vendor", CLEAN, f"{count} PCI devices, no paravirtual vendor id"
+    )
+
+
+def pci_subsystem(src: Sources) -> Finding:
+    if not src.pci_bus.is_dir():
+        return Finding("pci-subsystem", UNKNOWN, f"no {src.pci_bus}")
+    hits: list[str] = []
+    seen: list[str] = []
+    for device in sorted(src.pci_bus.iterdir()):
+        vendor = read_line(device / "subsystem_vendor")
+        product = read_line(device / "subsystem_device")
+        if vendor is None or product is None:
+            continue
+        pair = (int(vendor, 16), int(product, 16))
+        seen.append(f"{pair[0]:#06x}:{pair[1]:#06x}")
+        if pair == QEMU_DEFAULT_SUBSYSTEM:
+            hits.append(f"{device.name}: subsystem {pair[0]:#06x}:{pair[1]:#06x}")
+    if not seen:
+        return Finding("pci-subsystem", UNKNOWN, "no PCI device exposed a subsystem id")
+    if hits:
+        return Finding("pci-subsystem", DETECTED, "; ".join(hits))
+    return Finding(
+        "pci-subsystem",
+        CLEAN,
+        f"{len(seen)} PCI subsystem ids, none QEMU's default: {', '.join(sorted(set(seen)))}",
     )
 
 
@@ -371,6 +402,7 @@ VECTORS = (
     psci_conduit,
     virtio_bus,
     pci_vendor,
+    pci_subsystem,
     timer_frequency,
 )
 

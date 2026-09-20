@@ -5,7 +5,7 @@
 }:
 
 stdenvNoCC.mkDerivation {
-  pname = "stealth-detect-arm64";
+  pname = "stealth-detect";
   version = "1.0.0";
 
   src = ./stealth-detect.py;
@@ -15,19 +15,19 @@ stdenvNoCC.mkDerivation {
   dontUnpack = true;
 
   installPhase = ''
-    install -Dm755 $src $out/bin/stealth-detect-arm64
-    patchShebangs --host $out/bin/stealth-detect-arm64
+    install -Dm755 $src $out/bin/stealth-detect
+    patchShebangs --host $out/bin/stealth-detect
   '';
 
   doInstallCheck = true;
   installCheckPhase = ''
-    $out/bin/stealth-detect-arm64 --help > /dev/null
+    $out/bin/stealth-detect --help > /dev/null
   '';
 
   meta = {
-    description = "Report, per vector, whether an aarch64 guest can tell it is virtualized";
+    description = "Report, per vector, whether a Linux guest can tell it is virtualized";
     license = lib.licenses.gpl2Only;
-    platforms = [ "aarch64-linux" ];
-    mainProgram = "stealth-detect-arm64";
+    platforms = lib.platforms.linux;
+    mainProgram = "stealth-detect";
   };
 }

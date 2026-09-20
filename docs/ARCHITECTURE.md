@@ -50,7 +50,7 @@ vfio-stealth-nix/
 │   │                        # table generator (types 7, 26-29)
 │   └── generate-tables.py   # Python script generating raw SMBIOS binaries
 ├── detect/                  # aarch64 only
-│   ├── package.nix          # stealth-detect-arm64 — the aarch64 oracle
+│   ├── package.nix          # stealth-detect — the aarch64 oracle
 │   └── stealth-detect.py    # Per-vector verdict from inside an ARM guest;
 │                            # exits 1 when any vector reports "detected"
 ├── guest/
@@ -93,7 +93,7 @@ patches target `OvmfPkg/OvmfPkgX64.{dsc,fdf}` (on aarch64 `pkgs.OVMF` is
 ArmVirtQemu, `AAVMF_CODE.fd`), and `kernel/` edits `arch/x86/kvm/svm/svm.c`,
 which has no ARM counterpart.
 
-`aarch64-linux` carries the oracle only: `stealth-detect-arm64`, the
+`aarch64-linux` carries the oracle only: `stealth-detect`, the
 `detect-finds-plain-virt` check that boots an ARM guest and requires the detector to
 find it, and `detect-fixture-contract`, which drives the detector over fixture trees
 so the ACPI vectors a directly-booted guest cannot expose are still covered.

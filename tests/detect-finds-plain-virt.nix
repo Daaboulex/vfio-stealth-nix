@@ -1,7 +1,7 @@
 {
   lib,
   testers,
-  stealth-detect-arm64,
+  stealth-detect,
 }:
 
 # QEMU runs this under accel=kvm:tcg either way, but Nix's "kvm" system feature
@@ -13,7 +13,7 @@
   globalTimeout = 1800;
 
   nodes.machine = {
-    environment.systemPackages = [ stealth-detect-arm64 ];
+    environment.systemPackages = [ stealth-detect ];
   };
 
   testScript = ''
@@ -21,7 +21,7 @@
 
     machine.wait_for_unit("multi-user.target", timeout=900)
 
-    status, out = machine.execute("stealth-detect-arm64 --json")
+    status, out = machine.execute("stealth-detect --json")
     print(out)
 
     oracle_status, oracle = machine.execute("systemd-detect-virt")

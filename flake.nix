@@ -52,7 +52,7 @@
         acpi-ssdt-stealth = final.callPackage ./acpi/package.nix { };
         smbios-extract = final.callPackage ./smbios/package.nix { };
         smbios-stealth-tables = final.callPackage ./smbios/tables-package.nix { };
-        stealth-detect-arm64 = final.callPackage ./detect/package.nix { };
+        stealth-detect = final.callPackage ./detect/package.nix { };
       };
 
       flake.nixosModules.default = import ./module.nix;
@@ -64,13 +64,14 @@
         let
           x86 = pkgs.stdenv.hostPlatform.system == "x86_64-linux";
           arm = pkgs.stdenv.hostPlatform.system == "aarch64-linux";
-          stealth-detect-arm64 = pkgs.callPackage ./detect/package.nix { };
+          stealth-detect = pkgs.callPackage ./detect/package.nix { };
         in
         {
           pre-commit.settings.hooks.shfmt.excludes = [ "^guest/" ];
           pre-commit.settings.excludes = [ "^vendor/" ];
 
           packages = lib.mkMerge [
+            { inherit stealth-detect; }
             (lib.mkIf x86 {
               default = pkgs.callPackage ./qemu/package.nix {
                 autovirt = ./vendor/autovirt;
@@ -92,10 +93,14 @@
               smbios-extract = pkgs.callPackage ./smbios/package.nix { };
               smbios-stealth-tables = pkgs.callPackage ./smbios/tables-package.nix { };
             })
-            (lib.mkIf arm { inherit stealth-detect-arm64; })
           ];
 
           checks = lib.mkMerge [
+            {
+              detect-fixture-contract = pkgs.callPackage ./tests/detect-fixture-contract.nix {
+                inherit stealth-detect;
+              };
+            }
             (lib.mkIf x86 {
               module-eval-nixos = inputs.std.lib.nixosModuleCheck {
                 inherit (inputs) nixpkgs;
@@ -219,6 +224,7 @@
                 nodes.machine =
                   { lib, ... }:
                   {
+                    environment.systemPackages = [ stealth-detect ];
                     virtualisation.qemu.package = lib.mkForce self.packages.${pkgs.stdenv.hostPlatform.system}.default;
                     # UEFI boot on Q35: the MCH revert (c730b41) fixed the
                     # OVMF PlatformPei ASSERT that originally forced SeaBIOS.
@@ -236,7 +242,33 @@
                     ];
                   };
                 testScript = ''
+                  import json
+
                   machine.wait_for_unit("multi-user.target", timeout=300)
+
+                  status, out = machine.execute("stealth-detect --json")
+                  print(out)
+                  report = json.loads(out)
+                  verdicts = {f["vector"]: f["verdict"] for f in report["findings"]}
+                  evidence = {f["vector"]: f["evidence"] for f in report["findings"]}
+
+                  # The guest is the proof. The sed contracts show the edit landed in
+                  # QEMU's source; only a booted guest shows the result reached it.
+                  if verdicts["acpi-oem"] != "clean":
+                      raise Exception(
+                          "ACPI OEM rewrite did not reach the guest: "
+                          f"{verdicts['acpi-oem']}, {evidence['acpi-oem']}"
+                      )
+                  if "ALASKA" not in evidence["acpi-oem"]:
+                      raise Exception(
+                          "guest ACPI tables do not carry the configured OEM id: "
+                          f"{evidence['acpi-oem']}"
+                      )
+                  if verdicts["pci-subsystem"] != "clean":
+                      raise Exception(
+                          "PCI subsystem id rewrite did not reach the guest: "
+                          f"{verdicts['pci-subsystem']}, {evidence['pci-subsystem']}"
+                      )
                 '';
               };
 
@@ -259,10 +291,7 @@
             })
             (lib.mkIf arm {
               detect-finds-plain-virt = pkgs.callPackage ./tests/detect-finds-plain-virt.nix {
-                inherit stealth-detect-arm64;
-              };
-              detect-fixture-contract = pkgs.callPackage ./tests/detect-fixture-contract.nix {
-                inherit stealth-detect-arm64;
+                inherit stealth-detect;
               };
             })
           ];

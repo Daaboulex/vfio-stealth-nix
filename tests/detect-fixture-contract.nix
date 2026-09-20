@@ -2,7 +2,7 @@
   lib,
   runCommand,
   python3,
-  stealth-detect-arm64,
+  stealth-detect,
 }:
 
 let
@@ -25,11 +25,16 @@ let
 
   cases = {
     qemu-virt = {
+      pciVendor = "0x1af4";
+      pciSubsystemVendor = "0x1af4";
+      pciSubsystemDevice = "0x1100";
       dtCompatible = "linux,dummy-virt";
       psciMethod = "hvc";
       fadt = ''fadt(6, b"BOCHS ", b"BXPC    ", b"QEMU")'';
       exit = 1;
       expect = {
+        pci-vendor = "detected";
+        pci-subsystem = "detected";
         dt-machine-compatible = "detected";
         dt-psci-conduit = "detected";
         acpi-hypervisor-id = "detected";
@@ -38,11 +43,16 @@ let
     };
 
     bare-metal = {
+      pciVendor = "0x8086";
+      pciSubsystemVendor = "0x8086";
+      pciSubsystemDevice = "0x0000";
       dtCompatible = "acme,gaming-board";
       psciMethod = "smc";
       fadt = ''fadt(6, b"ALASKA", b"A M I   ", None)'';
       exit = 0;
       expect = {
+        pci-vendor = "clean";
+        pci-subsystem = "clean";
         dt-machine-compatible = "clean";
         dt-psci-conduit = "clean";
         acpi-hypervisor-id = "clean";
@@ -51,11 +61,15 @@ let
     };
 
     pre-acpi6-firmware = {
+      pciVendor = "0x8086";
+      pciSubsystemVendor = "0x8086";
+      pciSubsystemDevice = "0x0000";
       dtCompatible = "acme,gaming-board";
       psciMethod = "smc";
       fadt = ''fadt(5, b"ALASKA", b"A M I   ", b"QEMU")'';
       exit = 0;
       expect = {
+        pci-subsystem = "clean";
         acpi-hypervisor-id = "unknown";
         acpi-oem = "clean";
       };
@@ -74,11 +88,16 @@ let
     acpi = root / "sys/firmware/acpi/tables"
     acpi.mkdir(parents=True, exist_ok=True)
     (acpi / "FACP").write_bytes(${case.fadt})
+    pci = root / "sys/bus/pci/devices/0000:00:03.0"
+    pci.mkdir(parents=True, exist_ok=True)
+    (pci / "vendor").write_text("${case.pciVendor}\n")
+    (pci / "subsystem_vendor").write_text("${case.pciSubsystemVendor}\n")
+    (pci / "subsystem_device").write_text("${case.pciSubsystemDevice}\n")
     BUILD
 
     echo "--- ${name} ---"
     set +e
-    stealth-detect-arm64 --root "${name}" --json > "${name}.json"
+    stealth-detect --root "${name}" --json > "${name}.json"
     rc=$?
     set -e
     cat "${name}.json"
@@ -103,7 +122,7 @@ runCommand "detect-fixture-contract"
   {
     nativeBuildInputs = [
       python3
-      stealth-detect-arm64
+      stealth-detect
     ];
   }
   ''

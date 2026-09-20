@@ -37,7 +37,7 @@ On `aarch64-linux` the flake declares one package instead, because the stealth
 stack is x86-only (see [`ARCHITECTURE.md`](ARCHITECTURE.md), Architecture support):
 
 ```bash
-nix build .#stealth-detect-arm64  # the aarch64 detection oracle
+nix build .#stealth-detect  # the aarch64 detection oracle
 ```
 
 Each package output produces a verifiable artifact:
@@ -83,7 +83,7 @@ Secure Boot is disabled because the NixOS test kernel is unsigned. It keeps the
 `/dev/kvm`; GitHub's x86 runners do.
 
 The `detect-finds-plain-virt` check (`checks.aarch64-linux.detect-finds-plain-virt`)
-boots a plain aarch64 NixOS guest and requires `stealth-detect-arm64` to exit 1 with
+boots a plain aarch64 NixOS guest and requires `stealth-detect` to exit 1 with
 `dt-machine-compatible`, `dt-psci-conduit` and `virtio-bus` firing. A detector that
 goes quiet on unmodified QEMU could not prove a spoof, so this check is what keeps it
 honest. It drops the `kvm` system feature, because GitHub's aarch64 runners expose no
