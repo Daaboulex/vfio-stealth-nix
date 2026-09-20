@@ -7,9 +7,11 @@ set -euo pipefail
 # what is vendored, and nixpkgs-unstable for a QEMU series no vendored patch
 # covers, so the canonical update workflow files an issue the day either
 # appears. Adoption stays a hand decision (see docs/RELEASE-PROCEDURE.md).
-# Contract: exit 0 = nothing to do, exit 1 = manual port needed, upstream
-# gone, or a patch gap (error_type says which), exit 2 = transient network
-# failure.
+# Contract: exit 0 = nothing to do, exit 1 = manual port needed, upstream gone,
+# a patch gap, a moved BetterTiming, or a dead fork still in FORKS (error_type
+# says which), exit 2 = transient network failure. Every non-zero reaches the
+# owner as the workflow's single open update-failed issue; nothing is left as a
+# warning on a cron nobody reads.
 
 output() { echo "$1=$2" >>"$OUTPUT_FILE"; }
 log() { echo "==> $*"; }
@@ -64,13 +66,13 @@ output "old_version" "$AMD_OURS"
 FORKS=(
   "Zhaodaidai"
   "fortesoft-co"
-  "Keyemail"
 )
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 dead=0
+dead_forks=()
 transient=0
 : >"$TMP/cands"
 
@@ -80,8 +82,8 @@ for fork in "${FORKS[@]}"; do
   case "$code" in
   200) ;;
   404)
-    warn "fork ${fork}/AutoVirt is gone (404); drop it from FORKS in scripts/update.sh"
     dead=$((dead + 1))
+    dead_forks+=("$fork")
     continue
     ;;
   *)
@@ -128,13 +130,29 @@ fi
 
 CURRENT_BT=$(jq -r '.betterTiming.rev' version.json)
 LATEST_BT=$(curl -sfL 'https://api.github.com/repos/SamuelTulach/BetterTiming/commits/master' 2>/dev/null | jq -r '.sha') || LATEST_BT=""
-if [ -n "$LATEST_BT" ] && [ "$LATEST_BT" != "null" ] && [ "$LATEST_BT" != "$CURRENT_BT" ]; then
-  warn "BetterTiming moved: kernel/timing-patch.nix is a hand-port -- re-review it, then set version.json .betterTiming.rev"
-fi
-
+# A transient fetch means the run could not see every fork, so nothing below
+# may be reported as settled: retry rather than name a stale list we did not
+# finish reading.
 if [ "$transient" -ne 0 ]; then
   warn "some fork fetches failed transiently; re-checking tomorrow"
   exit 2
+fi
+
+# The two checks below are maintenance, not a blocked update, so they run last:
+# an earlier exit for manual-port-needed or patch-gap must never be masked by
+# them. They exit non-zero rather than warn because the workflow turns exit 1
+# into the single open update-failed issue, and a warning on a daily cron
+# reaches nobody.
+if [ -n "$LATEST_BT" ] && [ "$LATEST_BT" != "null" ] && [ "$LATEST_BT" != "$CURRENT_BT" ]; then
+  err "BetterTiming moved to ${LATEST_BT}; kernel/timing-patch.nix is a hand-port from ${CURRENT_BT} -- re-review it, then set version.json .betterTiming.rev"
+  output "error_type" "betterTiming-moved"
+  exit 1
+fi
+
+if [ "$dead" -ne 0 ]; then
+  err "watched fork(s) gone (404): ${dead_forks[*]} -- drop them from FORKS in scripts/update.sh"
+  output "error_type" "fork-stale"
+  exit 1
 fi
 
 log "no fork ships a patch newer than our vendored AMD-v${AMD_OURS}"
