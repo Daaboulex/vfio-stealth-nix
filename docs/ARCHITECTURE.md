@@ -49,6 +49,10 @@ vfio-stealth-nix/
 │   ├── tables-package.nix   # smbios-stealth-tables — binary SMBIOS
 │   │                        # table generator (types 7, 26-29)
 │   └── generate-tables.py   # Python script generating raw SMBIOS binaries
+├── detect/                  # aarch64 only
+│   ├── package.nix          # stealth-detect-arm64 — the aarch64 oracle
+│   └── stealth-detect.py    # Per-vector verdict from inside an ARM guest;
+│                            # exits 1 when any vector reports "detected"
 ├── guest/
 │   ├── verify-stealth.ps1   # 37-vector detection check (run inside VM)
 │   ├── cleanup-registry.ps1 # Registry artifact removal (admin, run once)
@@ -59,7 +63,11 @@ vfio-stealth-nix/
 │   ├── sed-contract-qemu.nix    # Per-vendor mirror of the real QEMU build
 │   ├── sed-contract-edk2.nix    # Per-vendor mirror of the OVMF postPatch
 │   ├── kernel-postpatch-fits.nix    # Real patch scripts vs real kernel sources
-│   └── lib-output-contract.nix  # mkStealthFeatures output guards
+│   ├── lib-output-contract.nix  # mkStealthFeatures output guards
+│   ├── detect-finds-plain-virt.nix  # aarch64: the detector must find a plain
+│   │                        # QEMU virt guest, or it can prove no later spoof
+│   └── detect-fixture-contract.nix  # aarch64: per-vector verdicts over fixture
+│                            # trees, covering the ACPI vectors a VM cannot
 ├── scripts/
 │   └── update.sh            # AutoVirt input bumper; runs the full check
 │                            # suite before a green auto-push
@@ -71,6 +79,34 @@ vfio-stealth-nix/
 ├── LICENSE
 └── SECURITY.md
 ```
+
+## Architecture support
+
+The flake declares both canonical arches, and they expose disjoint outputs
+because the two stacks share no patch surface.
+
+`x86_64-linux` carries the whole stealth stack: `qemu-stealth`, `ovmf-stealth`,
+`acpi-ssdt-stealth`, the SMBIOS packages, the `kernel/` SVM patches and every
+sed contract. All of it is pinned there by `meta.platforms`, because the AutoVirt
+QEMU patches target `hw/i386/`, `hw/isa/lpc_ich9.c` and `hw/ide/`, the EDK2
+patches target `OvmfPkg/OvmfPkgX64.{dsc,fdf}` (on aarch64 `pkgs.OVMF` is
+ArmVirtQemu, `AAVMF_CODE.fd`), and `kernel/` edits `arch/x86/kvm/svm/svm.c`,
+which has no ARM counterpart.
+
+`aarch64-linux` carries the oracle only: `stealth-detect-arm64`, the
+`detect-finds-plain-virt` check that boots an ARM guest and requires the detector to
+find it, and `detect-fixture-contract`, which drives the detector over fixture trees
+so the ACPI vectors a directly-booted guest cannot expose are still covered.
+Nothing is spoofed on ARM yet, deliberately: on this architecture the
+CPU identity registers (`MIDR_EL1`, `REVIDR_EL1`, `AIDR_EL1` and the writable
+`ID_AA64*` fields) are set from userspace through `KVM_SET_ONE_REG`, so the x86
+approach of patching KVM does not apply, and a spoof with no detector to fail
+against cannot be verified.
+
+CI runs a native runner per arch and builds whatever that arch declares, so each
+half is proved on its own hardware. The GitHub arm runner has no `/dev/kvm`, so
+it proves the emulated-identity half under TCG; the `KVM_SET_ONE_REG` half needs
+a machine with KVM.
 
 ## Component → option-group ownership
 

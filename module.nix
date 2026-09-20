@@ -624,6 +624,10 @@ in
 
     assertions = [
       {
+        assertion = pkgs.stdenv.hostPlatform.isx86_64;
+        message = "virtualisation.vfio-stealth: x86_64-only; this host is ${pkgs.stdenv.hostPlatform.system}";
+      }
+      {
         assertion = cfg.cpuVendor != null;
         message = "virtualisation.vfio-stealth.cpuVendor: must be \"amd\" or \"intel\"; it selects the AutoVirt patch set and the ACPI OEM identity";
       }

@@ -33,6 +33,13 @@ nix build .#smbios-extract        # host SMBIOS dump tool
 nix build                         # default — builds qemu-stealth
 ```
 
+On `aarch64-linux` the flake declares one package instead, because the stealth
+stack is x86-only (see [`ARCHITECTURE.md`](ARCHITECTURE.md), Architecture support):
+
+```bash
+nix build .#stealth-detect-arm64  # the aarch64 detection oracle
+```
+
 Each package output produces a verifiable artifact:
 
 | Package | Verify |
@@ -59,18 +66,34 @@ the violation and re-commit.
 
 ## Tests
 
-The verification chain is:
+Each arch has its own chain, and CI runs a native runner for each, so whichever
+outputs an arch declares are the ones it proves.
 
 ```text
-eval check  →  build all packages  →  ELF / AML sanity  →  boot-smoke NixOS test
+x86_64-linux   eval check -> build all packages -> ELF / AML sanity -> boot-smoke NixOS test
+aarch64-linux  eval check -> build the detector -> detect-fixture-contract -> detect-finds-plain-virt NixOS test
 ```
 
 The `boot-smoke` check (`checks.boot-smoke`) boots a NixOS VM with
 qemu-stealth + ovmf-stealth (secureBoot=false, stealth patches present)
 under TCG and waits for `multi-user.target`. This catches QEMU/OVMF
 regressions that cause firmware hangs (e.g., the QEMU 10.2.2 OVMF hang).
-Secure Boot is disabled because the NixOS test kernel is unsigned.
-It runs without KVM (TCG-only) so it works on standard CI runners.
+Secure Boot is disabled because the NixOS test kernel is unsigned. It keeps the
+`kvm` system feature nixpkgs puts on a VM test, so it needs a builder exposing
+`/dev/kvm`; GitHub's x86 runners do.
+
+The `detect-finds-plain-virt` check (`checks.aarch64-linux.detect-finds-plain-virt`)
+boots a plain aarch64 NixOS guest and requires `stealth-detect-arm64` to exit 1 with
+`dt-machine-compatible`, `dt-psci-conduit` and `virtio-bus` firing. A detector that
+goes quiet on unmodified QEMU could not prove a spoof, so this check is what keeps it
+honest. It drops the `kvm` system feature, because GitHub's aarch64 runners expose no
+`/dev/kvm` and Nix refuses such a derivation outright rather than falling back. QEMU
+is launched with `accel=kvm:tcg`, so it uses KVM on a machine that has it and TCG on
+one that does not.
+
+The `detect-fixture-contract` check drives the same detector over built-in fixture
+trees instead of a VM. It is what covers `acpi-hypervisor-id` and `acpi-oem`, which a
+directly-booted guest exposes no ACPI for, and it needs neither KVM nor a VM.
 
 CI wires this in `.github/workflows/ci.yml`. Each step fails the job on
 non-zero exit. No "passing eval" without a clean build and a booting VM.

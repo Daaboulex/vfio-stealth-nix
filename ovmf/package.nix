@@ -36,5 +36,6 @@ in
 
     meta = (old.meta or { }) // {
       description = "OVMF firmware with AutoVirt hardware emulation patches";
+      platforms = [ "x86_64-linux" ];
     };
   })

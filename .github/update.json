@@ -21,8 +21,5 @@
     "kvm",
     "gpu-passthrough",
     "virtualization"
-  ],
-  "platforms": {
-    "aarch64-linux": "x86 KVM/OVMF/VFIO virtualization stack"
-  }
+  ]
 }

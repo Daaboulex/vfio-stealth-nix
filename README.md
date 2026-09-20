@@ -38,6 +38,7 @@ For long-form references beyond the quick start below, see:
 | **acpi-ssdt-stealth** | Compiled ACPI SSDT tables providing emulated embedded controller, fan, thermal zone, battery, power/sleep buttons, timers |
 | **smbios-stealth-tables** | Binary SMBIOS tables for types QEMU cannot build via CLI (Type 7 cache, Types 26-29 probes) |
 | **smbios-extract** | Host SMBIOS dump + anonymization tool for extracting real hardware strings to inject into VM config |
+| **stealth-detect-arm64** | `aarch64-linux` only. Reports, per vector, whether an ARM guest can tell it is virtualized (device tree, PSCI conduit, MIDR, SMBIOS, ACPI OEM and FADT hypervisor identity, virtio, PCI, timer). Exits 1 when any vector fires |
 
 ## Detection Vectors Covered
 
@@ -117,6 +118,14 @@ One limitation on Intel: the kernel-level stealth (`timing.enable`,
 patches target `arch/x86/kvm/svm/svm.c`, which `kvm-intel` never executes.
 An assertion refuses that combination rather than shipping a feature that
 silently does nothing. QEMU and OVMF stealth apply on both.
+
+The stealth stack itself is `x86_64-linux` only, pinned there by each package's
+`meta.platforms`: the AutoVirt QEMU patches target `hw/i386/` and the Q35
+southbridge, the EDK2 patches target `OvmfPkg/OvmfPkgX64.{dsc,fdf}` (on aarch64
+`pkgs.OVMF` is ArmVirtQemu), and `kernel/` edits `arch/x86/kvm/svm/svm.c`.
+`aarch64-linux` currently carries only `stealth-detect-arm64`, the oracle that an
+ARM spoof would have to defeat; see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why the detector comes first.
 
 Enable stealth with your own hardware strings:
 

@@ -68,6 +68,10 @@ in
 }).overrideAttrs
   (old: {
     pname = "qemu-stealth";
+    meta = (old.meta or { }) // {
+      description = "QEMU with AutoVirt hardware emulation patches";
+      platforms = [ "x86_64-linux" ];
+    };
     postPatch =
       (old.postPatch or "")
       + (import ./post-patch.nix {
