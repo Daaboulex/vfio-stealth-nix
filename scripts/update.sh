@@ -7,11 +7,12 @@ set -euo pipefail
 # what is vendored, and nixpkgs-unstable for a QEMU series no vendored patch
 # covers, so the canonical update workflow files an issue the day either
 # appears. Adoption stays a hand decision (see docs/RELEASE-PROCEDURE.md).
-# Contract: exit 0 = nothing to do, exit 1 = manual port needed, upstream gone,
-# a patch gap, a moved BetterTiming, or a dead fork still in FORKS (error_type
-# says which), exit 2 = transient network failure. Every non-zero reaches the
-# owner as the workflow's single open update-failed issue; nothing is left as a
-# warning on a cron nobody reads.
+# Contract: exit 0 = nothing to do, exit 2 = transient network failure, exit 1 =
+# a manual port needed, upstream gone, a patch gap, a moved BetterTiming, a dead
+# fork still in FORKS, or aarch64 id registers turning configurable upstream;
+# error_type says which. Every non-zero reaches the owner as the workflow's
+# single open update-failed issue, so nothing is left as a warning on a cron
+# nobody reads.
 
 output() { echo "$1=$2" >>"$OUTPUT_FILE"; }
 log() { echo "==> $*"; }
@@ -153,6 +154,23 @@ if [ "$dead" -ne 0 ]; then
   err "watched fork(s) gone (404): ${dead_forks[*]} -- drop them from FORKS in scripts/update.sh"
   output "error_type" "fork-stale"
   exit 1
+fi
+
+# aarch64 guest CPU identity is a kernel feature since Linux 6.15
+# (KVM_CAP_ARM_WRITABLE_IMP_ID_REGS) that QEMU still exposes no way to reach:
+# the customizable-host-model series is an RFC. MIDR_EL1 is absent from
+# cpu-sysregs.h.inc today while its neighbours ID_AA64PFR0_EL1 and CTR_EL0 are
+# present, so its arrival is the merge, and it is the register name rather than
+# a property name that may yet be renamed in review.
+QEMU_SYSREGS_URL='https://raw.githubusercontent.com/qemu/qemu/master/target/arm/cpu-sysregs.h.inc'
+if sysregs=$(curl -sfL "$QEMU_SYSREGS_URL"); then
+  if grep -qF 'MIDR_EL1' <<<"$sysregs"; then
+    err "QEMU master now carries MIDR_EL1 in target/arm/cpu-sysregs.h.inc: aarch64 guest CPU identity is becoming configurable upstream, so re-read docs/ARCHITECTURE.md on what an ARM target would now cost"
+    output "error_type" "arm-idregs-upstream"
+    exit 1
+  fi
+else
+  warn "could not fetch ${QEMU_SYSREGS_URL}; skipping the aarch64 id-register watch"
 fi
 
 log "no fork ships a patch newer than our vendored AMD-v${AMD_OURS}"
