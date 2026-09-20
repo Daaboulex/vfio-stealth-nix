@@ -24,7 +24,20 @@
     status, out = machine.execute("stealth-detect-arm64 --json")
     print(out)
 
-    if status != 1:
+    oracle_status, oracle = machine.execute("systemd-detect-virt")
+    oracle = oracle.strip()
+    print(f"systemd-detect-virt: {oracle!r} (exit {oracle_status})")
+
+    ours_found_a_vm = status == 1
+    oracle_found_a_vm = oracle_status == 0
+
+    if oracle_found_a_vm and not ours_found_a_vm:
+        raise Exception(
+            f"systemd-detect-virt reports {oracle!r} and this detector reported nothing. "
+            "An independent tool sees a guest we cannot, so the gap is in our vector list."
+        )
+
+    if not ours_found_a_vm:
         raise Exception(f"expected exit 1 on a plain QEMU virt guest, got {status}")
 
     report = json.loads(out)

@@ -4,6 +4,28 @@
 Exit 1 when any vector reports "detected", 0 otherwise. A vector that cannot be
 read reports "unknown" and never "clean": an unreadable source is an absent
 measurement, not a passing one.
+
+The two verdicts are not equally strong. "detected" cites a concrete artifact
+and is as good as the artifact. "clean" means only that these vectors found
+nothing, never that a guest is undetectable, because this checks what it checks
+and an adversary does not. Known and deliberate blind spots, none reachable
+from EL0 by reading a file:
+
+  timing          CNTVCT_EL0 advances across a VM exit while PMCCNTR_EL0 does
+                  not, since KVM builds it with exclude_hv and exclude_host.
+                  Comparing the two is the sharpest known attack and no host
+                  knob reconciles them.
+  smccc identity  KVM answers the SMCCC vendor hypervisor UID call, which needs
+                  an HVC from EL1. The guest kernel does it at boot and logs
+                  "smccc: KVM: hypervisor services detected".
+  id consistency  KVM zeroes AMU and MPAM in ID_AA64PFR0_EL1 and PMSVer and
+                  BRBE in ID_AA64DFR0_EL1 while passing MIDR_EL1 through, so a
+                  core whose MIDR claims those features and reads zero is a
+                  contradiction.
+
+Because of that asymmetry the test suite holds this detector accountable to
+systemd-detect-virt: if that reports a guest and this one does not, the gap is
+in this vector list.
 """
 
 from __future__ import annotations
