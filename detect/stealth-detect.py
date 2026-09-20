@@ -162,6 +162,10 @@ def device_tree_strings(src: Sources, relative: str) -> list[str] | None:
     return [s for s in raw.decode("ascii", "replace").split("\0") if s]
 
 
+def ascii_field(raw: bytes) -> str:
+    return raw.decode("ascii", "replace").replace("\x00", "").strip()
+
+
 def matching_markers(haystack: str, markers) -> list[str]:
     lowered = haystack.lower()
     return [m for m in markers if m.lower() in lowered]
@@ -253,9 +257,10 @@ def acpi_oem(src: Sources) -> Finding:
         if header is None or len(header) < 24:
             continue
         read_any = True
-        oem_id = header[10:16].decode("ascii", "replace").strip()
-        oem_table_id = header[16:24].decode("ascii", "replace").strip()
-        seen_oem.add(f"{oem_id}/{oem_table_id}")
+        oem_id = ascii_field(header[10:16])
+        oem_table_id = ascii_field(header[16:24])
+        if oem_id or oem_table_id:
+            seen_oem.add(f"{oem_id}/{oem_table_id}")
         for marker in matching_markers(oem_id + " " + oem_table_id, ACPI_OEM_STRINGS):
             hits.append(
                 f"{table.name}: OEM {oem_id!r}/{oem_table_id!r} contains {marker!r}"
