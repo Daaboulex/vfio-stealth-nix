@@ -620,22 +620,22 @@ in
               || cfg.hypervFeatures.runtime
             )
           )
-          "vfio-stealth: kernel-dependent hypervFeatures.* are enabled but kernelCapabilities is null. The lib will assume the host kernel supports them -- if it does not, libvirt will fail with 'host doesn't support hyperv X' at VM start. Set virtualisation.vfio-stealth.kernelCapabilities = vfio-stealth-nix.lib.kernelCapabilities.fromConfigPath \"\${config.boot.kernelPackages.kernel}/.config\"; (or set the attrset by hand) to declare your kernel's real capabilities.";
+          "vfio-stealth: kernel-dependent hypervFeatures.* are enabled while kernelCapabilities is null, so a kernel lacking them fails at VM start; see docs/OPTIONS.md, Kernel capabilities";
 
     assertions = [
       {
         assertion = cfg.cpuVendor != null;
-        message = "virtualisation.vfio-stealth.cpuVendor must be set to \"amd\" or \"intel\": it selects the AutoVirt patch set and the ACPI OEM identity, and guessing it yields a guest whose spoofed CPU vendor contradicts the host";
+        message = "virtualisation.vfio-stealth.cpuVendor: must be \"amd\" or \"intel\"; it selects the AutoVirt patch set and the ACPI OEM identity";
       }
       {
         assertion =
           cfg.cpuVendor != "intel"
           || !(cfg.timing.enable || cfg.cpuidSpoof.enable || cfg.cpuidPassthrough.enable);
-        message = "virtualisation.vfio-stealth: kernel-level stealth is AMD/SVM-only -- timing-patch.nix, cpuid-patch.nix and cpuid-disable.nix all target arch/x86/kvm/svm/svm.c, which kvm-intel never executes, so on an Intel host they would apply to the kernel source and change nothing at runtime. Set timing.enable, cpuidSpoof.enable and cpuidPassthrough.enable to false; QEMU and OVMF stealth still apply.";
+        message = "virtualisation.vfio-stealth: timing.enable, cpuidSpoof.enable and cpuidPassthrough.enable require cpuVendor \"amd\"; they patch arch/x86/kvm/svm/svm.c, which kvm-intel never runs";
       }
       {
         assertion = !(cfg.cpuidPassthrough.enable && cfg.hypervMode == "enlightened");
-        message = "virtualisation.vfio-stealth: cpuidPassthrough disables CPUID interception -- Hyper-V enlightenments (hypervMode=enlightened) will be invisible to the guest; set hypervMode to hidden";
+        message = "virtualisation.vfio-stealth: cpuidPassthrough.enable hides Hyper-V enlightenments from the guest; set hypervMode to \"hidden\"";
       }
       {
         assertion = builtins.stringLength cfg.disk.model <= 40;

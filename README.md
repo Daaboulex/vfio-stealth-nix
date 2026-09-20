@@ -347,12 +347,12 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 
 ## Upstream Tracking
 
-Two upstream projects are tracked and auto-updated daily via GitHub Actions (`update.yml`):
+Both upstream techniques are vendored, not fetched at build time.
 
-- [Scrut1ny/AutoVirt](https://github.com/Scrut1ny/AutoVirt) -- QEMU AMD patch + EDK2 hardware-emulation patches
-- [SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming) -- TSC compensation technique
+- **AutoVirt** (QEMU + EDK2 hardware-emulation patches). Its upstream was deleted around 2026-05; the patches live in `vendor/autovirt` and the packages build from those. `AMD-v11.1.0.patch` was ported here, not upstream.
+- **[SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming)** (TSC compensation). `kernel/timing-patch.nix` is a hand-port; `version.json` records the commit it was ported from.
 
-The update workflow runs on a daily cron schedule. On success, it commits and pushes the flake input update automatically. On failure, it creates a GitHub issue with the build log and pushes the attempted update to a branch for manual recovery.
+`update.yml` runs `scripts/update.sh` on a daily cron. It watches the surviving AutoVirt forks for a patch newer than the vendored one, BetterTiming for a commit past the recorded port, and nixpkgs for a QEMU series no vendored patch covers, and files an issue when one appears. Adopting a change is a hand decision, see [`docs/RELEASE-PROCEDURE.md`](docs/RELEASE-PROCEDURE.md).
 
 ## Development
 
