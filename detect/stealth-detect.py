@@ -162,7 +162,7 @@ def machine_compatible(src: Sources) -> Finding:
     compatible = device_tree_strings(src, "compatible")
     if compatible is None:
         return Finding(
-            "dt-machine-compatible", UNKNOWN, "no /proc/device-tree/compatible"
+            "dt-machine-compatible", UNKNOWN, f"no {src.device_tree}/compatible"
         )
     joined = ", ".join(compatible)
     if QEMU_VIRT_COMPATIBLE in compatible:
@@ -192,7 +192,7 @@ def cpu_identity(src: Sources) -> Finding:
 def dmi_identity(src: Sources) -> Finding:
     if not src.dmi_id.is_dir():
         return Finding(
-            "dmi-identity", UNKNOWN, "no /sys/class/dmi/id (guest exposes no SMBIOS)"
+            "dmi-identity", UNKNOWN, f"no {src.dmi_id} (guest exposes no SMBIOS)"
         )
     hits: list[str] = []
     seen: list[str] = []
@@ -215,7 +215,7 @@ def acpi_oem(src: Sources) -> Finding:
         return Finding(
             "acpi-oem",
             UNKNOWN,
-            "no /sys/firmware/acpi/tables (guest booted without ACPI)",
+            f"no {src.acpi_tables} (guest booted without ACPI)",
         )
     hits: list[str] = []
     read_any = False
@@ -248,7 +248,7 @@ def virtio_bus(src: Sources) -> Finding:
         return Finding(
             "virtio-bus",
             UNKNOWN,
-            "no /sys/bus/virtio (driver absent, not proof of absence)",
+            f"no {src.virtio_bus} (driver absent, not proof of absence)",
         )
     devices = sorted(p.name for p in src.virtio_bus.iterdir())
     if devices:
@@ -258,7 +258,7 @@ def virtio_bus(src: Sources) -> Finding:
 
 def pci_vendor(src: Sources) -> Finding:
     if not src.pci_bus.is_dir():
-        return Finding("pci-vendor", UNKNOWN, "no /sys/bus/pci/devices")
+        return Finding("pci-vendor", UNKNOWN, f"no {src.pci_bus}")
     hits: list[str] = []
     count = 0
     for device in sorted(src.pci_bus.iterdir()):
@@ -283,7 +283,7 @@ def timer_frequency(src: Sources) -> Finding:
     raw = read_bytes(src.device_tree / "timer/clock-frequency")
     if raw is None or len(raw) != 4:
         return Finding(
-            "timer-frequency", UNKNOWN, "no /proc/device-tree/timer/clock-frequency"
+            "timer-frequency", UNKNOWN, f"no {src.device_tree}/timer/clock-frequency"
         )
     (hz,) = struct.unpack(">I", raw)
     evidence = f"arch timer = {hz} Hz"
@@ -328,7 +328,7 @@ def acpi_hypervisor_id(src: Sources) -> Finding:
 def psci_conduit(src: Sources) -> Finding:
     method = device_tree_strings(src, "psci/method")
     if method is None:
-        return Finding("dt-psci-conduit", UNKNOWN, "no /proc/device-tree/psci/method")
+        return Finding("dt-psci-conduit", UNKNOWN, f"no {src.device_tree}/psci/method")
     joined = ", ".join(method)
     if "hvc" in method:
         return Finding(
