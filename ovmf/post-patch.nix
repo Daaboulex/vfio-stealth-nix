@@ -18,8 +18,12 @@
   # Replace firmware vendor string. The PCD default L"EDK II" lives in
   # MdeModulePkg.dec (not the DSC). sed handles CRLF line endings.
   sed -i 's|L"EDK II"|L"American Megatrends Inc."|g' \
-    MdeModulePkg/MdeModulePkg.dec OvmfPkg/OvmfPkgX64.dsc 2>/dev/null || true
-  if grep -rq 'L"EDK II"' MdeModulePkg/MdeModulePkg.dec OvmfPkg/OvmfPkgX64.dsc; then
+    MdeModulePkg/MdeModulePkg.dec OvmfPkg/OvmfPkgX64.dsc
+  if ! grep -q 'L"American Megatrends Inc."' MdeModulePkg/MdeModulePkg.dec; then
+    echo "FATAL: MdeModulePkg.dec carries no American Megatrends vendor string"
+    exit 1
+  fi
+  if grep -q 'L"EDK II"' MdeModulePkg/MdeModulePkg.dec OvmfPkg/OvmfPkgX64.dsc; then
     echo "FATAL: firmware vendor string still contains L\"EDK II\""
     exit 1
   fi
