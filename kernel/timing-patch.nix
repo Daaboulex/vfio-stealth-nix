@@ -11,7 +11,8 @@
 # This avoids the original bug where the vcpu_enter_guest wrapper counted
 # guest execution time as exit overhead, making TSC advance too slowly.
 #
-# Targets: arch/x86/kvm/svm/svm.c, arch/x86/kvm/x86.c, include/linux/kvm_host.h
+# Targets: arch/x86/kvm/svm/svm.c, arch/x86/kvm/x86.c (the TSC read case in msrs.c
+# from 7.3, where KVM split its MSR code out), include/linux/kvm_host.h
 ''
       echo "=== BetterTiming: TSC compensation patch ==="
 
@@ -25,9 +26,11 @@
       landed include/linux/kvm_host.h 'u64 total_exit_time;' \
         "kvm_host.h: timing fields added to struct kvm_vcpu"
 
-      exactly_one arch/x86/kvm/x86.c \
+      tsc_file=arch/x86/kvm/x86.c
+      if [ -f arch/x86/kvm/msrs.c ]; then tsc_file=arch/x86/kvm/msrs.c; fi
+      exactly_one "$tsc_file" \
         'case MSR_IA32_TSC: \{' \
-        "x86.c: MSR_IA32_TSC case block in kvm_get_msr_common"
+        "$tsc_file: MSR_IA32_TSC case block in kvm_get_msr_common"
 
         awk '
         /case MSR_IA32_TSC: \{/ {
@@ -44,10 +47,10 @@
         in_tsc && /^\t\}/ { in_tsc = 0; next }
         in_tsc { next }
         { print }
-        ' arch/x86/kvm/x86.c > arch/x86/kvm/x86.c.tmp && \
-          mv arch/x86/kvm/x86.c.tmp arch/x86/kvm/x86.c
-      landed arch/x86/kvm/x86.c 'u64 bt_start = rdtsc();' \
-        "x86.c: MSR_IA32_TSC returns compensated time"
+        ' "$tsc_file" > "$tsc_file.tmp" && \
+          mv "$tsc_file.tmp" "$tsc_file"
+      landed "$tsc_file" 'u64 bt_start = rdtsc();' \
+        "$tsc_file: MSR_IA32_TSC returns compensated time"
 
       # sed /a inserts in LIFO order, so the clears cpuid-patch.nix appends on
       # this same anchor land before these sets and the sets win. Intended.
