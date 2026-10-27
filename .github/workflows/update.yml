@@ -1,7 +1,8 @@
 name: Update
 on:
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "0 6 * * 0"
+    - cron: "0 6 * * 1-6"
   workflow_dispatch:
 
 permissions:
@@ -14,6 +15,10 @@ concurrency:
 
 jobs:
   update:
+    if: >-
+      github.event_name != 'schedule'
+      || github.event.schedule == '0 6 * * 0'
+      || (vars.UPDATE_CADENCE || 'daily') == 'daily'
     uses: Daaboulex/nix-packaging-standard/.github/workflows/package-update.yml@release
     with:
       cadence: ${{ vars.UPDATE_CADENCE || 'daily' }}
