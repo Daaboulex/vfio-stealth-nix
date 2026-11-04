@@ -21,7 +21,9 @@ The vendored patch inventory `vendor/autovirt/patches/QEMU/` is the
 single source of truth. `qemu/package.nix` derives the newest patched
 series per CPU vendor from it and picks the QEMU base:
 
-- nixpkgs' QEMU when it is within the patched series;
+- nixpkgs' QEMU when it is within the patched series, including a point
+  release newer than the series' patch (the patch carries forward
+  within its series);
 - the newest patched series, built from a `download.qemu.org`
   tarball, when nixpkgs' QEMU is newer (the ceiling);
 - the `minimumVersion` floor tarball when nixpkgs' QEMU is older.

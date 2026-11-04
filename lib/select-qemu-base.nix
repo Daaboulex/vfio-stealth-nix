@@ -41,7 +41,10 @@ in
 
 if builtins.compareVersions qemu.version minimumVersion < 0 then
   tarball minimumVersion
-else if builtins.compareVersions qemu.version ceiling > 0 then
+else if
+  builtins.compareVersions (lib.versions.majorMinor qemu.version) (lib.versions.majorMinor ceiling)
+  > 0
+then
   tarball ceiling
 else if builtins.elem (lib.versions.majorMinor qemu.version) patchedSeries then
   qemu

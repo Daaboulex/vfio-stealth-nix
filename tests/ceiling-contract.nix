@@ -91,6 +91,15 @@ let
       detail = "expected the 11.0.3 tarball build for a QEMU below the floor";
     }
     {
+      name = "point-release-of-the-ceiling-series-passes-through";
+      ok =
+        let
+          base = select { qemuVersion = "11.1.2"; };
+        in
+        base.src == "pristine-11.1.2" && base.version == "11.1.2";
+      detail = "expected a point release past the ceiling patch, in the ceiling's own series, to pass through";
+    }
+    {
       name = "above-ceiling-builds-the-ceiling-tarball";
       ok =
         let
