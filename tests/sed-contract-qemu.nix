@@ -210,6 +210,26 @@ let
       path = "include/hw/pci/pci.h";
       pattern = "PCI_SUBDEVICE_ID_QEMU            0x0000";
     }
+    {
+      name = "acpi-name-ich9-usb";
+      path = "hw/acpi/pcihp.c";
+      pattern = ''else sprintf(name, "USB%X", func + 1);'';
+    }
+    {
+      name = "acpi-name-xhci-from-one";
+      path = "hw/acpi/pcihp.c";
+      pattern = ''sprintf(name, "XHC%X", func + 1);'';
+    }
+    {
+      name = "acpi-name-lpcb-follows-lpc";
+      path = "hw/acpi/pcihp.c";
+      pattern = "// Slot 31 (0x1F): LPC / SMBus / SATA 2";
+    }
+    {
+      name = "acpi-name-unique-on-bus";
+      path = "hw/acpi/pcihp.c";
+      pattern = ''snprintf(mimic_name, sizeof(mimic_name), "RP%02X", devfn);'';
+    }
   ];
 
   # Render each guard as a shell fragment: a `grep -F` test that returns

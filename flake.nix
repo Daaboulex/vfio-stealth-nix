@@ -154,6 +154,16 @@
                         "PCI subsystem id rewrite did not reach the guest: "
                         f"{verdicts['pci-subsystem']}, {evidence['pci-subsystem']}"
                     )
+
+                status, kernel_log = machine.execute("dmesg")
+                firmware_errors = [l for l in kernel_log.splitlines() if "ACPI BIOS Error" in l or "AE_ALREADY_EXISTS" in l]
+                if status != 0 or firmware_errors:
+                    raise Exception(f"the guest kernel logged ACPI firmware errors, which real firmware never causes: {firmware_errors}")
+
+                status, acpi_paths = machine.execute("cat /sys/bus/acpi/devices/*/path")
+                for name in ["\\_SB_.PCI0.USB1", "\\_SB_.PCI0.USB2", "\\_SB_.PCI0.USB3", "\\_SB_.PCI0.EHC1"]:
+                    if status != 0 or name not in acpi_paths.split():
+                        raise Exception(f"the ICH9 USB controllers at 00:1d do not carry the real board names: {name} missing")
               '';
             };
         in

@@ -37,6 +37,35 @@
       exit 1
     fi
 
+    # AutoVirt's PCI name table gives function 0 a name its own fallback then
+    # gives function 1 too (EHC1 on Q35's ICH9 USB at 00:1d, XHC1 on slot 5),
+    # so the guest kernel logs AE_ALREADY_EXISTS, which no real firmware does.
+    # Slot 29 takes the ICH9 names a real board carries, XHC counts from 1,
+    # and any name a device earlier on the bus already holds becomes RP<devfn>.
+    substituteInPlace hw/acpi/pcihp.c \
+      --replace-fail '            if (func == 0) sprintf(name, "EHC1");
+              else sprintf(name, "EHC%X", func);' \
+                     '            if (func == 7) sprintf(name, "EHC1");
+              else sprintf(name, "USB%X", func + 1);' \
+      --replace-fail '            if (func == 0) sprintf(name, "XHC1");
+              else sprintf(name, "XHC%X", func);' \
+                     '            sprintf(name, "XHC%X", func + 1);' \
+      --replace-fail '        get_mimic_pci_name(mimic_name, devfn);
+          dev = aml_device("%s", mimic_name);' \
+                     '        get_mimic_pci_name(mimic_name, devfn);
+          for (int prior = 0; prior < devfn; prior++) {
+              char prior_name[5];
+              if (!bus->devices[prior] || is_devfn_ignored_generic(prior, bus)) {
+                  continue;
+              }
+              get_mimic_pci_name(prior_name, prior);
+              if (strcmp(prior_name, mimic_name) == 0) {
+                  snprintf(mimic_name, sizeof(mimic_name), "RP%02X", devfn);
+                  break;
+              }
+          }
+          dev = aml_device("%s", mimic_name);'
+
     echo "=== Customizing hardware identifiers ==="
 
     # EDID: replace stock QEMU monitor identity with configured values
@@ -165,6 +194,20 @@
     fi
     if ! grep -qE '^#define ICH9_LPC_FUNC[[:space:]]+0$' include/hw/southbridge/ich9.h; then
       echo "FATAL: ICH9 LPC function revert to 0 failed"
+      exit 1
+    fi
+    # The DSDT's PIRQ field names PCI0.LPCB, and the AMD name table gives
+    # LPCB to slot 0x14, where LPC no longer sits; the name follows LPC to 0x1f.
+    if grep -qF '// Slot 20 (0x14): LPC / SMBus / SATA 2' hw/acpi/pcihp.c; then
+      substituteInPlace hw/acpi/pcihp.c \
+        --replace-fail '        case 20:
+              // Slot 20 (0x14): LPC / SMBus / SATA 2' \
+                       '        case 31:
+              // Slot 31 (0x1F): LPC / SMBus / SATA 2' \
+        --replace-fail 'sprintf(name, "S20%X", func);' 'sprintf(name, "S31%X", func);'
+    fi
+    if ! grep -qF '// Slot 31 (0x1F): LPC / SMBus / SATA 2' hw/acpi/pcihp.c; then
+      echo "FATAL: the ACPI name LPCB does not follow the LPC bridge to slot 0x1f, so PCI0.LPCB.PIRQ cannot resolve"
       exit 1
     fi
 
