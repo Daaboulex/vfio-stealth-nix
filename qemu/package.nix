@@ -27,6 +27,7 @@
   # EDID default resolution
   edidResX ? 1920,
   edidResY ? 1080,
+  probe ? null,
 }:
 
 let
@@ -49,15 +50,17 @@ let
       ceiling
       patchedSeries
       ;
+    probeVersion = if probe == null then null else probe.version;
     tarballHashes = {
       "11.0.3" = "sha256-2l/P/DJ2KCBWi4KO1DCnKIZNNNULbS8wNYWXdgy7BSM=";
       "11.1.0" = "sha256-buHRph9oISR2snEIwm2l9EncCbYm1C+CeboNwuCPqFg=";
-    };
+    }
+    // lib.optionalAttrs (probe != null) { ${probe.version} = probe.hash; };
   };
 
   autovirtPatch = autovirtPatches.qemu {
     inherit autovirt cpuVendor;
-    qemuVersion = qemuBase.version;
+    qemuVersion = if probe == null then qemuBase.version else ceiling;
   };
 
   inherit (autovirtPatches.traits.${cpuVendor}) patchedOemId patchedOemTableId;
@@ -73,7 +76,7 @@ in
       platforms = [ "x86_64-linux" ];
     };
     passthru = (old.passthru or { }) // {
-      inherit acpiOemId;
+      inherit acpiOemId autovirtPatch;
     };
     postPatch =
       (old.postPatch or "")

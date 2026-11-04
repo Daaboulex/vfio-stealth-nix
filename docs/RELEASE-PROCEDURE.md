@@ -109,11 +109,18 @@ nixpkgs`) or fix the anchors first.
 
 ## Adopting a newer AutoVirt patch
 
-`scripts/update.sh` watches the live AutoVirt forks daily and
-nixpkgs-unstable's QEMU version. A fork patch newer than what we
-vendor exits 1 with `manual-port-needed`, and a nixpkgs QEMU series no
-vendored patch covers exits 1 with `patch-gap` -- either way the
-canonical update workflow files a deduplicated issue that closes
+`scripts/update.sh` watches the live AutoVirt forks daily, for AMD and
+Intel, and the newest QEMU of nixpkgs-unstable and of upstream's release
+tags. A fork patch newer than what we vendor exits 1 with
+`manual-port-needed`. When the newest QEMU is in a series a vendor has
+no patch for, the updater probes it without moving the pin: it builds
+that QEMU from its tarball with the vendor's newest patch
+(`legacyPackages.x86_64-linux.qemuProbe`), then runs the sed contract
+and boots the boot-smoke guest on it. All vendors passing exits 1 with
+`qemu-series-ready`, naming the tarball hash to add; any failing exits
+1 with `patch-gap`, naming the stage that broke (`qemu`, `sed-contract`
+or `boot-smoke`). An unreadable version or tarball exits 2. Either way
+the canonical update workflow files a deduplicated issue that closes
 itself on the next green run. Adoption is always a hand decision:
 
 1. Review the patch by hand -- it comes from a third-party fork,
@@ -200,8 +207,9 @@ Each contract test is a `checks.<system>.<name>` derivation in
   below the floor, and fail-closed on a missing hash, a ceiling below
   the floor, or an unpatched floor series.
 - `checks.update-gap-contract`: pins the patch-gap probe in
-  `scripts/update.sh` -- which QEMU versions count as covered by the
-  vendored AMD series and which count as a gap.
+  `scripts/update.sh` -- which QEMU versions count as covered by each
+  vendor's patched series and which count as a gap, and which release
+  tag is upstream's newest.
 - `checks.kernel-postpatch-fits-cachyos` and
   `checks.kernel-postpatch-fits-upstream`: unpack the CachyOS LTO latest
   source from `xddxdd/nix-cachyos-kernel` and the nixpkgs `linux_latest`
@@ -209,8 +217,10 @@ Each contract test is a `checks.<system>.<name>` derivation in
   enable-combination. Each script verifies every edit it makes, so an
   anchor that moved fails the check by name instead of silently applying
   nothing. Both fail-closed; neither prints a failure and then passes.
-- `checks.boot-smoke`: actual QEMU + OVMF build with the patched
-  sources; boots a minimal NixOS guest to multi-user target.
+- `checks.boot-smoke` and `checks.boot-smoke-intel`: actual QEMU + OVMF
+  build with each vendor's patched sources; boots a minimal NixOS guest
+  to multi-user target and requires the configured ACPI OEM id and a
+  clean PCI subsystem id inside it.
   This is the end-to-end smoke test; the contract tests above
   are unit-level.
 

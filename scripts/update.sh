@@ -27,19 +27,50 @@ newest_series() {
     tail -1
 }
 
-amd_series_set() {
+VENDORS=(AMD Intel)
+
+series_set() {
+  local vendor="$1"
   ls "$VENDOR_DIR" |
-    sed -n 's/^AMD-v\([0-9][0-9]*\.[0-9][0-9]*\)\.[0-9][0-9.]*\.patch$/\1/p' |
+    sed -n "s/^${vendor}-v\([0-9][0-9]*\.[0-9][0-9]*\)\.[0-9][0-9.]*\.patch$/\1/p" |
     sort -u
 }
 
 qemu_gap_for() {
-  local qemu_version="$1" series amd_series
+  local qemu_version="$1" vendor="$2" series patched
   series="${qemu_version%.*}"
-  amd_series=$(amd_series_set || true)
-  if ! grep -qx "$series" <<<"$amd_series"; then
+  patched=$(series_set "$vendor" || true)
+  if ! grep -qx "$series" <<<"$patched"; then
     printf '%s' "$qemu_version"
   fi
+}
+
+newest_release() {
+  sed -n 's|^[0-9a-f]*[[:space:]]*refs/tags/v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$|\1|p' |
+    sort -V |
+    tail -1
+}
+
+newer_fork_patch() {
+  local vendor="$1" ours="$2" cands="$3" best_line best_version newest
+  best_line=$(awk -v v="$vendor" '$1 == v { print $2, $3 }' "$cands" | sort -V -k1,1 | tail -1)
+  [ -n "$best_line" ] || return 0
+  best_version=${best_line%% *}
+  newest=$(printf '%s\n%s\n' "$ours" "$best_version" | sort -V | tail -1)
+  if [ "$newest" = "$best_version" ] && [ "$best_version" != "$ours" ]; then
+    printf '%s' "$best_line"
+  fi
+}
+
+probe_stage() {
+  local version="$1" hash="$2" vendor="$3" stage
+  for stage in qemu sed-contract boot-smoke; do
+    if ! nix build --impure --no-link -L --expr \
+      "((builtins.getFlake (toString ./.)).legacyPackages.x86_64-linux.qemuProbe { version = \"${version}\"; hash = \"${hash}\"; }).${vendor}.${stage}" >&2; then
+      printf '%s' "$stage"
+      return 1
+    fi
+  done
 }
 
 [[ ${BASH_SOURCE[0]} == "$0" ]] || return 0
@@ -52,17 +83,18 @@ output "updated" "false"
 
 VENDOR_DIR="vendor/autovirt/patches/QEMU"
 
-AMD_OURS=$(newest_series AMD)
-INTEL_OURS=$(newest_series Intel)
+declare -A OURS=()
+for vendor in "${VENDORS[@]}"; do
+  OURS[$vendor]=$(newest_series "$vendor")
+  if [ -z "${OURS[$vendor]}" ]; then
+    err "vendor patch inventory is empty or malformed in $VENDOR_DIR: no ${vendor}-v<version>.patch"
+    output "error_type" "inventory-error"
+    exit 1
+  fi
+done
 
-if [ -z "$AMD_OURS" ] || [ -z "$INTEL_OURS" ]; then
-  err "vendor patch inventory is empty or malformed in $VENDOR_DIR"
-  output "error_type" "inventory-error"
-  exit 1
-fi
-
-log "Vendored: AMD-v${AMD_OURS} Intel-v${INTEL_OURS}"
-output "old_version" "$AMD_OURS"
+log "Vendored: AMD-v${OURS[AMD]} Intel-v${OURS[Intel]}"
+output "old_version" "AMD-v${OURS[AMD]} Intel-v${OURS[Intel]}"
 
 FORKS=(
   "Zhaodaidai"
@@ -94,8 +126,8 @@ for fork in "${FORKS[@]}"; do
     ;;
   esac
   jq -r '.[].name' "$TMP/body.json" |
-    sed -n 's/^AMD-v\([0-9][0-9.]*\)\.patch$/\1/p' |
-    while read -r v; do echo "$v $fork"; done >>"$TMP/cands"
+    sed -n 's/^\(AMD\|Intel\)-v\([0-9][0-9.]*\)\.patch$/\1 \2/p' |
+    while read -r vendor v; do echo "$vendor $v $fork"; done >>"$TMP/cands"
 done
 
 if [ "$dead" -ge "${#FORKS[@]}" ]; then
@@ -104,33 +136,79 @@ if [ "$dead" -ge "${#FORKS[@]}" ]; then
   exit 1
 fi
 
-if [ -s "$TMP/cands" ]; then
-  best_line=$(sort -V -k1,1 "$TMP/cands" | tail -1)
-  best_version=${best_line%% *}
-  best_fork=${best_line##* }
-  newest=$(printf '%s\n%s\n' "$AMD_OURS" "$best_version" | sort -V | tail -1)
-  if [ "$newest" = "$best_version" ] && [ "$best_version" != "$AMD_OURS" ]; then
-    warn "fork ${best_fork} ships AMD-v${best_version}.patch; we vendor AMD-v${AMD_OURS} - manual port needed"
-    output "new_version" "$best_version"
-    output "upstream_url" "https://github.com/${best_fork}/AutoVirt/blob/main/patches/QEMU/AMD-v${best_version}.patch"
+for vendor in "${VENDORS[@]}"; do
+  best_line=$(newer_fork_patch "$vendor" "${OURS[$vendor]}" "$TMP/cands")
+  if [ -n "$best_line" ]; then
+    best_version=${best_line%% *}
+    best_fork=${best_line##* }
+    warn "fork ${best_fork} ships ${vendor}-v${best_version}.patch; we vendor ${vendor}-v${OURS[$vendor]} - manual port needed"
+    output "new_version" "${vendor}-v${best_version}"
+    output "upstream_url" "https://github.com/${best_fork}/AutoVirt/blob/main/patches/QEMU/${vendor}-v${best_version}.patch"
     output "error_type" "manual-port-needed"
     exit 1
   fi
-fi
+done
 
 NP_QEMU=$(nix eval --raw 'github:NixOS/nixpkgs/nixos-unstable#qemu.version' 2>/dev/null) || NP_QEMU=""
-if [ -z "$NP_QEMU" ] || [ "$NP_QEMU" = "null" ]; then
-  warn "could not determine nixpkgs-unstable's QEMU version; skipping the patch-gap check"
-elif [ -n "$(qemu_gap_for "$NP_QEMU")" ]; then
-  warn "nixpkgs-unstable ships QEMU ${NP_QEMU}; no vendored AMD patch for series ${NP_QEMU%.*} - consumers ride the ceiling tarball until one lands"
-  output "new_version" "$NP_QEMU"
-  output "upstream_url" "https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/applications/virtualization/qemu/package.nix"
-  output "error_type" "patch-gap"
-  exit 1
+UP_TAGS=$(git ls-remote --tags --refs https://gitlab.com/qemu-project/qemu.git 'v*') || UP_TAGS=""
+UP_QEMU=$(newest_release <<<"$UP_TAGS")
+if [ -z "$NP_QEMU" ] || [ "$NP_QEMU" = "null" ] || [ -z "$UP_QEMU" ]; then
+  warn "could not read the newest QEMU of nixpkgs-unstable (${NP_QEMU:-unread}) and upstream (${UP_QEMU:-unread}) - transient"
+  transient=1
+else
+  target=$(printf '%s\n%s\n' "$NP_QEMU" "$UP_QEMU" | sort -V | tail -1)
+  gaps=()
+  for vendor in "${VENDORS[@]}"; do
+    [ -z "$(qemu_gap_for "$target" "$vendor")" ] || gaps+=("$vendor")
+  done
+  if [ "${#gaps[@]}" -gt 0 ]; then
+    if ! prefetch=$(nix store prefetch-file --json "https://download.qemu.org/qemu-${target}.tar.xz"); then
+      warn "could not fetch the QEMU ${target} tarball to probe it - transient"
+      transient=1
+    else
+      hash=$(jq -r '.hash' <<<"$prefetch")
+      ready=()
+      broken=()
+      for vendor in "${gaps[@]}"; do
+        patch="${vendor}-v${OURS[$vendor]}.patch"
+        if stage=$(probe_stage "$target" "$hash" "${vendor,,}"); then
+          ready+=("$vendor")
+          log "probe: ${patch} applies to QEMU ${target}, its sed contract passes and the boot-smoke guest boots"
+        else
+          broken+=("${vendor} (${patch} fails at ${stage})")
+        fi
+      done
+      output "new_version" "$target"
+      output "upstream_url" "https://download.qemu.org/qemu-${target}.tar.xz"
+      if [ "${#broken[@]}" -eq 0 ]; then
+        err "QEMU ${target} (nixpkgs-unstable ${NP_QEMU}, upstream ${UP_QEMU}) has no vendored patch for ${gaps[*]}, and the newest vendored patch applies, passes its sed contract and boots the boot-smoke guest on it: vendor it as <vendor>-v${target}.patch and add the ${target} tarball hash (${hash}) to raise the ceiling"
+        output "error_type" "qemu-series-ready"
+      else
+        err "QEMU ${target} (nixpkgs-unstable ${NP_QEMU}, upstream ${UP_QEMU}) has no vendored patch for ${gaps[*]}; probed with the newest vendored patch, ready: ${ready[*]:-none}; needs a hand port: ${broken[*]}"
+        output "error_type" "patch-gap"
+      fi
+      exit 1
+    fi
+  fi
 fi
 
 CURRENT_BT=$(jq -r '.betterTiming.rev' version.json)
 LATEST_BT=$(curl -sfL 'https://api.github.com/repos/SamuelTulach/BetterTiming/commits/master' 2>/dev/null | jq -r '.sha') || LATEST_BT=""
+
+QEMU_KVM_URL='https://raw.githubusercontent.com/qemu/qemu/master/target/arm/kvm.c'
+kvm_code=$(curl -s -o "$TMP/kvm.c" -w '%{http_code}' "$QEMU_KVM_URL" 2>/dev/null || true)
+case "$kvm_code" in
+200) ;;
+404)
+  err "${QEMU_KVM_URL} is gone (404): QEMU moved its ARM KVM backend, so point the aarch64 id-register watch at its new file"
+  output "error_type" "arm-watch-source-moved"
+  exit 1
+  ;;
+*)
+  warn "could not fetch ${QEMU_KVM_URL} (HTTP ${kvm_code:-000}) - transient"
+  transient=1
+  ;;
+esac
 # A transient fetch means the run could not see every fork, so nothing below
 # may be reported as settled: retry rather than name a stale list we did not
 # finish reading.
@@ -156,22 +234,15 @@ if [ "$dead" -ne 0 ]; then
   exit 1
 fi
 
-# aarch64 guest CPU identity is a kernel feature since Linux 6.15
-# (KVM_CAP_ARM_WRITABLE_IMP_ID_REGS) that QEMU still exposes no way to reach:
-# the customizable-host-model series is an RFC. MIDR_EL1 is absent from
-# cpu-sysregs.h.inc today while its neighbours ID_AA64PFR0_EL1 and CTR_EL0 are
-# present, so its arrival is the merge, and it is the register name rather than
-# a property name that may yet be renamed in review.
-QEMU_SYSREGS_URL='https://raw.githubusercontent.com/qemu/qemu/master/target/arm/cpu-sysregs.h.inc'
-if sysregs=$(curl -sfL "$QEMU_SYSREGS_URL"); then
-  if grep -qF 'MIDR_EL1' <<<"$sysregs"; then
-    err "QEMU master now carries MIDR_EL1 in target/arm/cpu-sysregs.h.inc: aarch64 guest CPU identity is becoming configurable upstream, so re-read docs/ARCHITECTURE.md on what an ARM target would now cost"
-    output "error_type" "arm-idregs-upstream"
-    exit 1
-  fi
-else
-  warn "could not fetch ${QEMU_SYSREGS_URL}; skipping the aarch64 id-register watch"
+# aarch64 guest CPU identity (MIDR_EL1, REVIDR_EL1, AIDR_EL1) is writable from
+# userspace only once the VMM enables KVM_CAP_ARM_WRITABLE_IMP_ID_REGS, a kernel
+# feature since Linux 6.15. QEMU's KVM backend enabling it is the merge that
+# makes an ARM spoofing target possible.
+if grep -qF 'KVM_CAP_ARM_WRITABLE_IMP_ID_REGS' "$TMP/kvm.c"; then
+  err "QEMU master's KVM backend (target/arm/kvm.c) now names KVM_CAP_ARM_WRITABLE_IMP_ID_REGS: aarch64 guest CPU identity is becoming settable under KVM, so re-read docs/ARCHITECTURE.md on what an ARM target would now cost"
+  output "error_type" "arm-idregs-upstream"
+  exit 1
 fi
 
-log "no fork ships a patch newer than our vendored AMD-v${AMD_OURS}"
+log "no fork ships a patch newer than our vendored AMD-v${OURS[AMD]} or Intel-v${OURS[Intel]}"
 exit 0

@@ -65,16 +65,46 @@
           x86 = pkgs.stdenv.hostPlatform.system == "x86_64-linux";
           arm = pkgs.stdenv.hostPlatform.system == "aarch64-linux";
           stealth-detect = pkgs.callPackage ./detect/package.nix { };
+          vendorPackage =
+            cpuVendor: name:
+            self.packages.${pkgs.stdenv.hostPlatform.system}.${
+              if cpuVendor == "amd" then name else "${name}-${cpuVendor}"
+            };
+          qemuProbe =
+            { version, hash }:
+            lib.genAttrs [ "amd" "intel" ] (
+              cpuVendor:
+              let
+                qemu = pkgs.callPackage ./qemu/package.nix {
+                  autovirt = ./vendor/autovirt;
+                  inherit cpuVendor;
+                  probe = { inherit version hash; };
+                };
+              in
+              {
+                inherit qemu;
+                sed-contract = pkgs.callPackage ./tests/sed-contract-qemu.nix {
+                  inherit cpuVendor;
+                  qemu-stealth = qemu;
+                };
+                boot-smoke = bootSmoke { inherit cpuVendor qemu; };
+              }
+            );
           bootSmoke =
-            cpuVendor:
+            { cpuVendor, qemu }:
             let
-              packageSet = self.packages.${pkgs.stdenv.hostPlatform.system};
               suffix = lib.optionalString (cpuVendor != "amd") "-${cpuVendor}";
-              qemu = if cpuVendor == "amd" then packageSet.default else packageSet."qemu-stealth${suffix}";
-              oemId = lib.strings.trim qemu.acpiOemId;
+              oemId =
+                let
+                  id = lib.strings.trim qemu.acpiOemId;
+                in
+                assert lib.assertMsg (
+                  id != ""
+                ) "boot-smoke: the QEMU under test has a blank acpiOemId, so no guest could prove its OEM rewrite";
+                id;
             in
             pkgs.testers.runNixOSTest {
-              name = "qemu-stealth-boot-smoke${suffix}";
+              name = "qemu-stealth-boot-smoke${suffix}-${qemu.version}";
               globalTimeout = 600;
               nodes.machine =
                 { lib, ... }:
@@ -88,7 +118,7 @@
                   virtualisation.useEFIBoot = true;
                   virtualisation.efi.OVMF =
                     lib.mkForce
-                      (packageSet."ovmf-stealth${suffix}".override {
+                      ((vendorPackage cpuVendor "ovmf-stealth").override {
                         secureBoot = false;
                       }).fd;
                   virtualisation.qemu.options = [
@@ -114,7 +144,7 @@
                         "ACPI OEM rewrite did not reach the guest: "
                         f"{verdicts['acpi-oem']}, {evidence['acpi-oem']}"
                     )
-                if ${builtins.toJSON oemId} not in evidence["acpi-oem"]:
+                if ${builtins.toJSON "OEM ${oemId}/"} not in evidence["acpi-oem"]:
                     raise Exception(
                         "guest ACPI tables do not carry the configured OEM id: "
                         f"{evidence['acpi-oem']}"
@@ -156,6 +186,8 @@
             })
           ];
 
+          legacyPackages = lib.optionalAttrs x86 { inherit qemuProbe; };
+
           checks = lib.mkMerge [
             {
               detect-fixture-contract = pkgs.callPackage ./tests/detect-fixture-contract.nix {
@@ -186,13 +218,11 @@
               };
 
               sed-contract-qemu = pkgs.callPackage ./tests/sed-contract-qemu.nix {
-                autovirt = ./vendor/autovirt;
                 cpuVendor = "amd";
                 qemu-stealth = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
               };
 
               sed-contract-qemu-intel = pkgs.callPackage ./tests/sed-contract-qemu.nix {
-                autovirt = ./vendor/autovirt;
                 cpuVendor = "intel";
                 qemu-stealth = self.packages.${pkgs.stdenv.hostPlatform.system}.qemu-stealth-intel;
               };
@@ -279,8 +309,14 @@
                   ;
               };
 
-              boot-smoke = bootSmoke "amd";
-              boot-smoke-intel = bootSmoke "intel";
+              boot-smoke = bootSmoke {
+                cpuVendor = "amd";
+                qemu = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+              };
+              boot-smoke-intel = bootSmoke {
+                cpuVendor = "intel";
+                qemu = vendorPackage "intel" "qemu-stealth";
+              };
 
               ovmf-sb-vars-exists =
                 let

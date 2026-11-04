@@ -1,7 +1,6 @@
 {
   lib,
   runCommand,
-  autovirt,
   cpuVendor,
   qemu-stealth,
 }:
@@ -9,11 +8,7 @@
 let
   autovirtPatches = import ../lib/autovirt-patches.nix { inherit lib; };
 
-  autovirtPatch = autovirtPatches.qemu {
-    inherit autovirt;
-    inherit cpuVendor;
-    qemuVersion = qemu-stealth.version;
-  };
+  inherit (qemu-stealth) autovirtPatch;
 
   inherit (autovirtPatches.traits.${cpuVendor}) patchedOemId patchedOemTableId;
 

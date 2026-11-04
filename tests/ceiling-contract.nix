@@ -35,6 +35,7 @@ let
       ceiling ? defaultCeiling,
       tarballHashes ? defaultHashes,
       patchedSeries ? defaultSeries,
+      probeVersion ? null,
     }:
     import ../lib/select-qemu-base.nix {
       inherit
@@ -45,6 +46,7 @@ let
         ceiling
         tarballHashes
         patchedSeries
+        probeVersion
         ;
       qemu = fakeQemu qemuVersion;
     };
@@ -98,6 +100,39 @@ let
         in
         base.src == "pristine-11.1.2" && base.version == "11.1.2";
       detail = "expected a point release past the ceiling patch, in the ceiling's own series, to pass through";
+    }
+    {
+      name = "probe-builds-its-own-tarball-past-the-ceiling";
+      ok =
+        let
+          base = select {
+            qemuVersion = "11.1.2";
+            probeVersion = "11.2.0";
+            tarballHashes = defaultHashes // {
+              "11.2.0" = "sha256-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD=";
+            };
+          };
+        in
+        base.version == "11.2.0" && lib.hasInfix "qemu-11.2.0.tar.xz" base.src.url;
+      detail = "expected a probe to build the probed QEMU's tarball, not the caller's or the ceiling's";
+    }
+    {
+      name = "probe-not-past-the-ceiling-fails-closed";
+      ok =
+        !(resolves (select {
+          qemuVersion = "11.1.2";
+          probeVersion = "11.1.0";
+        })).success;
+      detail = "expected evaluation to fail when the probe is not newer than the ceiling";
+    }
+    {
+      name = "probe-without-a-hash-fails-closed";
+      ok =
+        !(resolves (select {
+          qemuVersion = "11.1.2";
+          probeVersion = "11.2.0";
+        })).success;
+      detail = "expected evaluation to fail when the probe QEMU has no tarball hash";
     }
     {
       name = "above-ceiling-builds-the-ceiling-tarball";

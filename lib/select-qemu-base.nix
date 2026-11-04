@@ -7,8 +7,14 @@
   ceiling,
   tarballHashes,
   patchedSeries,
+  probeVersion ? null,
 }:
 
+assert lib.assertMsg (probeVersion == null || builtins.compareVersions probeVersion ceiling > 0)
+  "qemu-stealth: the probe QEMU ${toString probeVersion} is not newer than the ceiling ${ceiling}; a probe only tests a QEMU past what the vendored patches support";
+assert lib.assertMsg (
+  probeVersion == null || builtins.hasAttr probeVersion tarballHashes
+) "qemu-stealth: no tarball hash for the probe QEMU ${toString probeVersion}";
 assert lib.assertMsg (builtins.compareVersions ceiling minimumVersion >= 0)
   "qemu-stealth: the patch ceiling ${ceiling} is below the minimum QEMU ${minimumVersion}. Vendor a patch for at least QEMU ${minimumVersion}";
 assert lib.assertMsg (builtins.hasAttr minimumVersion tarballHashes)
@@ -39,7 +45,9 @@ let
     });
 in
 
-if builtins.compareVersions qemu.version minimumVersion < 0 then
+if probeVersion != null then
+  tarball probeVersion
+else if builtins.compareVersions qemu.version minimumVersion < 0 then
   tarball minimumVersion
 else if
   builtins.compareVersions (lib.versions.majorMinor qemu.version) (lib.versions.majorMinor ceiling)
