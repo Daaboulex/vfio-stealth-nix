@@ -2,14 +2,14 @@
 set -euo pipefail
 
 # Custom update script for vfio-stealth-nix
-# AutoVirt upstream is deleted (~2026-05); its patches are vendored in
-# vendor/autovirt. This script watches the live forks for a patch newer than
-# what is vendored, and nixpkgs-unstable for a QEMU series no vendored patch
+# AutoVirt's patches are vendored in vendor/autovirt. This script watches
+# upstream (Scrut1ny) and the live forks for a patch newer than
+# what is vendored, and the newest QEMU for a series no vendored patch
 # covers, so the canonical update workflow files an issue the day either
 # appears. Adoption stays a hand decision (see docs/RELEASE-PROCEDURE.md).
 # Contract: exit 0 = nothing to do, exit 2 = transient network failure, exit 1 =
 # a manual port needed, upstream gone, a patch gap, a moved BetterTiming, a dead
-# fork still in FORKS, or aarch64 id registers turning configurable upstream;
+# repo still in AUTOVIRT_REPOS, or aarch64 id registers turning configurable upstream;
 # error_type says which. Every non-zero reaches the owner as the workflow's
 # single open update-failed issue, so nothing is left as a warning on a cron
 # nobody reads.
@@ -96,7 +96,8 @@ done
 log "Vendored: AMD-v${OURS[AMD]} Intel-v${OURS[Intel]}"
 output "old_version" "AMD-v${OURS[AMD]} Intel-v${OURS[Intel]}"
 
-FORKS=(
+AUTOVIRT_REPOS=(
+  "Scrut1ny"
   "Zhaodaidai"
   "fortesoft-co"
 )
@@ -109,7 +110,7 @@ dead_forks=()
 transient=0
 : >"$TMP/cands"
 
-for fork in "${FORKS[@]}"; do
+for fork in "${AUTOVIRT_REPOS[@]}"; do
   code=$(curl -s -o "$TMP/body.json" -w '%{http_code}' \
     "https://api.github.com/repos/${fork}/AutoVirt/contents/patches/QEMU" 2>/dev/null || true)
   case "$code" in
@@ -120,7 +121,7 @@ for fork in "${FORKS[@]}"; do
     continue
     ;;
   *)
-    warn "fork ${fork}/AutoVirt: fetch failed (HTTP ${code:-000}) - transient"
+    warn "${fork}/AutoVirt: fetch failed (HTTP ${code:-000}) - transient"
     transient=1
     continue
     ;;
@@ -130,8 +131,8 @@ for fork in "${FORKS[@]}"; do
     while read -r vendor v; do echo "$vendor $v $fork"; done >>"$TMP/cands"
 done
 
-if [ "$dead" -ge "${#FORKS[@]}" ]; then
-  err "every watched fork is gone (404) - update FORKS in scripts/update.sh"
+if [ "$dead" -ge "${#AUTOVIRT_REPOS[@]}" ]; then
+  err "every watched AutoVirt repo is gone (404) - update AUTOVIRT_REPOS in scripts/update.sh"
   output "error_type" "upstream-gone"
   exit 1
 fi
@@ -141,7 +142,7 @@ for vendor in "${VENDORS[@]}"; do
   if [ -n "$best_line" ]; then
     best_version=${best_line%% *}
     best_fork=${best_line##* }
-    warn "fork ${best_fork} ships ${vendor}-v${best_version}.patch; we vendor ${vendor}-v${OURS[$vendor]} - manual port needed"
+    warn "${best_fork}/AutoVirt ships ${vendor}-v${best_version}.patch; we vendor ${vendor}-v${OURS[$vendor]} - manual port needed"
     output "new_version" "${vendor}-v${best_version}"
     output "upstream_url" "https://github.com/${best_fork}/AutoVirt/blob/main/patches/QEMU/${vendor}-v${best_version}.patch"
     output "error_type" "manual-port-needed"
@@ -209,11 +210,11 @@ case "$kvm_code" in
   transient=1
   ;;
 esac
-# A transient fetch means the run could not see every fork, so nothing below
+# A transient fetch means the run could not see every AutoVirt repo, so nothing below
 # may be reported as settled: retry rather than name a stale list we did not
 # finish reading.
 if [ "$transient" -ne 0 ]; then
-  warn "some fork fetches failed transiently; re-checking tomorrow"
+  warn "some AutoVirt repo fetches failed transiently; re-checking tomorrow"
   exit 2
 fi
 
@@ -229,7 +230,7 @@ if [ -n "$LATEST_BT" ] && [ "$LATEST_BT" != "null" ] && [ "$LATEST_BT" != "$CURR
 fi
 
 if [ "$dead" -ne 0 ]; then
-  err "watched fork(s) gone (404): ${dead_forks[*]} -- drop them from FORKS in scripts/update.sh"
+  err "watched AutoVirt repo(s) gone (404): ${dead_forks[*]} -- drop them from AUTOVIRT_REPOS in scripts/update.sh"
   output "error_type" "fork-stale"
   exit 1
 fi
@@ -244,5 +245,5 @@ if grep -qF 'KVM_CAP_ARM_WRITABLE_IMP_ID_REGS' "$TMP/kvm.c"; then
   exit 1
 fi
 
-log "no fork ships a patch newer than our vendored AMD-v${OURS[AMD]} or Intel-v${OURS[Intel]}"
+log "no watched AutoVirt repo ships a patch newer than our vendored AMD-v${OURS[AMD]} or Intel-v${OURS[Intel]}"
 exit 0

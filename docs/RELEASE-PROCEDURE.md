@@ -9,7 +9,7 @@ challenge it with a dep bump).
 ## What this repo is
 
 A fork-of-forks: QEMU + EDK2 + CachyOS Linux, with out-of-tree
-patches (AutoVirt, upstream deleted ~2026-05, its patches vendored
+patches (AutoVirt, upstream Scrut1ny/AutoVirt, its patches vendored
 in `vendor/autovirt/`, plus Hypervisor-Phantom and a hand-ported
 BetterTiming) and our own sed-based reversions. Every dep in the
 input set can move. This procedure minimises the surface area of
@@ -109,9 +109,9 @@ nixpkgs`) or fix the anchors first.
 
 ## Adopting a newer AutoVirt patch
 
-`scripts/update.sh` watches the live AutoVirt forks daily, for AMD and
+`scripts/update.sh` watches AutoVirt upstream and its live forks daily, for AMD and
 Intel, and the newest QEMU of nixpkgs-unstable and of upstream's release
-tags. A fork patch newer than what we vendor exits 1 with
+tags. An AutoVirt patch newer than what we vendor exits 1 with
 `manual-port-needed`. When the newest QEMU is in a series a vendor has
 no patch for, the updater probes it without moving the pin: it builds
 that QEMU from its tarball with the vendor's newest patch
