@@ -65,6 +65,67 @@
           x86 = pkgs.stdenv.hostPlatform.system == "x86_64-linux";
           arm = pkgs.stdenv.hostPlatform.system == "aarch64-linux";
           stealth-detect = pkgs.callPackage ./detect/package.nix { };
+          bootSmoke =
+            cpuVendor:
+            let
+              packageSet = self.packages.${pkgs.stdenv.hostPlatform.system};
+              suffix = lib.optionalString (cpuVendor != "amd") "-${cpuVendor}";
+              qemu = if cpuVendor == "amd" then packageSet.default else packageSet."qemu-stealth${suffix}";
+              oemId = lib.strings.trim qemu.acpiOemId;
+            in
+            pkgs.testers.runNixOSTest {
+              name = "qemu-stealth-boot-smoke${suffix}";
+              globalTimeout = 600;
+              nodes.machine =
+                { lib, ... }:
+                {
+                  environment.systemPackages = [ stealth-detect ];
+                  virtualisation.qemu.package = lib.mkForce qemu;
+                  # UEFI boot on Q35: the MCH revert (c730b41) fixed the
+                  # OVMF PlatformPei ASSERT that originally forced SeaBIOS.
+                  # Q35 is explicit because the test framework defaults to
+                  # i440fx, which would skip the AutoVirt Q35 code paths.
+                  virtualisation.useEFIBoot = true;
+                  virtualisation.efi.OVMF =
+                    lib.mkForce
+                      (packageSet."ovmf-stealth${suffix}".override {
+                        secureBoot = false;
+                      }).fd;
+                  virtualisation.qemu.options = [
+                    "-machine"
+                    "q35"
+                  ];
+                };
+              testScript = ''
+                import json
+
+                machine.wait_for_unit("multi-user.target", timeout=300)
+
+                status, out = machine.execute("stealth-detect --json")
+                print(out)
+                report = json.loads(out)
+                verdicts = {f["vector"]: f["verdict"] for f in report["findings"]}
+                evidence = {f["vector"]: f["evidence"] for f in report["findings"]}
+
+                # The guest is the proof. The sed contracts show the edit landed in
+                # QEMU's source; only a booted guest shows the result reached it.
+                if verdicts["acpi-oem"] != "clean":
+                    raise Exception(
+                        "ACPI OEM rewrite did not reach the guest: "
+                        f"{verdicts['acpi-oem']}, {evidence['acpi-oem']}"
+                    )
+                if ${builtins.toJSON oemId} not in evidence["acpi-oem"]:
+                    raise Exception(
+                        "guest ACPI tables do not carry the configured OEM id: "
+                        f"{evidence['acpi-oem']}"
+                    )
+                if verdicts["pci-subsystem"] != "clean":
+                    raise Exception(
+                        "PCI subsystem id rewrite did not reach the guest: "
+                        f"{verdicts['pci-subsystem']}, {evidence['pci-subsystem']}"
+                    )
+              '';
+            };
         in
         {
           pre-commit.settings.hooks.shfmt.excludes = [ "^guest/" ];
@@ -218,59 +279,8 @@
                   ;
               };
 
-              boot-smoke = pkgs.testers.runNixOSTest {
-                name = "qemu-stealth-boot-smoke";
-                globalTimeout = 600;
-                nodes.machine =
-                  { lib, ... }:
-                  {
-                    environment.systemPackages = [ stealth-detect ];
-                    virtualisation.qemu.package = lib.mkForce self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-                    # UEFI boot on Q35: the MCH revert (c730b41) fixed the
-                    # OVMF PlatformPei ASSERT that originally forced SeaBIOS.
-                    # Q35 is explicit because the test framework defaults to
-                    # i440fx, which would skip the AutoVirt Q35 code paths.
-                    virtualisation.useEFIBoot = true;
-                    virtualisation.efi.OVMF =
-                      lib.mkForce
-                        (self.packages.${pkgs.stdenv.hostPlatform.system}.ovmf-stealth.override {
-                          secureBoot = false;
-                        }).fd;
-                    virtualisation.qemu.options = [
-                      "-machine"
-                      "q35"
-                    ];
-                  };
-                testScript = ''
-                  import json
-
-                  machine.wait_for_unit("multi-user.target", timeout=300)
-
-                  status, out = machine.execute("stealth-detect --json")
-                  print(out)
-                  report = json.loads(out)
-                  verdicts = {f["vector"]: f["verdict"] for f in report["findings"]}
-                  evidence = {f["vector"]: f["evidence"] for f in report["findings"]}
-
-                  # The guest is the proof. The sed contracts show the edit landed in
-                  # QEMU's source; only a booted guest shows the result reached it.
-                  if verdicts["acpi-oem"] != "clean":
-                      raise Exception(
-                          "ACPI OEM rewrite did not reach the guest: "
-                          f"{verdicts['acpi-oem']}, {evidence['acpi-oem']}"
-                      )
-                  if "ALASKA" not in evidence["acpi-oem"]:
-                      raise Exception(
-                          "guest ACPI tables do not carry the configured OEM id: "
-                          f"{evidence['acpi-oem']}"
-                      )
-                  if verdicts["pci-subsystem"] != "clean":
-                      raise Exception(
-                          "PCI subsystem id rewrite did not reach the guest: "
-                          f"{verdicts['pci-subsystem']}, {evidence['pci-subsystem']}"
-                      )
-                '';
-              };
+              boot-smoke = bootSmoke "amd";
+              boot-smoke-intel = bootSmoke "intel";
 
               ovmf-sb-vars-exists =
                 let

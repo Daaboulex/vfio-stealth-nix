@@ -358,7 +358,7 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 
 Both upstream techniques are vendored, not fetched at build time.
 
-- **AutoVirt** (QEMU + EDK2 hardware-emulation patches). Its upstream was deleted around 2026-05; the patches live in `vendor/autovirt` and the packages build from those. `AMD-v11.1.0.patch` was ported here, not upstream.
+- **AutoVirt** (QEMU + EDK2 hardware-emulation patches). Its upstream was deleted around 2026-05; the patches live in `vendor/autovirt` and the packages build from those. `AMD-v11.1.0.patch` and `Intel-v11.1.0.patch` were ported here, not upstream.
 - **[SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming)** (TSC compensation). `kernel/timing-patch.nix` is a hand-port; `version.json` records the commit it was ported from.
 
 `update.yml` runs `scripts/update.sh` on a daily cron. It watches the surviving AutoVirt forks for a patch newer than the vendored one, BetterTiming for a commit past the recorded port, and nixpkgs for a QEMU series no vendored patch covers, and files an issue when one appears. Adopting a change is a hand decision, see [`docs/RELEASE-PROCEDURE.md`](docs/RELEASE-PROCEDURE.md).
