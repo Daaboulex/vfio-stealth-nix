@@ -1,8 +1,15 @@
 AutoVirt QEMU and EDK2 stealth patches, vendored.
 
 Origin:   github:Scrut1ny/AutoVirt at 190569cc940fb5366b095d5ca70b478769e65216
-Retrieved: 2026-08-17, from the local nix store; the upstream GitHub account no
-           longer exists and returns 404, so this is the surviving copy.
+Retrieved: 2026-08-17, from the local nix store, on a day the upstream GitHub
+           account returned 404. It was back by 2026-10-28 and returned 404
+           again on 2026-11-05; scripts/update.sh reports each change.
+Local:     AMD-v11.1.3.patch and Intel-v11.1.3.patch are this repo's port of
+           upstream's v11.0.3 patches, and both v11.0.3 patches carry this
+           repo's fix for duplicate ACPI device names (EHC1, XHC1). Both were
+           offered upstream on 2026-11-04 as Scrut1ny/AutoVirt #173 and #174,
+           from github:Daaboulex/AutoVirt branches
+           fix/acpi-duplicate-device-names (2c12084) and qemu-v11.1.3 (812e3b0).
 License:   the patches derive from QEMU (GPL-2.0-or-later) and EDK2; the added
            hw/net/rtl8125.c declares GPL-2.0-or-later. AutoVirt's own scripts
            were GPL-3.0 and are deliberately not vendored here.

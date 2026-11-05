@@ -53,7 +53,7 @@ let
     probeVersion = if probe == null then null else probe.version;
     tarballHashes = {
       "11.0.3" = "sha256-2l/P/DJ2KCBWi4KO1DCnKIZNNNULbS8wNYWXdgy7BSM=";
-      "11.1.0" = "sha256-buHRph9oISR2snEIwm2l9EncCbYm1C+CeboNwuCPqFg=";
+      "11.1.3" = "sha256-WoKJx5QNx304c8gabCm6Ov4URvydNud/oWWM2+y4SyI=";
     }
     // lib.optionalAttrs (probe != null) { ${probe.version} = probe.hash; };
   };

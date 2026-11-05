@@ -1,5 +1,5 @@
 diff --git a/hw/acpi/aml-build.c b/hw/acpi/aml-build.c
-index 990abc64c..01c8fc42d 100644
+index 990abc6..01c8fc4 100644
 --- a/hw/acpi/aml-build.c
 +++ b/hw/acpi/aml-build.c
 @@ -1751,15 +1751,14 @@ void acpi_table_begin(AcpiTable *desc, GArray *array)
@@ -45,10 +45,10 @@ index 990abc64c..01c8fc42d 100644
      /* TODO: extra fields need to be added to support revisions above rev6 */
      assert(f->rev == 6);
 diff --git a/hw/acpi/pcihp.c b/hw/acpi/pcihp.c
-index 87162ff2c..b78c4bb25 100644
+index 87162ff..d54dde0 100644
 --- a/hw/acpi/pcihp.c
 +++ b/hw/acpi/pcihp.c
-@@ -699,6 +699,83 @@ void build_append_pcihp_resources(Aml *scope /* \\_SB.PCI0 */,
+@@ -699,6 +699,82 @@ void build_append_pcihp_resources(Aml *scope /* \\_SB.PCI0 */,
      aml_append(scope, dev);
  }
  
@@ -89,8 +89,7 @@ index 87162ff2c..b78c4bb25 100644
 +
 +        case 5:
 +            // Slot 5: USB XHCI (QEMU default often)
-+            if (func == 0) sprintf(name, "XHC1");
-+            else sprintf(name, "XHC%X", func);
++            sprintf(name, "XHC%X", func + 1);
 +            break;
 +
 +        case 6:
@@ -101,8 +100,8 @@ index 87162ff2c..b78c4bb25 100644
 +
 +        case 29:
 +            // Slot 29 (0x1D): USB EHCI (Intel Standard)
-+            if (func == 0) sprintf(name, "EHC1");
-+            else sprintf(name, "EHC%X", func);
++            if (func == 7) sprintf(name, "EHC1");
++            else sprintf(name, "USB%X", func + 1);
 +            break;
 +
 +        case 31:
@@ -132,7 +131,7 @@ index 87162ff2c..b78c4bb25 100644
  bool build_append_notification_callback(Aml *parent_scope, const PCIBus *bus)
  {
      Aml *method;
-@@ -912,7 +989,11 @@ void build_append_pci_bus_devices(Aml *parent_scope, PCIBus *bus)
+@@ -912,7 +988,22 @@ void build_append_pci_bus_devices(Aml *parent_scope, PCIBus *bus)
          }
  
          /* start to compose PCI device descriptor */
@@ -140,13 +139,24 @@ index 87162ff2c..b78c4bb25 100644
 +
 +        char mimic_name[5];
 +        get_mimic_pci_name(mimic_name, devfn);
++        for (int prior = 0; prior < devfn; prior++) {
++            char prior_name[5];
++            if (!bus->devices[prior] || is_devfn_ignored_generic(prior, bus)) {
++                continue;
++            }
++            get_mimic_pci_name(prior_name, prior);
++            if (strcmp(prior_name, mimic_name) == 0) {
++                snprintf(mimic_name, sizeof(mimic_name), "RP%02X", devfn);
++                break;
++            }
++        }
 +        dev = aml_device("%s", mimic_name);
 +
          aml_append(dev, aml_name_decl("_ADR", aml_int(adr)));
  
          call_dev_aml_func(DEVICE(bus->devices[devfn]), dev);
 diff --git a/hw/audio/hda-codec.c b/hw/audio/hda-codec.c
-index 173fe56be..823b2e5ec 100644
+index 173fe56..823b2e5 100644
 --- a/hw/audio/hda-codec.c
 +++ b/hw/audio/hda-codec.c
 @@ -118,7 +118,7 @@ static void hda_codec_parse_fmt(uint32_t format, struct audsettings *as)
@@ -159,7 +169,7 @@ index 173fe56be..823b2e5ec 100644
                                0x1fc /* 16 -> 96 kHz */)
  #define QEMU_HDA_AMP_NONE    (0)
 diff --git a/hw/audio/intel-hda.c b/hw/audio/intel-hda.c
-index 3d361a497..1a06d8c41 100644
+index 3d361a4..1a06d8c 100644
 --- a/hw/audio/intel-hda.c
 +++ b/hw/audio/intel-hda.c
 @@ -1242,8 +1242,8 @@ static void intel_hda_class_init_ich6(ObjectClass *klass, const void *data)
@@ -185,7 +195,7 @@ index 3d361a497..1a06d8c41 100644
      dc->desc = "Intel HD Audio Controller (ich9)";
  }
 diff --git a/hw/core/qdev.c b/hw/core/qdev.c
-index e2aab3d1f..9131b5d1d 100644
+index e2aab3d..9131b5d 100644
 --- a/hw/core/qdev.c
 +++ b/hw/core/qdev.c
 @@ -765,7 +765,7 @@ static void device_class_init(ObjectClass *class, const void *data)
@@ -198,7 +208,7 @@ index e2aab3d1f..9131b5d1d 100644
      vc->get_id = device_vmstate_if_get_id;
      rc->get_state = device_get_reset_state;
 diff --git a/hw/i386/acpi-build.c b/hw/i386/acpi-build.c
-index 8837b6968..effdf6a44 100644
+index 8837b69..effdf6a 100644
 --- a/hw/i386/acpi-build.c
 +++ b/hw/i386/acpi-build.c
 @@ -165,8 +165,8 @@ static void init_common_fadt_data(MachineState *ms, Object *o,
@@ -324,10 +334,10 @@ index 8837b6968..effdf6a44 100644
      if (pcms->wdat_enabled == true) {
          g_assert(pm.tco_io_base);
 diff --git a/hw/i386/fw_cfg.c b/hw/i386/fw_cfg.c
-index d422302c1..e63ab7d27 100644
+index 5903994..e5fddbc 100644
 --- a/hw/i386/fw_cfg.c
 +++ b/hw/i386/fw_cfg.c
-@@ -75,7 +75,7 @@ void fw_cfg_build_smbios(PCMachineState *pcms, FWCfgState *fw_cfg,
+@@ -77,7 +77,7 @@ void fw_cfg_build_smbios(PCMachineState *pcms, FWCfgState *fw_cfg,
  
      if (pcmc->smbios_defaults) {
          /* These values are guest ABI, do not change */
@@ -337,10 +347,10 @@ index d422302c1..e63ab7d27 100644
  
      /* tell smbios about cpuid version and features */
 diff --git a/hw/i386/pc.c b/hw/i386/pc.c
-index f064aa2b3..cfdbbc142 100644
+index 862b4a4..6b5fcf2 100644
 --- a/hw/i386/pc.c
 +++ b/hw/i386/pc.c
-@@ -1689,7 +1689,7 @@ static void pc_machine_class_init(ObjectClass *oc, const void *data)
+@@ -1688,7 +1688,7 @@ static void pc_machine_class_init(ObjectClass *oc, const void *data)
  
      pcmc->pci_enabled = true;
      pcmc->has_acpi_build = true;
@@ -350,10 +360,10 @@ index f064aa2b3..cfdbbc142 100644
      pcmc->has_reserved_memory = true;
      pcmc->enforce_amd_1tb_hole = true;
 diff --git a/hw/ide/atapi.c b/hw/ide/atapi.c
-index a42b74852..c10cf5134 100644
+index 0ea149a..f012ad8 100644
 --- a/hw/ide/atapi.c
 +++ b/hw/ide/atapi.c
-@@ -798,8 +798,8 @@ static void cmd_inquiry(IDEState *s, uint8_t *buf)
+@@ -786,8 +786,8 @@ static void cmd_inquiry(IDEState *s, uint8_t *buf)
          buf[5] = 0;    /* reserved */
          buf[6] = 0;    /* reserved */
          buf[7] = 0;    /* reserved */
@@ -365,10 +375,10 @@ index a42b74852..c10cf5134 100644
          idx = 36;
      }
 diff --git a/hw/ide/core.c b/hw/ide/core.c
-index fb9bf11b4..76d406197 100644
+index befbab9..ef6f4ad 100644
 --- a/hw/ide/core.c
 +++ b/hw/ide/core.c
-@@ -2640,21 +2640,20 @@ int ide_init_drive(IDEState *s, IDEDevice *dev, IDEDriveKind kind, Error **errp)
+@@ -2648,21 +2648,20 @@ int ide_init_drive(IDEState *s, IDEDevice *dev, IDEDriveKind kind, Error **errp)
      if (dev->serial) {
          pstrcpy(s->drive_serial_str, sizeof(s->drive_serial_str), dev->serial);
      } else {
@@ -395,7 +405,7 @@ index fb9bf11b4..76d406197 100644
          }
      }
 diff --git a/hw/isa/lpc_ich9.c b/hw/isa/lpc_ich9.c
-index edf9783ec..00365e1a8 100644
+index edf9783..00365e1 100644
 --- a/hw/isa/lpc_ich9.c
 +++ b/hw/isa/lpc_ich9.c
 @@ -864,7 +864,7 @@ static void build_ich9_isa_aml(AcpiDevAmlIf *adev, Aml *scope)
@@ -408,7 +418,7 @@ index edf9783ec..00365e1a8 100644
      aml_append(field, aml_named_field("PRQB", 8));
      aml_append(field, aml_named_field("PRQC", 8));
 diff --git a/hw/misc/pvpanic-isa.c b/hw/misc/pvpanic-isa.c
-index 85fb7da5e..8da4e2511 100644
+index 85fb7da..8da4e25 100644
 --- a/hw/misc/pvpanic-isa.c
 +++ b/hw/misc/pvpanic-isa.c
 @@ -69,7 +69,7 @@ static void build_pvpanic_isa_aml(AcpiDevAmlIf *adev, Aml *scope)
@@ -421,7 +431,7 @@ index 85fb7da5e..8da4e2511 100644
      crs = aml_resource_template();
      aml_append(crs,
 diff --git a/hw/net/Kconfig b/hw/net/Kconfig
-index b56a173ee..e52ac060e 100644
+index b56a173..e52ac06 100644
 --- a/hw/net/Kconfig
 +++ b/hw/net/Kconfig
 @@ -54,6 +54,11 @@ config RTL8139_PCI
@@ -437,7 +447,7 @@ index b56a173ee..e52ac060e 100644
      bool
      default y if PCI_DEVICES
 diff --git a/hw/net/meson.build b/hw/net/meson.build
-index 84f142df2..0d345f96b 100644
+index 84f142d..0d345f9 100644
 --- a/hw/net/meson.build
 +++ b/hw/net/meson.build
 @@ -13,6 +13,7 @@ system_ss.add(when: 'CONFIG_E1000E_PCI_EXPRESS', if_true: files('e1000e.c', 'e10
@@ -450,7 +460,7 @@ index 84f142df2..0d345f96b 100644
  system_ss.add(when: 'CONFIG_VMXNET3_PCI', if_true: files('vmxnet3.c'))
 diff --git a/hw/net/rtl8125.c b/hw/net/rtl8125.c
 new file mode 100644
-index 000000000..a9e52be40
+index 0000000..a9e52be
 --- /dev/null
 +++ b/hw/net/rtl8125.c
 @@ -0,0 +1,1310 @@
@@ -1765,7 +1775,7 @@ index 000000000..a9e52be40
 +
 +DEFINE_TYPES(rtl8125_infos)
 diff --git a/hw/nvme/ctrl.c b/hw/nvme/ctrl.c
-index 4893cf7e7..7d05b821a 100644
+index 76ff92c..a052954 100644
 --- a/hw/nvme/ctrl.c
 +++ b/hw/nvme/ctrl.c
 @@ -9268,7 +9268,7 @@ static void nvme_init_ctrl(NvmeCtrl *n, PCIDevice *pci_dev)
@@ -1778,7 +1788,7 @@ index 4893cf7e7..7d05b821a 100644
                n->params.firmware_version ? n->params.firmware_version : QEMU_VERSION, ' ');
      strpadcpy((char *)id->sn, sizeof(id->sn), n->params.serial, ' ');
 diff --git a/hw/nvram/fw_cfg.c b/hw/nvram/fw_cfg.c
-index b057d870c..a253fe866 100644
+index b057d87..a253fe8 100644
 --- a/hw/nvram/fw_cfg.c
 +++ b/hw/nvram/fw_cfg.c
 @@ -56,7 +56,7 @@
@@ -1800,7 +1810,7 @@ index b057d870c..a253fe866 100644
      fw_cfg_add_i16(s, FW_CFG_NOGRAPHIC, (uint16_t)!machine->enable_graphics);
      fw_cfg_add_i16(s, FW_CFG_BOOT_MENU, (uint16_t)(machine->boot_config.has_menu && machine->boot_config.menu));
 diff --git a/hw/pci-host/gpex.c b/hw/pci-host/gpex.c
-index e66784ce5..714634b78 100644
+index e66784c..714634b7 100644
 --- a/hw/pci-host/gpex.c
 +++ b/hw/pci-host/gpex.c
 @@ -243,8 +243,8 @@ static void gpex_root_class_init(ObjectClass *klass, const void *data)
@@ -1815,7 +1825,7 @@ index e66784ce5..714634b78 100644
      k->class_id = PCI_CLASS_BRIDGE_HOST;
      /*
 diff --git a/hw/usb/dev-hid.c b/hw/usb/dev-hid.c
-index ae19d6020..9fe122335 100644
+index ae19d60..9fe1223 100644
 --- a/hw/usb/dev-hid.c
 +++ b/hw/usb/dev-hid.c
 @@ -63,17 +63,17 @@ enum {
@@ -1916,7 +1926,7 @@ index ae19d6020..9fe122335 100644
      device_class_set_props(dc, usb_keyboard_properties);
      set_bit(DEVICE_CATEGORY_INPUT, dc->categories);
 diff --git a/include/hw/acpi/aml-build.h b/include/hw/acpi/aml-build.h
-index eaff025d2..30e27d34d 100644
+index eaff025..30e27d3 100644
 --- a/include/hw/acpi/aml-build.h
 +++ b/include/hw/acpi/aml-build.h
 @@ -5,8 +5,8 @@
@@ -1931,7 +1941,7 @@ index eaff025d2..30e27d34d 100644
  #define ACPI_BUILD_TABLE_FILE "etc/acpi/tables"
  #define ACPI_BUILD_RSDP_FILE "etc/acpi/rsdp"
 diff --git a/include/hw/i386/x86.h b/include/hw/i386/x86.h
-index 71fe6b5e1..755c9d844 100644
+index 71fe6b5..755c9d8 100644
 --- a/include/hw/i386/x86.h
 +++ b/include/hw/i386/x86.h
 @@ -136,7 +136,7 @@ bool x86_machine_is_acpi_enabled(const X86MachineState *x86ms);
@@ -1944,7 +1954,7 @@ index 71fe6b5e1..755c9d844 100644
  typedef struct GSIState {
      qemu_irq i8259_irq[ISA_NUM_IRQS];
 diff --git a/include/hw/pci/pci.h b/include/hw/pci/pci.h
-index f2448e941..bd1e51af5 100644
+index f2448e9..bd1e51a 100644
 --- a/include/hw/pci/pci.h
 +++ b/include/hw/pci/pci.h
 @@ -57,7 +57,7 @@ extern bool pci_available;
@@ -2003,7 +2013,7 @@ index f2448e941..bd1e51af5 100644
  #define PCI_DEVICE_ID_REDHAT_NVME        0x0010
  #define PCI_DEVICE_ID_REDHAT_PVPANIC     0x0011
 diff --git a/include/hw/pci/pci_ids.h b/include/hw/pci/pci_ids.h
-index 16034aaa2..4622b457a 100644
+index 16034aa..4622b45 100644
 --- a/include/hw/pci/pci_ids.h
 +++ b/include/hw/pci/pci_ids.h
 @@ -241,7 +241,7 @@
@@ -2037,7 +2047,7 @@ index 16034aaa2..4622b457a 100644
  #define PCI_VENDOR_ID_XEN                0x5853
  #define PCI_DEVICE_ID_XEN_PLATFORM       0x0001
 diff --git a/include/hw/southbridge/ich9.h b/include/hw/southbridge/ich9.h
-index 2c35dd048..83536bad9 100644
+index 2c35dd0..83536ba 100644
 --- a/include/hw/southbridge/ich9.h
 +++ b/include/hw/southbridge/ich9.h
 @@ -128,7 +128,7 @@ struct ICH9LPCState {
@@ -2059,7 +2069,7 @@ index 2c35dd048..83536bad9 100644
  
  #define ICH9_SMB_SMBMBAR0                       0x10
 diff --git a/include/standard-headers/linux/qemu_fw_cfg.h b/include/standard-headers/linux/qemu_fw_cfg.h
-index cb93f6678..0527126a8 100644
+index cb93f66..0527126 100644
 --- a/include/standard-headers/linux/qemu_fw_cfg.h
 +++ b/include/standard-headers/linux/qemu_fw_cfg.h
 @@ -71,7 +71,7 @@ struct fw_cfg_file {
@@ -2072,7 +2082,7 @@ index cb93f6678..0527126a8 100644
  /* Control as first field allows for different structures selected by this
   * field, which might be useful in the future
 diff --git a/target/i386/cpu.c b/target/i386/cpu.c
-index 5805d33ab..1b0203ec1 100644
+index 2adc8c1..2ef8e18 100644
 --- a/target/i386/cpu.c
 +++ b/target/i386/cpu.c
 @@ -1009,6 +1009,7 @@ void x86_cpu_vendor_words2str(char *dst, uint32_t vendor1,
@@ -2123,7 +2133,7 @@ index 5805d33ab..1b0203ec1 100644
      x86_cpu_adjust_feat_level(cpu, FEAT_7_1_EAX);
      x86_cpu_adjust_feat_level(cpu, FEAT_7_1_ECX);
 diff --git a/target/i386/cpu.h b/target/i386/cpu.h
-index e6a197602..2a6dbbfbf 100644
+index 04ab0c8..306d0fb 100644
 --- a/target/i386/cpu.h
 +++ b/target/i386/cpu.h
 @@ -700,6 +700,7 @@ typedef enum FeatureWord {
@@ -2143,7 +2153,7 @@ index e6a197602..2a6dbbfbf 100644
  /* CPUID[0x80000007].EDX flags: */
  #define CPUID_APM_INVTSC       (1U << 8)
 diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
-index 4272b6770..8e90bd03c 100644
+index 644c45f..6f6862e 100644
 --- a/target/i386/kvm/kvm.c
 +++ b/target/i386/kvm/kvm.c
 @@ -499,6 +499,14 @@ uint32_t kvm_arch_get_supported_cpuid(KVMState *s, uint32_t function,
