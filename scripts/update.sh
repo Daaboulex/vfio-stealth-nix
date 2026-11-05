@@ -9,7 +9,8 @@ set -euo pipefail
 # appears. Adoption stays a hand decision (see docs/RELEASE-PROCEDURE.md).
 # Contract: exit 0 = nothing to do, exit 2 = transient network failure, exit 1 =
 # a manual port needed, upstream gone, a patch gap, a moved BetterTiming, a dead
-# repo still in AUTOVIRT_REPOS, or aarch64 id registers turning configurable upstream;
+# repo still in AUTOVIRT_REPOS, a repo in AUTOVIRT_GONE back online, or aarch64 id
+# registers turning configurable upstream;
 # error_type says which. Every non-zero reaches the owner as the workflow's
 # single open update-failed issue, so nothing is left as a warning on a cron
 # nobody reads.
@@ -62,6 +63,16 @@ newer_fork_patch() {
   fi
 }
 
+watch_verdict() {
+  case "$1:$2" in
+  live:200) echo live ;;
+  live:404) echo dead ;;
+  gone:200) echo returned ;;
+  gone:404) echo still-gone ;;
+  *) echo transient ;;
+  esac
+}
+
 probe_stage() {
   local version="$1" hash="$2" vendor="$3" stage
   for stage in qemu sed-contract boot-smoke; do
@@ -97,9 +108,12 @@ log "Vendored: AMD-v${OURS[AMD]} Intel-v${OURS[Intel]}"
 output "old_version" "AMD-v${OURS[AMD]} Intel-v${OURS[Intel]}"
 
 AUTOVIRT_REPOS=(
-  "Scrut1ny"
   "Zhaodaidai"
   "fortesoft-co"
+)
+
+AUTOVIRT_GONE=(
+  "Scrut1ny"
 )
 
 TMP=$(mktemp -d)
@@ -107,20 +121,28 @@ trap 'rm -rf "$TMP"' EXIT
 
 dead=0
 dead_forks=()
+returned_forks=()
 transient=0
 : >"$TMP/cands"
 
-for fork in "${AUTOVIRT_REPOS[@]}"; do
+for entry in "${AUTOVIRT_REPOS[@]/#/live:}" "${AUTOVIRT_GONE[@]/#/gone:}"; do
+  list=${entry%%:*}
+  fork=${entry#*:}
   code=$(curl -s -o "$TMP/body.json" -w '%{http_code}' \
     "https://api.github.com/repos/${fork}/AutoVirt/contents/patches/QEMU" 2>/dev/null || true)
-  case "$code" in
-  200) ;;
-  404)
+  case "$(watch_verdict "$list" "${code:-000}")" in
+  live) ;;
+  returned) returned_forks+=("$fork") ;;
+  dead)
     dead=$((dead + 1))
     dead_forks+=("$fork")
     continue
     ;;
-  *)
+  still-gone)
+    log "${fork}/AutoVirt still returns 404; watching for its return"
+    continue
+    ;;
+  transient)
     warn "${fork}/AutoVirt: fetch failed (HTTP ${code:-000}) - transient"
     transient=1
     continue
@@ -230,8 +252,14 @@ if [ -n "$LATEST_BT" ] && [ "$LATEST_BT" != "null" ] && [ "$LATEST_BT" != "$CURR
 fi
 
 if [ "$dead" -ne 0 ]; then
-  err "watched AutoVirt repo(s) gone (404): ${dead_forks[*]} -- drop them from AUTOVIRT_REPOS in scripts/update.sh"
+  err "watched AutoVirt repo(s) gone (404): ${dead_forks[*]} -- move them from AUTOVIRT_REPOS to AUTOVIRT_GONE in scripts/update.sh, which reports the day one comes back"
   output "error_type" "fork-stale"
+  exit 1
+fi
+
+if [ "${#returned_forks[@]}" -ne 0 ]; then
+  err "AutoVirt repo(s) back online: ${returned_forks[*]} -- move them from AUTOVIRT_GONE to AUTOVIRT_REPOS in scripts/update.sh"
+  output "error_type" "fork-returned"
   exit 1
 fi
 

@@ -112,7 +112,9 @@ nixpkgs`) or fix the anchors first.
 `scripts/update.sh` watches AutoVirt upstream and its live forks daily, for AMD and
 Intel, and the newest QEMU of nixpkgs-unstable and of upstream's release
 tags. An AutoVirt patch newer than what we vendor exits 1 with
-`manual-port-needed`. When the newest QEMU is in a series a vendor has
+`manual-port-needed`. A watched repo that starts returning 404 exits 1
+with `fork-stale`; moved to `AUTOVIRT_GONE`, it is still checked daily and
+exits 1 with `fork-returned` the day it answers again. When the newest QEMU is in a series a vendor has
 no patch for, the updater probes it without moving the pin: it builds
 that QEMU from its tarball with the vendor's newest patch
 (`legacyPackages.x86_64-linux.qemuProbe`), then runs the sed contract

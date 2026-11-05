@@ -37,6 +37,12 @@ runCommand "update-gap-contract" { } ''
   [ "$(newer_fork_patch Intel 11.1.0 "$cands")" = "" ]
   : >"$cands"
   [ "$(newer_fork_patch AMD 11.1.0 "$cands")" = "" ]
-  echo "update-gap-contract: all 15 cases passed"
+  [ "$(watch_verdict live 200)" = "live" ]
+  [ "$(watch_verdict live 404)" = "dead" ]
+  [ "$(watch_verdict gone 200)" = "returned" ]
+  [ "$(watch_verdict gone 404)" = "still-gone" ]
+  [ "$(watch_verdict live 000)" = "transient" ]
+  [ "$(watch_verdict gone 503)" = "transient" ]
+  echo "update-gap-contract: all 21 cases passed"
   touch $out
 ''
