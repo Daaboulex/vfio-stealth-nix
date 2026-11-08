@@ -11,7 +11,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: ${{ github.workflow }}
+  group: writes-default-branch
   cancel-in-progress: false
 
 jobs:
