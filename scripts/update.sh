@@ -16,9 +16,9 @@ set -euo pipefail
 # nobody reads.
 
 output() { echo "$1=$2" >>"$OUTPUT_FILE"; }
-log() { echo "==> $*"; }
-warn() { echo "::warning::$*"; }
-err() { echo "::error::$*"; }
+log() { echo "==> $*" >&2; }
+warn() { echo "::warning::$*" >&2; }
+err() { echo "::error::$*" >&2; }
 
 newest_series() {
   local vendor="$1"
