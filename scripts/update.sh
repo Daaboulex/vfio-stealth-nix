@@ -22,7 +22,7 @@ err() { echo "::error::$*" >&2; }
 
 newest_series() {
   local vendor="$1"
-  ls "$VENDOR_DIR" |
+  find "$VENDOR_DIR" -maxdepth 1 -type f -printf '%f\n' |
     sed -n "s/^${vendor}-v\([0-9][0-9.]*\)\.patch$/\1/p" |
     sort -V |
     tail -1
@@ -32,7 +32,7 @@ VENDORS=(AMD Intel)
 
 series_set() {
   local vendor="$1"
-  ls "$VENDOR_DIR" |
+  find "$VENDOR_DIR" -maxdepth 1 -type f -printf '%f\n' |
     sed -n "s/^${vendor}-v\([0-9][0-9]*\.[0-9][0-9]*\)\.[0-9][0-9.]*\.patch$/\1/p" |
     sort -u
 }
