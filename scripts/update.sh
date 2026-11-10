@@ -108,13 +108,12 @@ log "Vendored: AMD-v${OURS[AMD]} Intel-v${OURS[Intel]}"
 output "old_version" "AMD-v${OURS[AMD]} Intel-v${OURS[Intel]}"
 
 AUTOVIRT_REPOS=(
+  "Scrut1ny"
   "Zhaodaidai"
   "fortesoft-co"
 )
 
-AUTOVIRT_GONE=(
-  "Scrut1ny"
-)
+AUTOVIRT_GONE=()
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
