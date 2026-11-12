@@ -52,14 +52,14 @@ When upstream moves past it, [`scripts/update.sh`](../scripts/update.sh) exits 1
 ### 1. Run the contract tests
 
 ```sh
-nix flake check .#checks.x86_64-linux.sed-contract-qemu
-nix flake check .#checks.x86_64-linux.sed-contract-edk2
-nix flake check .#checks.x86_64-linux.autovirt-patch-contract
-nix flake check .#checks.x86_64-linux.qemu-ceiling-contract
-nix flake check .#checks.x86_64-linux.kernel-postpatch-fits-cachyos
-nix flake check .#checks.x86_64-linux.kernel-postpatch-fits-upstream
-nix flake check .#checks.x86_64-linux.lib-output-contract
-nix flake check .#checks.x86_64-linux.boot-smoke
+nix build .#checks.x86_64-linux.sed-contract-qemu
+nix build .#checks.x86_64-linux.sed-contract-edk2
+nix build .#checks.x86_64-linux.autovirt-patch-contract
+nix build .#checks.x86_64-linux.qemu-ceiling-contract
+nix build .#checks.x86_64-linux.kernel-postpatch-fits-cachyos
+nix build .#checks.x86_64-linux.kernel-postpatch-fits-upstream
+nix build .#checks.x86_64-linux.lib-output-contract
+nix build .#checks.x86_64-linux.boot-smoke
 ```
 
 If any fails: fix the broken anchor (the contract test output names
@@ -97,7 +97,7 @@ dep. If it fails, fix the anchors before committing the bump.
 
 ```sh
 nix flake update nixpkgs
-nix flake check .#checks.x86_64-linux.sed-contract-qemu \
+nix build .#checks.x86_64-linux.sed-contract-qemu \
               .#checks.x86_64-linux.sed-contract-edk2 \
               .#checks.x86_64-linux.qemu-ceiling-contract
 # Per-sed diagnostics are printed on failure; fix in
