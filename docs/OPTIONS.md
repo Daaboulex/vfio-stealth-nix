@@ -74,7 +74,7 @@ Type: `null or string`. Default: `null`.
 
 ### `virtualisation.vfio-stealth.cpuVendor`
 
-Host CPU vendor. Selects the AutoVirt patch set and the ACPI OEM identity the QEMU postPatch rewrites. There is deliberately no default: a mismatch builds cleanly and yields a guest whose spoofed CPU vendor contradicts the host.
+Host CPU vendor. There is no default, and an enabled module refuses null. The module reads it in assertions only: "intel" refuses timing.enable, cpuidSpoof.enable and cpuidPassthrough.enable, which patch arch/x86/kvm/svm/svm.c. It selects no package and no AutoVirt patch set: the caller runs the VM on qemu-stealth and ovmf-stealth for AMD, or on qemu-stealth-intel and ovmf-stealth-intel for Intel.
 
 Type: `null or one of "amd", "intel"`. Default: `null`. Example: `"amd"`.
 
@@ -86,7 +86,7 @@ Type: `boolean`. Default: `false`.
 
 ### `virtualisation.vfio-stealth.cpuidSpoof.enable`
 
-CPUID leaf 0 emulation via Hypervisor-Phantom technique. Covers the hypervisor-present CPUID bit (leaf 1, bit 31) and hypervisor vendor string (leaf 0x40000000). Skipped when cpuidPassthrough.enable is true.
+Add the CPUID leaf 0 override (Hypervisor-Phantom technique) to kernelPostPatch. A guest CPUID with EAX = 0 is answered with the vendor string AuthenticAMD and maximum leaf 0x20, and the guest is re-entered without a full VM exit. The patch also clears the RDTSC and RDTSCP intercepts, which the timing.enable patch sets again. No other leaf is changed: the hypervisor-present bit (leaf 1, bit 31) and the hypervisor vendor leaf (0x40000000) are not touched. Skipped when cpuidPassthrough.enable is true.
 
 Type: `boolean`. Default: `true`.
 
@@ -236,7 +236,7 @@ Type: `string matching the pattern ^.{1,12}$`. Default: `"AuthAMDRyzen"`.
 
 ### `virtualisation.vfio-stealth.kernelCapabilities`
 
-Per-feature capability set from the host kernel. null = assume all features supported (back-compat). Compute via lib.kernelCapabilities.fromConfigPath in your host config, or set the attrset by hand after running zcat /proc/config.gz | grep KVM_HYPERV on the host.
+Per-feature capability set of the host kernel, passed by the caller to lib.mkStealthFeatures, which drops every requested Hyper-V feature the set does not allow. null = assume all features supported (back-compat). Set the attrset by hand after running zcat /proc/config.gz | grep KVM_HYPERV on the host, and name every hypervFeatures key: a key left out counts as unsupported. The parser in lib/kernel-capabilities.nix is not a flake output.
 
 Type: `null or (attribute set of boolean)`. Default: `null`.
 
@@ -272,7 +272,7 @@ Type: `string`. Default: `""`. Read only.
 
 ### `virtualisation.vfio-stealth.macPrefix`
 
-OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard NIC.
+OUI prefix meant for the guest NIC MAC address when spoofMac is on (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard NIC. Read by no code in this flake: the value is carried for the caller, who sets the MAC address in its VM definition.
 
 Type: `string matching the pattern ^[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}$`. Default: `"D8:BB:C1"`.
 
@@ -332,43 +332,43 @@ Type: `string`. Default: `"1001"`.
 
 ### `virtualisation.vfio-stealth.smbios.cache.assocL1`
 
-SMBIOS type 7 associativity byte for L1 (7 = 8-way, the AMD Zen 4/5 L1d value). Other common: 9 (16-way), 6 (fully associative). See DSP0134 Table 36.
+SMBIOS type 7 associativity byte for L1 (7 = 8-way, the AMD Zen 4/5 L1d value). Other common: 9 (16-way), 6 (fully associative). See DSP0134 Table 36. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheAssocL1 argument.
 
 Type: `signed integer`. Default: `7`.
 
 ### `virtualisation.vfio-stealth.smbios.cache.assocL2`
 
-SMBIOS type 7 associativity byte for L2 (7 = 8-way, the AMD Zen 4/5 L2 value).
+SMBIOS type 7 associativity byte for L2 (7 = 8-way, the AMD Zen 4/5 L2 value). Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheAssocL2 argument.
 
 Type: `signed integer`. Default: `7`.
 
 ### `virtualisation.vfio-stealth.smbios.cache.assocL3`
 
-SMBIOS type 7 associativity byte for L3 (9 = 16-way, the AMD Zen 4/5 V-Cache value; use 7 for non-V-Cache CCDs).
+SMBIOS type 7 associativity byte for L3 (9 = 16-way, the AMD Zen 4/5 V-Cache value; use 7 for non-V-Cache CCDs). Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheAssocL3 argument.
 
 Type: `signed integer`. Default: `9`.
 
 ### `virtualisation.vfio-stealth.smbios.cache.ecc`
 
-SMBIOS type 7 error correction type per DSP0134 Table 39. 0 = Reserved, 1 = Other, 2 = Unknown, 3 = None, 4 = Parity, 5 = Single-bit ECC, 6 = Multi-bit ECC. Consumer Ryzen has no cache ECC; server EPYC has parity on L3.
+SMBIOS type 7 error correction type per DSP0134 Table 39. 0 = Reserved, 1 = Other, 2 = Unknown, 3 = None, 4 = Parity, 5 = Single-bit ECC, 6 = Multi-bit ECC. Consumer Ryzen has no cache ECC; server EPYC has parity on L3. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheEcc argument.
 
 Type: `signed integer`. Default: `3`.
 
 ### `virtualisation.vfio-stealth.smbios.cache.l1`
 
-L1 cache size in KB for SMBIOS type 7.
+L1 cache size in KB for SMBIOS type 7. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheL1 argument.
 
 Type: `signed integer`. Default: `512`.
 
 ### `virtualisation.vfio-stealth.smbios.cache.l2`
 
-L2 cache size in KB for SMBIOS type 7.
+L2 cache size in KB for SMBIOS type 7. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheL2 argument.
 
 Type: `signed integer`. Default: `8192`.
 
 ### `virtualisation.vfio-stealth.smbios.cache.l3`
 
-L3 cache size in KB for SMBIOS type 7.
+L3 cache size in KB for SMBIOS type 7. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheL3 argument.
 
 Type: `signed integer`. Default: `32768`.
 
@@ -463,7 +463,7 @@ Type: `string`. Default: `"AM5"`.
 
 ### `virtualisation.vfio-stealth.spoofMac`
 
-Override guest NIC MAC address with a realistic OUI prefix. Covers MAC OUI-based VM indicators.
+Whether the guest NIC should get a MAC address with the macPrefix OUI, against MAC OUI-based VM indicators. Read by no code in this flake: the value is carried for the caller, who sets the MAC address in its VM definition.
 
 Type: `boolean`. Default: `true`.
 

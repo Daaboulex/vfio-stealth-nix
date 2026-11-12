@@ -27,7 +27,7 @@ in
         ]
       );
       default = null;
-      description = "Host CPU vendor. Selects the AutoVirt patch set and the ACPI OEM identity the QEMU postPatch rewrites. There is deliberately no default: a mismatch builds cleanly and yields a guest whose spoofed CPU vendor contradicts the host.";
+      description = "Host CPU vendor. There is no default, and an enabled module refuses null. The module reads it in assertions only: \"intel\" refuses timing.enable, cpuidSpoof.enable and cpuidPassthrough.enable, which patch arch/x86/kvm/svm/svm.c. It selects no package and no AutoVirt patch set: the caller runs the VM on qemu-stealth and ovmf-stealth for AMD, or on qemu-stealth-intel and ovmf-stealth-intel for Intel.";
       example = "amd";
     };
 
@@ -47,7 +47,7 @@ in
       enable = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "CPUID leaf 0 emulation via Hypervisor-Phantom technique. Covers the hypervisor-present CPUID bit (leaf 1, bit 31) and hypervisor vendor string (leaf 0x40000000). Skipped when cpuidPassthrough.enable is true.";
+        description = "Add the CPUID leaf 0 override (Hypervisor-Phantom technique) to kernelPostPatch. A guest CPUID with EAX = 0 is answered with the vendor string AuthenticAMD and maximum leaf 0x20, and the guest is re-entered without a full VM exit. The patch also clears the RDTSC and RDTSCP intercepts, which the timing.enable patch sets again. No other leaf is changed: the hypervisor-present bit (leaf 1, bit 31) and the hypervisor vendor leaf (0x40000000) are not touched. Skipped when cpuidPassthrough.enable is true.";
       };
     };
 
@@ -174,37 +174,37 @@ in
         l1 = lib.mkOption {
           type = lib.types.int;
           default = 512;
-          description = "L1 cache size in KB for SMBIOS type 7.";
+          description = "L1 cache size in KB for SMBIOS type 7. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheL1 argument.";
         };
         l2 = lib.mkOption {
           type = lib.types.int;
           default = 8192;
-          description = "L2 cache size in KB for SMBIOS type 7.";
+          description = "L2 cache size in KB for SMBIOS type 7. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheL2 argument.";
         };
         l3 = lib.mkOption {
           type = lib.types.int;
           default = 32768;
-          description = "L3 cache size in KB for SMBIOS type 7.";
+          description = "L3 cache size in KB for SMBIOS type 7. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheL3 argument.";
         };
         assocL1 = lib.mkOption {
           type = lib.types.int;
           default = 7;
-          description = "SMBIOS type 7 associativity byte for L1 (7 = 8-way, the AMD Zen 4/5 L1d value). Other common: 9 (16-way), 6 (fully associative). See DSP0134 Table 36.";
+          description = "SMBIOS type 7 associativity byte for L1 (7 = 8-way, the AMD Zen 4/5 L1d value). Other common: 9 (16-way), 6 (fully associative). See DSP0134 Table 36. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheAssocL1 argument.";
         };
         assocL2 = lib.mkOption {
           type = lib.types.int;
           default = 7;
-          description = "SMBIOS type 7 associativity byte for L2 (7 = 8-way, the AMD Zen 4/5 L2 value).";
+          description = "SMBIOS type 7 associativity byte for L2 (7 = 8-way, the AMD Zen 4/5 L2 value). Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheAssocL2 argument.";
         };
         assocL3 = lib.mkOption {
           type = lib.types.int;
           default = 9;
-          description = "SMBIOS type 7 associativity byte for L3 (9 = 16-way, the AMD Zen 4/5 V-Cache value; use 7 for non-V-Cache CCDs).";
+          description = "SMBIOS type 7 associativity byte for L3 (9 = 16-way, the AMD Zen 4/5 V-Cache value; use 7 for non-V-Cache CCDs). Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheAssocL3 argument.";
         };
         ecc = lib.mkOption {
           type = lib.types.int;
           default = 3;
-          description = "SMBIOS type 7 error correction type per DSP0134 Table 39. 0 = Reserved, 1 = Other, 2 = Unknown, 3 = None, 4 = Parity, 5 = Single-bit ECC, 6 = Multi-bit ECC. Consumer Ryzen has no cache ECC; server EPYC has parity on L3.";
+          description = "SMBIOS type 7 error correction type per DSP0134 Table 39. 0 = Reserved, 1 = Other, 2 = Unknown, 3 = None, 4 = Parity, 5 = Single-bit ECC, 6 = Multi-bit ECC. Consumer Ryzen has no cache ECC; server EPYC has parity on L3. Read by no code in this flake: the value is carried for the caller, who passes it to smbios-stealth-tables as the cacheEcc argument.";
         };
       };
 
@@ -286,13 +286,13 @@ in
     spoofMac = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Override guest NIC MAC address with a realistic OUI prefix. Covers MAC OUI-based VM indicators.";
+      description = "Whether the guest NIC should get a MAC address with the macPrefix OUI, against MAC OUI-based VM indicators. Read by no code in this flake: the value is carried for the caller, who sets the MAC address in its VM definition.";
     };
 
     macPrefix = lib.mkOption {
       type = lib.types.strMatching "^[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}$";
       default = "D8:BB:C1";
-      description = "OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard NIC.";
+      description = "OUI prefix meant for the guest NIC MAC address when spoofMac is on (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard NIC. Read by no code in this flake: the value is carried for the caller, who sets the MAC address in its VM definition.";
     };
 
     # --- Hyper-V vendor_id ---
@@ -389,13 +389,12 @@ in
     };
 
     # Host kernel capability set. null = assume all features supported
-    # (back-compat). Compute via lib.kernelCapabilities.fromConfigPath
-    # pointing at the host kernel's .config, or set the attrset by hand
-    # after verifying which CONFIG options your kernel has enabled.
+    # (back-compat). Set the attrset by hand after verifying which CONFIG
+    # options your kernel has enabled.
     kernelCapabilities = lib.mkOption {
       type = lib.types.nullOr (lib.types.attrsOf lib.types.bool);
       default = null;
-      description = "Per-feature capability set from the host kernel. null = assume all features supported (back-compat). Compute via lib.kernelCapabilities.fromConfigPath in your host config, or set the attrset by hand after running zcat /proc/config.gz | grep KVM_HYPERV on the host.";
+      description = "Per-feature capability set of the host kernel, passed by the caller to lib.mkStealthFeatures, which drops every requested Hyper-V feature the set does not allow. null = assume all features supported (back-compat). Set the attrset by hand after running zcat /proc/config.gz | grep KVM_HYPERV on the host, and name every hypervFeatures key: a key left out counts as unsupported. The parser in lib/kernel-capabilities.nix is not a flake output.";
     };
 
     # --- VirtIO device stripping ---
@@ -408,8 +407,8 @@ in
     };
 
     # --- ACPI SSDT tables ---
-    # Injects emulated ACPI devices (USB controllers, embedded controllers,
-    # battery) so the ACPI namespace presents realistic hardware entries.
+    # Injects emulated ACPI devices (buttons, AC adapter, timers, fan, thermal
+    # zones, battery) so the ACPI namespace presents realistic hardware entries.
     # Empty ACPI namespace is a strong VM indicator.
 
     acpiSsdt = {
@@ -629,7 +628,7 @@ in
       }
       {
         assertion = cfg.cpuVendor != null;
-        message = "virtualisation.vfio-stealth.cpuVendor: must be \"amd\" or \"intel\"; it selects the AutoVirt patch set and the ACPI OEM identity";
+        message = "virtualisation.vfio-stealth.cpuVendor: must be \"amd\" or \"intel\"; the kernel patch options are refused on intel";
       }
       {
         assertion =

@@ -5,11 +5,6 @@
   },
   "packageFile": "version.json",
   "hashes": [],
-  "verify": {
-    "binary": null,
-    "args": null,
-    "check": "elf"
-  },
   "description": "VFIO stealth tuning for NixOS - VM timing/CPUID/SMBIOS hardening module with patched QEMU for passthrough",
   "topics": [
     "nix",

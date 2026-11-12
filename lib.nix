@@ -45,8 +45,8 @@ in
         runtime = false;
       },
       # Capability set from the host kernel. null = assume all features
-      # supported (back-compat with users on capable kernels). Compute via
-      # cap.fromConfigPath in the host config; see lib/kernel-capabilities.nix.
+      # supported (back-compat with users on capable kernels). The caller sets
+      # it by hand; the parser in lib/kernel-capabilities.nix is not exported.
       kernelCapabilities ? null,
     }:
     let
