@@ -9,19 +9,27 @@ arguments are listed separately at the bottom.
 Canonical reference for all `virtualisation.vfio-stealth.*` options and
 `qemu-stealth` build-time arguments.
 
+The module itself acts on few of these options. It sets the kernel parameters
+and `/etc/swtpm-localca.options`, checks assertions, warns about placeholder
+values, and fills the two read-only outputs at the end of this page. It
+defines no VM and picks no package. Most other options hold the values the
+caller passes to `lib.mkStealthFeatures`, and a description below that says
+what happens in the VM is true once the caller has placed the function's
+result in its VM definition.
+
 ## Core
 
 | Option              | Type                            | Default          | Description                                                                                                                                                                                                                                                                                                      | Detection vector                       |
 | ------------------- | ------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | `enable`            | `bool`                          | `false`          | Enable the VFIO stealth hardware emulation stack                                                                                                                                                                                                                                                                 | --                                     |
-| `cpuVendor`         | `null` \| `"amd"` \| `"intel"`   | `null`           | **Required.** Host CPU vendor. Selects the AutoVirt patch family (`AMD-v*` / `Intel-v*`, `AMD-edk2-stable*` / `Intel-edk2-stable*`) and the ACPI OEM identity the QEMU postPatch rewrites. No default on purpose: a mismatch builds cleanly and yields a guest whose spoofed vendor contradicts the host           | Spoofed CPU vendor vs real host vendor |
-| `stripVirtio`       | `bool`                          | `true`           | Remove VirtIO balloon, RNG, tablet devices from VM config                                                                                                                                                                                                                                                        | VirtIO PCI vendor ID identification    |
-| `spoofMac`          | `bool`                          | `true`           | Override guest NIC MAC address with a realistic OUI prefix                                                                                                                                                                                                                                                       | MAC OUI reveals VM NIC vendor          |
-| `macPrefix`         | `str`                           | `"D8:BB:C1"`     | OUI prefix for overridden MAC (Realtek OUI matching ASUS X870E onboard LAN)                                                                                                                                                                                                                                      | MAC address OUI                        |
+| `cpuVendor`         | `null` \| `"amd"` \| `"intel"`   | `null`           | **Required.** Host CPU vendor. It feeds the module's assertions only: it must be set, and `"intel"` refuses the three kernel patch options. It picks no package. The caller chooses `qemu-stealth` and `ovmf-stealth` or `qemu-stealth-intel` and `ovmf-stealth-intel`, and a choice that contradicts the host builds cleanly | Spoofed CPU vendor vs real host vendor |
+| `stripVirtio`       | `bool`                          | `true`           | The caller passes it to `lib.mkStealthFeatures`, whose `devicesToRemove` then names the VirtIO balloon, RNG and tablet devices for the caller to remove from its VM | VirtIO PCI vendor ID identification    |
+| `spoofMac`          | `bool`                          | `true`           | Declared only. No code in this flake reads it, so the caller sets the guest NIC's MAC address itself | MAC OUI reveals VM NIC vendor          |
+| `macPrefix`         | `str`                           | `"D8:BB:C1"`     | OUI prefix, three colon-separated hex bytes. Declared only. No code in this flake reads it | MAC address OUI                        |
 | `aperfMperf`        | `bool`                          | `true`           | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+                                                                                                                                                                                                                                               | IET-based VM detection via MSR absence |
 | `hypervVendorId`    | `str` (1-12 chars)              | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv)                                                                                                                                                                                                                          | Hyper-V vendor_id identification       |
 | `hypervMode`        | `enum ["enlightened" "hidden"]` | `"enlightened"`  | "enlightened" exposes hypervisor + Hyper-V enlightenments. "hidden" conceals the hypervisor and emits no enlightenments                                                                                                                                                                                     | Hyper-V presence detection             |
-| `kernelCapabilities` | `nullOr (attrsOf bool)` | `null`       | Per-feature capability set from the host kernel. `null` = assume all features supported (back-compat). Compute via `vfio-stealth-nix.lib.kernelCapabilities.fromConfigPath` in your host config, or set the attrset by hand after `zcat /proc/config.gz \| grep KVM_HYPERV`. See [Kernel capabilities](#kernel-capabilities) | Hyper-V capability mismatches          |
+| `kernelCapabilities` | `nullOr (attrsOf bool)` | `null`       | Per-feature capability set from the host kernel. `null` = assume all features supported (back-compat). Set the attrset by hand after `zcat /proc/config.gz \| grep KVM_HYPERV`, with all 13 feature names as keys. See [Kernel capabilities](#kernel-capabilities) | Hyper-V capability mismatches          |
 | `kvmPvEnforceCpuid` | `bool`                          | `false`          | Pass `kvm-pv-enforce-cpuid=on` to the guest `-cpu` flag. AutoVirt's QEMU patch flipped the QEMU default to on; that flag faults RDMSR/WRMSR in the KVM paravirt range (0x4b564d00-0x4b564d08) with #GP unless the matching CPUID feature is set, which crashes Windows HAL/HvLoader. Off = pre-AutoVirt behavior | KVM paravirt MSR #GP on Win init       |
 | `pciMmio64Mb`       | `int`                           | `65536`          | Size of the OVMF 64-bit PCI MMIO window in MB. 65536 (64 GB) covers GPUs up to 64 GB VRAM. 0 = omit the flag (OVMF uses its default, which may be too small for modern GPUs)                                                                                                                                    | --                                     |
 
@@ -40,8 +48,8 @@ zcat /proc/config.gz | grep KVM_HYPERV
 
 | Option                        | Type   | Default | Kernel dep         | Description                                                                            |
 | ----------------------------- | ------ | ------- | ------------------ | -------------------------------------------------------------------------------------- |
-| `hypervFeatures.vendor_id`    | `bool` | `true`  | --                 | Hyper-V vendor_id exposure. Libvirt-level setting; no KVM cap. Always supported.       |
-| `hypervFeatures.relaxed`      | `bool` | `true`  | --                 | Relaxed timing (HvRelax). Libvirt-level setting; no KVM cap. Always supported.          |
+| `hypervFeatures.vendor_id`    | `bool` | `true`  | --                 | Hyper-V vendor_id exposure. Libvirt-level setting; no KVM cap. Supported on every kernel, but dropped when a hand-set `kernelCapabilities` leaves the key out. |
+| `hypervFeatures.relaxed`      | `bool` | `true`  | --                 | Relaxed timing (HvRelax). Libvirt-level setting; no KVM cap. Supported on every kernel, but dropped when a hand-set `kernelCapabilities` leaves the key out. |
 | `hypervFeatures.vapic`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | SynIC APIC virtualization (HvApic / `KVM_CAP_HYPERV_VAPIC`).                            |
 | `hypervFeatures.spinlocks`    | `bool` | `false` | `CONFIG_KVM_HYPERV` | Spinlock retry reporting (HvSpin / `KVM_CAP_HYPERV_SPIN`).                             |
 | `hypervFeatures.frequencies`  | `bool` | `false` | `CONFIG_KVM_HYPERV` | TSC frequency reporting (HvTscPage / `KVM_CAP_HYPERV_TIME`).                           |
@@ -60,28 +68,21 @@ zcat /proc/config.gz | grep KVM_HYPERV
 controls what the host kernel can actually *provide*. The lib intersects
 the two: a feature is emitted only if both the user requests it AND the
 host kernel supports it. Features that are requested but unsupported are
-dropped from the output, a NixOS warning is emitted naming the missing
-`CONFIG_*` option, and the VM starts without the dropped feature (no
-libvirt error).
+dropped from the output, and the VM starts without the dropped feature (no
+libvirt error). For each dropped feature the function returns one message in
+`warnings`, naming the missing `CONFIG_*` option. The function emits nothing
+itself: the caller adds that list to its own `warnings`.
 
-Compute the capability set from the running kernel's `.config` in the
-host config:
-
-```nix
-{ config, pkgs, vfio-stealth-nix, ... }:
-{
-  virtualisation.vfio-stealth.kernelCapabilities =
-    vfio-stealth-nix.lib.kernelCapabilities.fromConfigPath
-      "${config.boot.kernelPackages.kernel}/.config";
-}
-```
-
-If the kernel derivation does not expose `.config` in its output, point
-at a path the consumer knows exists (e.g. a gunzipped copy of
-`/proc/config.gz` placed in the Nix store), or set the attrset by hand:
+Set the attrset by hand. A key left out counts as unsupported, `vendor_id`
+and `relaxed` included, so the set names all 13 features:
 
 ```nix
 virtualisation.vfio-stealth.kernelCapabilities = {
+  vendor_id = true;
+  relaxed = true;
+  vapic = true;
+  spinlocks = true;
+  frequencies = true;
   vpindex = true;
   synic = true;
   stimer = true;
@@ -93,8 +94,10 @@ virtualisation.vfio-stealth.kernelCapabilities = {
 };
 ```
 
-The `lib/kernel-capabilities.nix` helper also exports `fromConfigText`
-(for tests) and `emptyCapabilities` (returns all features = false).
+[`lib/kernel-capabilities.nix`](../lib/kernel-capabilities.nix) holds
+`fromConfigText` and `fromConfigPath`, which parse a kernel `.config` into
+this attrset, and `emptyCapabilities` (all features = false). The file is not
+a flake output: `lib` exports `mkStealthFeatures` only.
 
 ## Kernel
 
@@ -116,7 +119,7 @@ The `lib/kernel-capabilities.nix` helper also exports `fromConfigText`
 | `smbios.biosVersion`         | `str`              | `"1001"`                             | BIOS version string (Type 0)                                                                                                                                              | `Win32_BIOS.SMBIOSBIOSVersion`          |
 | `smbios.biosDate`            | `str`              | `"01/01/2025"`                       | BIOS release date MM/DD/YYYY (Type 0). OVMF default 02/02/2022 is a generic VM date                                                                                       | `Win32_BIOS.ReleaseDate`                |
 | `smbios.biosRelease`         | `str`              | `"2.4"`                              | BIOS release version major.minor (Type 0 System BIOS Release field)                                                                                                       | `Win32_BIOS` release fields             |
-| `smbios.serial`              | `str`              | `"System Serial Number"`             | System serial number (Type 1)                                                                                                                                             | `Win32_ComputerSystem.SerialNumber`     |
+| `smbios.serial`              | `str`              | `"System Serial Number"`             | System serial number (Type 1)                                                                                                                                             | `Win32_ComputerSystemProduct.IdentifyingNumber` |
 | `smbios.baseBoardVersion`    | `str`              | `"Rev 1.xx"`                         | Baseboard version string (Type 2)                                                                                                                                         | `Win32_BaseBoard.Version`               |
 | `smbios.baseBoardSerial`     | `str`              | `"Default string"`                   | Baseboard serial number (Type 2, set from dmidecode)                                                                                                                      | `Win32_BaseBoard.SerialNumber`          |
 | `smbios.baseBoardAsset`      | `str`              | `"Default string"`                   | Baseboard asset tag (Type 2)                                                                                                                                              | `Win32_BaseBoard.Tag`                   |
@@ -140,7 +143,7 @@ The `lib/kernel-capabilities.nix` helper also exports `fromConfigText`
 
 | Option                    | Type   | Default | Description                                                            | Detection vector                      |
 | ------------------------- | ------ | ------- | ---------------------------------------------------------------------- | ------------------------------------- |
-| `acpiSsdt.spoofedDevices` | `bool` | `true`  | Include EC, fan, thermal zone, power/sleep buttons, timers             | Missing EC/fan/thermal = VM indicator |
+| `acpiSsdt.spoofedDevices` | `bool` | `true`  | Include power/sleep buttons, AC adapter, timers, fan, thermal zone     | Missing fan/thermal = VM indicator    |
 | `acpiSsdt.fakeBattery`    | `bool` | `true`  | Include emulated ACPI battery (PNP0C0A) in SSDT                        | Missing battery is a VM indicator     |
 | `acpiSsdt.sensorProbes`   | `bool` | `true`  | Include CPU + VRM thermal zones with Timer()-based dynamic fluctuation | Static/missing thermal data flags VM  |
 

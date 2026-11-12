@@ -2,7 +2,7 @@
 
 The discipline for bumping any of the stealth repo's external
 dependencies. Run through this before AND after every dep bump. A
-contract test under `tests/` catches most fragility; this procedure is
+contract test under [`tests/`](../tests) catches most fragility; this procedure is
 what you do when a contract test fails (or when you're about to
 challenge it with a dep bump).
 
@@ -10,15 +10,15 @@ challenge it with a dep bump).
 
 A fork-of-forks: QEMU + EDK2 + CachyOS Linux, with out-of-tree
 patches (AutoVirt, upstream Scrut1ny/AutoVirt, its patches vendored
-in `vendor/autovirt/`, plus Hypervisor-Phantom and a hand-ported
+in [`vendor/autovirt/`](../vendor/autovirt), plus Hypervisor-Phantom and a hand-ported
 BetterTiming) and our own sed-based reversions. Every dep in the
 input set can move. This procedure minimises the surface area of
 breakage.
 
 ## The QEMU floor and ceiling
 
-The vendored patch inventory `vendor/autovirt/patches/QEMU/` is the
-single source of truth. `qemu/package.nix` derives the newest patched
+The vendored patch inventory [`vendor/autovirt/patches/QEMU/`](../vendor/autovirt/patches/QEMU) is the
+single source of truth. [`qemu/package.nix`](../qemu/package.nix) derives the newest patched
 series per CPU vendor from it and picks the QEMU base:
 
 - nixpkgs' QEMU when it is within the patched series, including a point
@@ -32,7 +32,7 @@ So a nixpkgs bump past the patched series never breaks the build: the
 host and CI stay green, at the ceiling, until a newer patch is
 vendored -- and the day one is, the ceiling rises with no code
 change. Eval fails closed if a patched series has no tarball hash in
-`qemu/package.nix`, if the ceiling falls below the floor, or if a
+[`qemu/package.nix`](../qemu/package.nix), if the ceiling falls below the floor, or if a
 vendor has no patches at all.
 
 ## Before any dep bump
@@ -44,9 +44,10 @@ The dependencies that move are:
   at HEAD, so this moves continuously)
 - `std` (nix-packaging-standard; adopt via `nix flake update std`)
 
-`kernel/timing-patch.nix` is a hand-port of BetterTiming, not a flake
-input. `version.json` records the upstream commit it was ported from and
-`scripts/update.sh` warns when upstream moves past it.
+[`kernel/timing-patch.nix`](../kernel/timing-patch.nix) is a hand-port of BetterTiming, not a flake
+input. [`version.json`](../version.json) records the upstream commit it was ported from.
+When upstream moves past it, [`scripts/update.sh`](../scripts/update.sh) exits 1 with
+`betterTiming-moved`, which fails the run so an issue is filed.
 
 ### 1. Run the contract tests
 
@@ -76,7 +77,7 @@ git diff flake.lock
 
 Read the change. Check the QEMU version the new nixpkgs carries and
 what the ceiling does with it. Check that no major QEMU file paths
-have shifted (the sed anchors in `qemu/post-patch.nix` assume
+have shifted (the sed anchors in [`qemu/post-patch.nix`](../qemu/post-patch.nix) assume
 specific file layouts).
 
 For `nix flake update nix-cachyos-kernel`:
@@ -100,16 +101,16 @@ nix flake check .#checks.x86_64-linux.sed-contract-qemu \
               .#checks.x86_64-linux.sed-contract-edk2 \
               .#checks.x86_64-linux.qemu-ceiling-contract
 # Per-sed diagnostics are printed on failure; fix in
-# qemu/post-patch.nix / ovmf/package.nix + the SED-CATALOG.md
+# qemu/post-patch.nix / ovmf/post-patch.nix + the SED-CATALOG.md
 ```
 
 If the contract test passes: proceed to commit. If it fails: the
-bump is bad -- either revert (`nix flake update --revert-lock-file
-nixpkgs`) or fix the anchors first.
+bump is bad. Either revert it (`git restore flake.lock`) or fix the
+anchors first.
 
 ## Adopting a newer AutoVirt patch
 
-`scripts/update.sh` watches AutoVirt upstream and its live forks daily, for AMD and
+[`scripts/update.sh`](../scripts/update.sh) watches AutoVirt upstream and its live forks daily, for AMD and
 Intel, and the newest QEMU of nixpkgs-unstable and of upstream's release
 tags. An AutoVirt patch newer than what we vendor exits 1 with
 `manual-port-needed`. A watched repo that starts returning 404 exits 1
@@ -127,18 +128,18 @@ itself on the next green run. Adoption is always a hand decision:
 
 1. Review the patch by hand -- it comes from a third-party fork,
    never auto-adopted.
-2. Copy it into `vendor/autovirt/patches/QEMU/` keeping the
+2. Copy it into [`vendor/autovirt/patches/QEMU/`](../vendor/autovirt/patches/QEMU) keeping the
    `AMD-v<series>.patch` / `Intel-v<series>.patch` name. If it needs
    hand-porting to a series it does not natively patch, port it
    first and keep the vendored filename honest to the series it
    actually applies to.
-3. Add the tarball hash for that series to `qemu/package.nix` if
+3. Add the tarball hash for that series to [`qemu/package.nix`](../qemu/package.nix) if
    nixpkgs may ever move past it:
    `nix-prefetch-url https://download.qemu.org/qemu-<version>.tar.xz`
    then `nix hash convert --hash-algo sha256 --to sri`.
 4. Run the contract tests and `boot-smoke`. The ceiling rises on its
    own once the patch and the hash are in place.
-5. Update the provenance in `version.json` (`.autovirt` rev) to the
+5. Update the provenance in [`version.json`](../version.json) (`.autovirt` rev) to the
    commit the patch was taken from.
 6. Commit and push; the update workflow's open issue closes on the
    next green run.
@@ -148,13 +149,11 @@ itself on the next green run. Adoption is always a hand decision:
 1. `nix flake update <dep>` (nixpkgs, nix-cachyos-kernel, or std)
 2. `nix flake check` -- all green
 3. `git diff flake.lock` -- confirm the bump is what you expected
-4. Update `docs/SED-CATALOG.md` if any anchor moved (and the contract
+4. Update [`docs/SED-CATALOG.md`](SED-CATALOG.md) if any anchor moved (and the contract
    test no longer matches the old anchor in the catalog)
 5. `git add flake.lock docs/SED-CATALOG.md` and commit with a
    message that names the bumped dep + the version
-6. Push. The pre-commit hooks (nixfmt, typos, rumdl,
-   check-readme-sections, shfmt) run on commit; there are no
-   pre-push hooks.
+6. Push.
 
 ## After the bump
 
@@ -180,7 +179,7 @@ If a bump introduces a regression:
 2. `git push`
 3. Bump the consumer's `inputs.vfio-stealth` back to the last-known-good
    rev
-4. Open an issue / note in `docs/SED-CATALOG.md`:
+4. Open an issue / note in [`docs/SED-CATALOG.md`](SED-CATALOG.md):
    - Which dep was bumped
    - Which seds/anchors broke
    - Why (upstream moved the target)
@@ -189,15 +188,15 @@ If a bump introduces a regression:
 ## How contract tests are structured
 
 Each contract test is a `checks.<system>.<name>` derivation in
-`flake.nix`. They are all wired into `nix flake check` automatically.
+[`flake.nix`](../flake.nix). They are all wired into `nix flake check` automatically.
 
 - `checks.sed-contract-qemu`: applies the AutoVirt QEMU patch + the
-  `qemu/post-patch.nix` seds to the QEMU source the package actually
+  [`qemu/post-patch.nix`](../qemu/post-patch.nix) seds to the QEMU source the package actually
   builds, with the same nixpkgs patches; runs a per-sed grep guard after
   each substitution; reports per-sed pass/fail. Instantiated per vendor
   as `sed-contract-qemu` and `sed-contract-qemu-intel`.
 - `checks.sed-contract-edk2`: applies the filterdiff-trimmed AutoVirt
-  EDK2 patch + the `ovmf/package.nix` postPatch to a fresh OVMF
+  EDK2 patch + the [`ovmf/post-patch.nix`](../ovmf/post-patch.nix) script to a fresh OVMF
   source; runs per-sed grep guards.
 - `checks.autovirt-patch-contract`: pins the vendor-inventory
   resolver -- newest patch per vendor by version order, not string
@@ -209,7 +208,7 @@ Each contract test is a `checks.<system>.<name>` derivation in
   below the floor, and fail-closed on a missing hash, a ceiling below
   the floor, or an unpatched floor series.
 - `checks.update-gap-contract`: pins the patch-gap probe in
-  `scripts/update.sh` -- which QEMU versions count as covered by each
+  [`scripts/update.sh`](../scripts/update.sh) -- which QEMU versions count as covered by each
   vendor's patched series and which count as a gap, and which release
   tag is upstream's newest.
 - `checks.kernel-postpatch-fits-cachyos` and
@@ -225,18 +224,3 @@ Each contract test is a `checks.<system>.<name>` derivation in
   clean PCI subsystem id inside it.
   This is the end-to-end smoke test; the contract tests above
   are unit-level.
-
-## Layer 2+ roadmap (deferred)
-
-If a real fragility surfaces that the contract tests don't catch,
-the next step is a multi-version matrix (per the prior research).
-Builds the stealth stack against 3 vendored patch sets x 3 QEMU
-revs x 3 kernel revs; catches version-skew bugs before the user
-bumps. Cost: ~16 hours of test infra. YAGNI until proven
-otherwise.
-
-## Layer 5 (deferred)
-
-Reproducibility + golden-baseline diff. Catches silent sed
-regressions that the FATAL guards + per-sed grep guards miss.
-Cost: ~16 hours. YAGNI until proven otherwise.

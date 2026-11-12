@@ -11,15 +11,15 @@
 
 | | |
 |---|---|
-| **Project** | Custom |
-| **License** | N/A |
-| **Tracked** | Custom update script |
+| **Project** | [Scrut1ny/AutoVirt](https://github.com/Scrut1ny/AutoVirt), whose QEMU and EDK2 patches are vendored in [`vendor/autovirt`](vendor/autovirt), and [SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming), hand-ported in [`kernel/timing-patch.nix`](kernel/timing-patch.nix) |
+| **License** | For the vendored AutoVirt patches see [`vendor/autovirt/README`](vendor/autovirt/README). This repository records no licence for BetterTiming |
+| **Tracked** | [`scripts/update.sh`](scripts/update.sh) |
 
 <!-- END generated:upstream -->
 
 ## Overview
 
-vfio-stealth-nix is a NixOS module that makes VFIO/KVM virtual machines indistinguishable from bare-metal hardware. It provides hardware-accurate VM configuration -- realistic hardware identity instead of hypervisor artifacts.
+vfio-stealth-nix is a flake for NixOS hosts that run VFIO/KVM guests. It replaces the identifiers a guest reads to recognise QEMU, OVMF and KVM (SMBIOS strings, ACPI OEM fields and devices, PCI and disk identifiers, CPUID and timing behaviour) with values taken from real hardware. It has three pieces: an overlay with patched QEMU and OVMF packages, a NixOS module that sets host kernel parameters and exposes kernel and libtpms patch scripts, and `lib.mkStealthFeatures`, which returns the libvirt and QEMU fragments for one VM. Some detection methods remain, listed under [Known Limitations](#known-limitations).
 
 ## Documentation
 
@@ -33,62 +33,62 @@ For long-form references beyond the quick start below, see:
 
 | Package | Description |
 |---|---|
-| **qemu-stealth** | Patched QEMU with AutoVirt hardware-emulation patches + configurable hardware identifiers (EDID, ACPI OEM, disk/optical models, SCSI vendor, disk serial customization, fw_cfg DMA signature) |
+| **qemu-stealth** | QEMU with the AutoVirt hardware-emulation patch applied, which also sets the fw_cfg DMA signature to a fixed value, and with configurable hardware identifiers: EDID, ACPI OEM, disk and optical models, SCSI vendor and target product, disk serial |
 | **ovmf-stealth** | Patched EDK2/OVMF firmware: clears VirtualMachine bit in SMBIOS Type 0, replaces Red Hat PCI vendor IDs, overrides ACPI OEM fields, strips BGRT boot logo (VMAware indicator). Overridable: `secureBoot`, `msVarsTemplate`, `tpmSupport` |
-| **acpi-ssdt-stealth** | Compiled ACPI SSDT tables providing emulated embedded controller, fan, thermal zone, battery, power/sleep buttons, timers |
+| **acpi-ssdt-stealth** | Compiled ACPI SSDT tables providing power and sleep buttons, an AC adapter, timer devices, a voltage regulator device, a fan, thermal zones and a battery |
 | **smbios-stealth-tables** | Binary SMBIOS tables for types QEMU cannot build via CLI (Type 7 cache, Types 26-29 probes) |
-| **smbios-extract** | Host SMBIOS dump + anonymization tool for extracting real hardware strings to inject into VM config |
-| **stealth-detect** | `aarch64-linux` only. Reports, per vector, whether an ARM guest can tell it is virtualized (device tree, PSCI conduit, MIDR, SMBIOS, ACPI OEM and FADT hypervisor identity, virtio, PCI, timer). Exits 1 when any vector fires |
+| **smbios-extract** | Dumps the host's SMBIOS tables to a file with `dmidecode --dump-bin`, as the source of real hardware strings for the VM config. Needs root |
+| **stealth-detect** | Built on both systems, and the only package on `aarch64-linux`. Reports, per vector, whether a Linux guest can tell it is virtualized (device tree, PSCI conduit, MIDR, SMBIOS, ACPI OEM and FADT hypervisor identity, virtio, PCI, timer). Exits 1 when any vector fires |
 
 ## Detection Vectors Covered
 
 | Vector | Technique | Where |
 |---|---|---|
-| CPUID hypervisor bit | Cleared via `kvm.hidden` + Hyper-V vendor_id override | `lib.nix` (libvirt features) |
-| CPUID leaf 0 vendor string | Hypervisor-Phantom: intercept at SVM level, override to AuthenticAMD, re-enter guest without full exit | `kernel/cpuid-patch.nix` |
-| CPUID interception timing | Disabled entirely via cpuidPassthrough — guest CPUID runs at native speed | `kernel/cpuid-disable.nix` |
-| RDTSC/RDTSCP timing | BetterTiming: track cumulative VM-exit time, subtract from TSC reads (RDTSC + RDTSCP handlers with compensated values) | `kernel/timing-patch.nix` |
-| MSR_IA32_TSC reads | Compensated TSC value returned via patched `kvm_get_msr_common` | `kernel/timing-patch.nix` |
-| IA32_APERF/MPERF MSR | Passthrough via `-cpu host,aperfmperf=on` (covers IET-based detection) | `lib.nix` (QEMU args) |
-| SMBIOS Type 0 (BIOS) | Vendor, version, date, release override | `module.nix` options, `lib.nix` sysinfo |
-| SMBIOS Type 1 (System) | Manufacturer, product, serial, family, UUID | `module.nix` options, `lib.nix` sysinfo |
-| SMBIOS Type 2 (Baseboard) | Manufacturer, product, version, serial, asset tag, location | `lib.nix` sysinfo |
-| SMBIOS Type 3 (Chassis) | Manufacturer, version, serial, asset tag | `lib.nix` QEMU args |
-| SMBIOS Type 4 (Processor) | Socket, manufacturer, version, speed | `lib.nix` QEMU args (via cpuIdentity) |
-| SMBIOS Type 7 (Cache) | L1/L2/L3 cache designation and sizes | `lib.nix` QEMU args |
-| SMBIOS Type 8 (Port Connector) | USB port descriptors | `lib.nix` QEMU args |
-| SMBIOS Type 9 (System Slots) | PCIe slot designation and type | `lib.nix` QEMU args |
-| SMBIOS Type 17 (Memory) | DIMM manufacturer, part number, speed, size, count | `module.nix` options, `lib.nix` QEMU args |
-| SMBIOS Type 26 (Voltage Probe) | Voltage probe description + min/max | `lib.nix` QEMU args |
-| SMBIOS Type 27 (Cooling Device) | Cooling device type + speed | `lib.nix` QEMU args |
-| SMBIOS Type 28 (Temperature Probe) | Temperature probe description + min/max | `lib.nix` QEMU args |
-| SMBIOS Type 29 (Current Probe) | Current probe description + min/max | `lib.nix` QEMU args |
-| ACPI table OEM IDs | Replaced ALASKA/AMI defaults with configurable strings (6-char + 8-char) | `qemu/package.nix` postPatch |
-| ACPI SSDT devices | Emulated EC, fan, thermal zone, power/sleep buttons, timers | `acpi/spoofed-devices.dsl` |
-| ACPI emulated battery | Control Method Battery (PNP0C0A) with BIF/BST methods | `acpi/fake-battery.dsl` |
-| EDID display identity | Monitor manufacturer, model, serial, product code, DPI, manufacture date | `qemu/package.nix` arguments |
-| Disk model string | IDE/SCSI disk model override in QEMU source | `qemu/package.nix` postPatch |
-| Optical drive model | IDE/ATAPI optical drive model override | `qemu/package.nix` postPatch |
-| MAC address OUI | Configurable OUI prefix for guest NIC | `module.nix` options |
-| Hyper-V enlightenments | Full enlightenment set (relaxed, vapic, spinlocks, stimer, frequencies, etc.) with vendor_id override | `lib.nix` features |
-| KVM feature hiding | `kvm.hidden`, `hint-dedicated`, `poll-control` | `lib.nix` features |
-| VMPort | Disabled | `lib.nix` features |
-| Clock/timer emulation | kvmclock disabled, hypervclock enabled (enlightened mode) or disabled (hidden mode), native TSC, HPET present | `lib.nix` clock config |
-| OVMF VirtualMachine bit | Cleared in SMBIOS Type 0 via EDK2 patch | `ovmf/package.nix` |
-| OVMF PCI vendor IDs | Red Hat IDs replaced with AMD/Intel | `ovmf/package.nix` |
-| VirtIO device identifiers | Balloon, RNG, tablet devices stripped from VM config | `lib.nix` devicesToRemove |
-| SMBIOS Type 11 (OEM Strings) | Populated with realistic entries (empty Type 11 is a VM indicator) | `module.nix` options, `lib.nix` QEMU args |
-| SMBIOS Type 41 (Onboard Devices) | Ethernet + SATA controller entries (prevents empty Win32_OnBoardDevice) | `module.nix` options, `lib.nix` QEMU args |
-| Disk serial string | IDE drive serial set to realistic WD format instead of AutoVirt blank | `qemu/package.nix` postPatch |
-| fw_cfg DMA signature + ACPI device | 8-byte DMA signature changed from "QEMU CFG" to "QCOM CFG"; fw_cfg ACPI device node removed from DSDT (4-byte probe at selector 0x0000 still reads "QEMU") | AutoVirt patch via `qemu/package.nix` |
-| KVM paravirt MSR enforcement | `kvm-pv-enforce-cpuid=on` ensures guest_pv_has() rejects pvclock/steal-time MSRs when kvm.hidden=on | `lib.nix` QEMU args |
-| KVM hypercall patching | Disabled: emulator_fix_hypercall always injects #UD (bare-metal behavior on VMCALL/VMMCALL) | `kernel/timing-patch.nix` |
-| SVM instruction interception | `kvm_amd.vls=0` + `kvm_amd.vgif=0` force VMLOAD/VMSAVE/STGI/CLGI interception | `module.nix` kernel params |
-| OVMF boot logo / BGRT | TianoCore LogoDxe + BootGraphicsResourceTableDxe stripped (VMAware CRC indicator) | `ovmf/package.nix` |
-| ACPI thermal zone fluctuation | Timer()-based dynamic temperature in CPU + VRM thermal zones (handles static-value detection) | `acpi/sensor-probes.dsl` |
-| PCI subsystem vendor:device | Default 0x1af4:0x1100 (Red Hat/QEMU) replaced with 0x8086:0x0000 (Intel) on all Q35 chipset devices | `qemu/post-patch.nix` |
-| QEMU pvpanic device | Consumer excludes `<panic>` from domain XML; verified by `verify-host.sh` | `guest/verify-host.sh` |
-| Registry SCSI DEVICEMAP | Cleaned via guest-side registry script | `guest/cleanup-registry.ps1` |
+| CPUID hypervisor bit | `kvm.hidden` is always set. The hypervisor bit itself is cleared only when `hypervMode` is `"hidden"`. The Hyper-V vendor_id override applies in enlightened mode | [`lib.nix`](lib.nix) `features`, `cpuFeatures`, `qemuArgs` |
+| CPUID leaf 0 vendor string | Hypervisor-Phantom: intercept at SVM level, override to AuthenticAMD, re-enter guest without full exit | [`kernel/cpuid-patch.nix`](kernel/cpuid-patch.nix) |
+| CPUID interception timing | Disabled entirely via cpuidPassthrough, so guest CPUID runs at native speed | [`kernel/cpuid-disable.nix`](kernel/cpuid-disable.nix) |
+| RDTSC/RDTSCP timing | BetterTiming: track cumulative VM-exit time, subtract from TSC reads (RDTSC + RDTSCP handlers with compensated values) | [`kernel/timing-patch.nix`](kernel/timing-patch.nix) |
+| MSR_IA32_TSC reads | Compensated TSC value returned via patched `kvm_get_msr_common` | [`kernel/timing-patch.nix`](kernel/timing-patch.nix) |
+| IA32_APERF/MPERF MSR | Passthrough via `-cpu host,aperfmperf=on` (covers IET-based detection) | [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 0 (BIOS) | Vendor, version, date, release override | [`module.nix`](module.nix) options, [`lib.nix`](lib.nix) `sysinfo` |
+| SMBIOS Type 1 (System) | Manufacturer, product, serial, family, UUID | [`module.nix`](module.nix) options, [`lib.nix`](lib.nix) `sysinfo` |
+| SMBIOS Type 2 (Baseboard) | Manufacturer, product, version, serial, asset tag, location | [`lib.nix`](lib.nix) `sysinfo` |
+| SMBIOS Type 3 (Chassis) | Manufacturer, version, serial, asset tag | [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 4 (Processor) | Socket, manufacturer, version, speed | [`lib.nix`](lib.nix) `qemuArgs` (via cpuIdentity) |
+| SMBIOS Type 7 (Cache) | L1/L2/L3 cache designation and sizes | [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 8 (Port Connector) | USB port descriptors | [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 9 (System Slots) | PCIe slot designation and type | [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 17 (Memory) | DIMM manufacturer, part number, speed, count | [`module.nix`](module.nix) options, [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 26 (Voltage Probe) | Voltage probe description + min/max | [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 27 (Cooling Device) | Cooling device type + speed | [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 28 (Temperature Probe) | Temperature probe description + min/max | [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 29 (Current Probe) | Current probe description + min/max | [`lib.nix`](lib.nix) `qemuArgs` |
+| ACPI table OEM IDs | The OEM ID and OEM Table ID the AutoVirt patch sets are replaced with the configured `acpiOemId` (6 characters) and `acpiOemTableId` (8 characters) | [`qemu/post-patch.nix`](qemu/post-patch.nix) |
+| ACPI SSDT devices | Power and sleep buttons, AC adapter, timer devices, voltage regulator device, fan, thermal zone | [`acpi/spoofed-devices.dsl`](acpi/spoofed-devices.dsl) |
+| ACPI emulated battery | Control Method Battery (PNP0C0A) with BIF/BST methods | [`acpi/fake-battery.dsl`](acpi/fake-battery.dsl) |
+| EDID display identity | Monitor manufacturer, model, serial, product code, DPI, manufacture date | [`qemu/package.nix`](qemu/package.nix) arguments, applied in [`qemu/post-patch.nix`](qemu/post-patch.nix) |
+| Disk model string | IDE/SCSI disk model override in QEMU source | [`qemu/post-patch.nix`](qemu/post-patch.nix) |
+| Optical drive model | IDE/ATAPI optical drive model override | [`qemu/post-patch.nix`](qemu/post-patch.nix) |
+| MAC address OUI | Not applied by this flake. The options `spoofMac` and `macPrefix` are declared and read by no code here, so the caller sets the guest NIC's MAC address in its VM definition | [`module.nix`](module.nix) options |
+| Hyper-V enlightenments | `vendor_id` and `relaxed` are on by default. The other eleven (vapic, spinlocks, stimer, frequencies and the rest) are opt-in through `hypervFeatures` | [`lib.nix`](lib.nix) `features` |
+| KVM feature hiding | `kvm.hidden`, `hint-dedicated`, `poll-control` | [`lib.nix`](lib.nix) `features` |
+| VMPort | Disabled | [`lib.nix`](lib.nix) `features` |
+| Clock/timer emulation | kvmclock absent, hypervclock present only when at least one kernel-dependent Hyper-V feature is enabled, native TSC, HPET present | [`lib.nix`](lib.nix) `clock` |
+| OVMF VirtualMachine bit | Cleared in SMBIOS Type 0 via EDK2 patch | AutoVirt EDK2 patch, applied by [`ovmf/post-patch.nix`](ovmf/post-patch.nix) |
+| OVMF PCI vendor IDs | Red Hat IDs replaced with AMD/Intel | AutoVirt EDK2 patch, applied by [`ovmf/post-patch.nix`](ovmf/post-patch.nix) |
+| VirtIO device identifiers | When `stripVirtio` is true, `devicesToRemove` names the balloon, RNG and tablet devices. The caller removes them from its VM definition | [`lib.nix`](lib.nix) `devicesToRemove` |
+| SMBIOS Type 11 (OEM Strings) | Populated with realistic entries (empty Type 11 is a VM indicator) | [`module.nix`](module.nix) options, [`lib.nix`](lib.nix) `qemuArgs` |
+| SMBIOS Type 41 (Onboard Devices) | One entry per item of `smbios.onboardDevices`. The default list is empty, so no Type 41 entry exists until the caller lists its board's devices | [`module.nix`](module.nix) options, [`lib.nix`](lib.nix) `qemuArgs` |
+| Disk serial string | IDE drive serial set to the configured `diskSerial` in place of the blank serial AutoVirt leaves. The default, `Default string`, is a placeholder | [`qemu/post-patch.nix`](qemu/post-patch.nix) |
+| fw_cfg DMA signature + ACPI device | 8-byte DMA signature changed from "QEMU CFG" to "QCOM CFG"; fw_cfg ACPI device node removed from DSDT (4-byte probe at selector 0x0000 still reads "QEMU") | AutoVirt patch, applied by [`qemu/post-patch.nix`](qemu/post-patch.nix) |
+| KVM paravirt MSR enforcement | Opt-in, off by default. `kvmPvEnforceCpuid = true` passes `kvm-pv-enforce-cpuid=on`, so guest_pv_has() rejects pvclock/steal-time MSRs when kvm.hidden=on. Otherwise `kvm-pv-enforce-cpuid=off` is passed | [`lib.nix`](lib.nix) `qemuArgs` |
+| KVM hypercall patching | Disabled: emulator_fix_hypercall always injects #UD (bare-metal behavior on VMCALL/VMMCALL) | [`kernel/timing-patch.nix`](kernel/timing-patch.nix) |
+| SVM instruction interception | `kvm_amd.vls=0` + `kvm_amd.vgif=0` force VMLOAD/VMSAVE/STGI/CLGI interception | [`module.nix`](module.nix) kernel params |
+| OVMF boot logo / BGRT | TianoCore LogoDxe + BootGraphicsResourceTableDxe stripped (VMAware CRC indicator) | [`ovmf/post-patch.nix`](ovmf/post-patch.nix) |
+| ACPI thermal zone fluctuation | Timer()-based dynamic temperature in CPU + VRM thermal zones (handles static-value detection) | [`acpi/sensor-probes.dsl`](acpi/sensor-probes.dsl) |
+| PCI subsystem vendor:device | Default 0x1af4:0x1100 (Red Hat/QEMU) replaced with 0x8086:0x0000 (Intel) on all Q35 chipset devices | [`qemu/post-patch.nix`](qemu/post-patch.nix) |
+| QEMU pvpanic device | Consumer excludes `<panic>` from domain XML; verified by [`guest/verify-host.sh`](guest/verify-host.sh) | [`guest/verify-host.sh`](guest/verify-host.sh) |
+| Registry SCSI DEVICEMAP | Cleaned via guest-side registry script | [`guest/cleanup-registry.ps1`](guest/cleanup-registry.ps1) |
 
 ## Quick Start
 
@@ -101,17 +101,63 @@ vfio-stealth = {
 };
 ```
 
-Import the overlay and NixOS module:
+The flake has three pieces and a host uses all three. The host also defines
+the VM itself: nothing here creates a libvirt domain or selects the QEMU a VM
+runs on.
+
+### The overlay
 
 ```nix
-imports = [ inputs.vfio-stealth.nixosModules.default ];
 nixpkgs.overlays = [ inputs.vfio-stealth.overlays.default ];
 ```
 
-`overlays.default` provides `qemu-stealth` / `ovmf-stealth` (AMD) and
-`qemu-stealth-intel` / `ovmf-stealth-intel`. Both vendors are built and
-contract-tested; `cpuVendor` selects the AutoVirt patch family and the ACPI
-OEM identity.
+`overlays.default` provides `qemu-stealth` and `ovmf-stealth` (AMD),
+`qemu-stealth-intel` and `ovmf-stealth-intel`, `acpi-ssdt-stealth`,
+`smbios-stealth-tables`, `smbios-extract` and `stealth-detect`. Both vendors
+are built and contract-tested, each with the AutoVirt patch family of its
+vendor. The caller chooses the QEMU and OVMF pair for its CPU and points its
+VM at it. The module option `cpuVendor` picks no package.
+
+The stealth stack itself is `x86_64-linux` only, pinned there by each package's
+`meta.platforms`: the AutoVirt QEMU patches target `hw/i386/` and the Q35
+southbridge, the EDK2 patches target `OvmfPkg/OvmfPkgX64.{dsc,fdf}` (on aarch64
+`pkgs.OVMF` is ArmVirtQemu), and [`kernel/`](kernel) edits `arch/x86/kvm/svm/svm.c`.
+`aarch64-linux` currently carries only `stealth-detect`, the oracle that an
+ARM spoof would have to defeat; see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why the detector comes first.
+
+### The module
+
+```nix
+imports = [ inputs.vfio-stealth.nixosModules.default ];
+
+virtualisation.vfio-stealth = {
+  enable = true;
+  cpuVendor = "amd";
+  smbios = {
+    manufacturer = "Your Motherboard Manufacturer";
+    product = "Your Motherboard Model";
+  };
+};
+```
+
+`cpuVendor` is `"amd"` or `"intel"`. It is required and has no default. With
+`enable = true` the module sets:
+
+- `boot.kernelParams`: `processor.max_cstate`, `kvm_amd.vls=0`,
+  `kvm_amd.vgif=0`, `kvm.ignore_msrs=1`, `kvm.report_ignored_msrs=0`, and
+  `tsc=reliable` while `kernelParams.tscReliable` is on.
+- `/etc/swtpm-localca.options`, while `tpm.harden` is on.
+- Assertions on the option values, and a warning for each identity value left
+  at its placeholder default.
+- Two read-only options the caller applies itself: `kernelPostPatch` (see
+  [Kernel Integration](#kernel-integration)) and `libtpmsIdentityPatch`, a
+  `postPatch` fragment for `libtpms`.
+
+It sets nothing else. The remaining options hold values for the caller: most
+are passed to `lib.mkStealthFeatures`, and `edid`, `disk` and `acpiOem` record
+what the caller gives the `qemu-stealth` override. `spoofMac` and `macPrefix`
+are read by no code in this flake.
 
 One limitation on Intel: the kernel-level stealth (`timing.enable`,
 `cpuidSpoof.enable`, `cpuidPassthrough.enable`) is AMD/SVM-only -- those
@@ -119,26 +165,50 @@ patches target `arch/x86/kvm/svm/svm.c`, which `kvm-intel` never executes.
 An assertion refuses that combination rather than shipping a feature that
 silently does nothing. QEMU and OVMF stealth apply on both.
 
-The stealth stack itself is `x86_64-linux` only, pinned there by each package's
-`meta.platforms`: the AutoVirt QEMU patches target `hw/i386/` and the Q35
-southbridge, the EDK2 patches target `OvmfPkg/OvmfPkgX64.{dsc,fdf}` (on aarch64
-`pkgs.OVMF` is ArmVirtQemu), and `kernel/` edits `arch/x86/kvm/svm/svm.c`.
-`aarch64-linux` currently carries only `stealth-detect`, the oracle that an
-ARM spoof would have to defeat; see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why the detector comes first.
+### `lib.mkStealthFeatures`
 
-Enable stealth with your own hardware strings:
+`lib.mkStealthFeatures` returns the libvirt and QEMU fragments for one VM. Its
+arguments:
+
+- Required: `smbios` (the module's `smbios` option set carries every field it
+  reads), `acpiTables` (the `acpi-ssdt-stealth` package) and `smbiosTables`
+  (the `smbios-stealth-tables` package).
+- Optional: `vmUuid`, which defaults to `null`, and `acpiSsdt`, `aperfMperf`,
+  `stripVirtio`, `hypervVendorId`, `hypervMode`, `kvmPvEnforceCpuid`,
+  `pciMmio64Mb`, `hypervFeatures` and `kernelCapabilities`, each with the
+  default of the module option of the same name.
 
 ```nix
-virtualisation.vfio-stealth = {
-  enable = true;
-  cpuVendor = "amd"; # or "intel" -- required, no default
-  smbios = {
-    manufacturer = "Your Motherboard Manufacturer";
-    product = "Your Motherboard Model";
-  };
+stealth = inputs.vfio-stealth.lib.mkStealthFeatures {
+  inherit (config.virtualisation.vfio-stealth)
+    smbios
+    acpiSsdt
+    aperfMperf
+    stripVirtio
+    hypervVendorId
+    hypervMode
+    kvmPvEnforceCpuid
+    pciMmio64Mb
+    hypervFeatures
+    kernelCapabilities
+    ;
+  acpiTables = pkgs.acpi-ssdt-stealth;
+  smbiosTables = pkgs.smbios-stealth-tables;
 };
 ```
+
+The function writes nothing into the system configuration. The caller places
+each attribute of the result:
+
+| Attribute | What the caller does with it |
+|---|---|
+| `warnings` | Adds the list to its own `warnings`. It holds one message per requested Hyper-V feature that `kernelCapabilities` does not cover |
+| `features` | Puts it into the domain's `<features>`: `kvm.hidden`, `hint-dedicated`, `poll-control`, VMPort off, and the `hyperv` block in enlightened mode |
+| `cpuFeatures` | Puts it into the domain's `<cpu>` feature list: `topoext` and `invtsc`, and `hypervisor` disabled in hidden mode |
+| `clock` | Puts it into the domain's `<clock>` |
+| `sysinfo` | Puts it into the domain's `<sysinfo>`: SMBIOS Types 0, 1 and 2 |
+| `qemuArgs` | Calls it with the module's `cpuIdentity` option set, or `null`, and adds the returned list to the QEMU command line: the other SMBIOS types, the ACPI tables and the `-cpu` flags |
+| `devicesToRemove` | Removes the named devices from the VM. The list is empty when `stripVirtio` is false |
 
 ## Configuration Reference
 
@@ -185,7 +255,7 @@ virtualisation.vfio-stealth = {
       count = 2;
     };
   };
-  macPrefix = "2c:f0:5d";  # Peplink OUI
+  macPrefix = "2c:f0:5d";
 };
 
 # QEMU overlay with matching hardware strings
@@ -232,7 +302,7 @@ virtualisation.vfio-stealth = {
       count = 4;
     };
   };
-  macPrefix = "70:85:c2";  # ASRock OUI
+  macPrefix = "70:85:c2";
 };
 
 # QEMU overlay with matching hardware strings
@@ -256,11 +326,11 @@ nixpkgs.overlays = [
 
 ## Guest-Side Setup
 
-Two PowerShell scripts in `guest/` handle cleanup and verification inside the Windows VM.
+Two PowerShell scripts in [`guest/`](guest) handle cleanup and verification inside the Windows VM.
 
 ### cleanup-registry.ps1
 
-Removes QEMU/KVM/VirtIO registry artifacts left behind from before stealth was configured, or from VirtIO driver installation. Targets:
+[`guest/cleanup-registry.ps1`](guest/cleanup-registry.ps1) removes QEMU/KVM/VirtIO registry artifacts left behind from before stealth was configured, or from VirtIO driver installation. Among others, it targets:
 
 - **SMBIOS registry entries** (`HKLM:\HARDWARE\DESCRIPTION\System\BIOS`) -- overwrites leaked QEMU/Bochs strings
 - **VirtIO service keys** (`CurrentControlSet\Services\VirtIO*`, `viostor`, `vioscsi`, `netkvm`, `Balloon`) -- removes driver service remnants
@@ -277,28 +347,13 @@ Removes QEMU/KVM/VirtIO registry artifacts left behind from before stealth was c
 
 ### verify-stealth.ps1
 
-Read-only verification script that checks detection vectors from inside the Windows guest. Does NOT require Administrator. Checks:
-
-1. `Win32_ComputerSystem.Manufacturer` -- flags QEMU, Bochs, VMware, Xen, KVM
-2. `Win32_BIOS.Manufacturer` -- flags SeaBIOS, Bochs BIOS
-3. `Win32_BaseBoard.Manufacturer` -- flags QEMU, Oracle, Microsoft
-4. VM-specific Windows services -- VBoxService, VMTools, Hyper-V integration, QEMU GA
-5. PCI device vendor IDs -- VEN_1AF4 (VirtIO), VEN_1B36 (QEMU PCIe), VEN_1234 (QEMU VGA)
-6. `Win32_Fan` -- should exist if SSDT loaded (WARN if missing)
-7. `Win32_Battery` -- should exist if emulated battery loaded (WARN if missing)
-8. `Win32_PhysicalMemory` -- should have DIMM info (WARN if missing)
-9. `HypervisorPresent` -- CPUID hypervisor bit (should be False)
-
-**Interpreting results:**
-
-- **PASS** -- vector is properly configured
-- **FAIL** -- detection vector exposed, fix before running game security software
-- **WARN** -- optional feature not active (ACPI SSDT tables may not be loaded)
+[`guest/verify-stealth.ps1`](guest/verify-stealth.ps1) is a read-only script that checks detection vectors from inside the Windows guest and prints PASS, FAIL, WARN or SKIP for each. It runs without Administrator, and a check that needs Administrator prints SKIP.
 
 ```powershell
 .\verify-stealth.ps1
-# Expected output: "0 failures, 0 warnings"
 ```
+
+It ends with a summary line of the form `=== 0 failures, 0 warnings, 0 skipped ===`.
 
 ## Kernel Integration
 
@@ -328,7 +383,7 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 
 ### What the patches do
 
-**BetterTiming** (`timing-patch.nix`):
+**BetterTiming** ([`kernel/timing-patch.nix`](kernel/timing-patch.nix)):
 
 - Adds `last_exit_start` and `total_exit_time` fields to `struct kvm_vcpu`
 - Adds `total_exit_time` to `struct kvm_vcpu`; every stealth exit handler self-times with `rdtsc()` and accumulates only its own duration
@@ -339,14 +394,14 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 - Wraps the CPUID, WBINVD, XSETBV and INVD exit handlers so each accumulates its own execution time
 - Disables KVM hypercall instruction patching by forcing the `KVM_X86_QUIRK_FIX_HYPERCALL_INSN` check true, so VMCALL/VMMCALL always injects #UD. This is host-wide: every VM on the host gets #UD, so Linux guests lose KVM paravirt features (kvmclock, PV TLB flush)
 
-**CPUID emulation** (`cpuid-patch.nix`):
+**CPUID emulation** ([`kernel/cpuid-patch.nix`](kernel/cpuid-patch.nix)):
 
 - Intercepts CPUID leaf 0 inside `svm_vcpu_run` after `svm_vcpu_enter_exit` returns
 - Overrides vendor string to `AuthenticAMD` with max leaf `0x20`
 - Advances RIP and re-enters guest via `goto reenter_guest_fast` (no full VM exit)
 - Clears RDTSC/RDTSCP interception bits (BetterTiming re-enables RDTSC if active)
 
-**CPUID passthrough** (`kernel/cpuid-disable.nix`) — Exit-less CPUID:
+**CPUID passthrough** ([`kernel/cpuid-disable.nix`](kernel/cpuid-disable.nix)) — Exit-less CPUID:
 
 - Clears `INTERCEPT_CPUID` in `init_vmcb` and `pre_svm_run`
 - Guest executes CPUID at native hardware speed (zero VM exit)
@@ -358,10 +413,10 @@ boot.kernelPackages = pkgs.linuxPackagesFor (
 
 Both upstream techniques are vendored, not fetched at build time.
 
-- **AutoVirt** (QEMU + EDK2 hardware-emulation patches). Upstream is [Scrut1ny/AutoVirt](https://github.com/Scrut1ny/AutoVirt), watched daily with its live forks; the patches live in `vendor/autovirt` and the packages build from those, so the packages never depend on upstream being online. `AMD-v11.1.3.patch` and `Intel-v11.1.3.patch` were ported here, and the v11.0.3 patches carry this repo's fix for duplicate ACPI device names; both were offered upstream as Scrut1ny/AutoVirt #173 and #174 (see `vendor/autovirt/README`).
-- **[SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming)** (TSC compensation). `kernel/timing-patch.nix` is a hand-port; `version.json` records the commit it was ported from.
+- **AutoVirt** (QEMU + EDK2 hardware-emulation patches). Upstream is [Scrut1ny/AutoVirt](https://github.com/Scrut1ny/AutoVirt), watched daily with its live forks; the patches live in [`vendor/autovirt`](vendor/autovirt) and the packages build from those, so the packages never depend on upstream being online. [`vendor/autovirt/README`](vendor/autovirt/README) records where the patches came from and what this repository changed in them.
+- **[SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming)** (TSC compensation). [`kernel/timing-patch.nix`](kernel/timing-patch.nix) is a hand-port; [`version.json`](version.json) records the commit it was ported from.
 
-`update.yml` runs `scripts/update.sh` on a daily cron. It watches the surviving AutoVirt forks for a patch newer than the vendored one, BetterTiming for a commit past the recorded port, and nixpkgs for a QEMU series no vendored patch covers, and files an issue when one appears. Adopting a change is a hand decision, see [`docs/RELEASE-PROCEDURE.md`](docs/RELEASE-PROCEDURE.md).
+[`.github/workflows/update.yml`](.github/workflows/update.yml) runs [`scripts/update.sh`](scripts/update.sh) on a daily cron. It watches the surviving AutoVirt forks for a patch newer than the vendored one, BetterTiming for a commit past the recorded port, and nixpkgs for a QEMU series no vendored patch covers, and files an issue when one appears. Adopting a change is a hand decision, see [`docs/RELEASE-PROCEDURE.md`](docs/RELEASE-PROCEDURE.md).
 
 ## Development
 
@@ -401,11 +456,19 @@ universal features default on. Enable additional features only after
 verifying your kernel has `CONFIG_KVM_HYPERV=y` with
 `zcat /proc/config.gz | grep KVM_HYPERV`. See
 [`docs/OPTIONS.md`](docs/OPTIONS.md#hyper-v-features) for the full
-opt-in table and the `kernelCapabilities` auto-detection helper.
+opt-in table and the `kernelCapabilities` option.
 
 ## License
 
-GPL-2.0 (kernel patches mandate GPL)
+[`LICENSE`](LICENSE) is the GNU General Public License, version 2. The
+packages built from this repository's own sources (`acpi-ssdt-stealth`,
+`smbios-extract`, `smbios-stealth-tables`, `stealth-detect`) declare
+`gpl2Only` as their `meta.license`. `qemu-stealth` and `ovmf-stealth` set no
+`meta.license` of their own and keep the one of the nixpkgs packages they
+override. [`vendor/autovirt`](vendor/autovirt) carries its own
+[`LICENSE`](vendor/autovirt/LICENSE), the GNU General Public License, version
+3, and its own [`README`](vendor/autovirt/README), which states the licence
+of the vendored patches.
 
 <!-- BEGIN generated:footer -->
 <!-- END generated:footer -->

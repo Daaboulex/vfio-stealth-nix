@@ -1,11 +1,12 @@
 # Sed / awk / anchor catalog
 
-Single source of truth for every text-replacement anchor in the stealth
-patch stack. When an upstream bump (AutoVirt, QEMU, EDK2, CachyOS) moves
-a target, this file is the index a future maintainer uses to find the
-broken anchor and fix it.
+Notes on the text-replacement anchors in the stealth patch stack that
+mislead. It is not a list of every anchor: the anchors live in the
+post-patch files, and the ordinary case needs no entry here. When an
+upstream bump (AutoVirt, QEMU, EDK2, CachyOS) moves one of the targets
+below, the entry says what breaks and how to repair it.
 
-The contract tests under `tests/` verify each anchor on every build of
+The contract tests under [`tests/`](../tests) verify each anchor on every build of
 the stealth repo. A red `nix flake check` from one of those tests is the
 first signal that an anchor has moved.
 
@@ -37,20 +38,20 @@ owns those, and `checks.sed-catalog-lean` fails if they reappear here.
 
 - **Counters:** AutoVirt SETS this (replaces `"BOCHS "`); our sed
   reverses AutoVirt's choice
-- **Breaks when:** AutoVirt changes the OEM ID for a vendor. The anchor is
-  no longer hardcoded -- it comes from `lib/autovirt-patches.nix` `traits`,
-  keyed by `cpuVendor` -- so the AMD and Intel patches no longer collide.
-  A changed upstream value still no-ops silently, which the per-vendor
-  `sed-contract-qemu-<vendor>` guard catches.
+- **Breaks when:** AutoVirt changes the OEM ID for a vendor. The anchor
+  comes from `traits` in [`lib/autovirt-patches.nix`](../lib/autovirt-patches.nix),
+  keyed by `cpuVendor`, so the AMD and Intel patches do not collide.
+  A changed upstream value makes the sed a silent no-op, which the
+  per-vendor checks `sed-contract-qemu` and `sed-contract-qemu-intel` catch.
 - **Repair:** Update `traits.<vendor>.patchedOemId` in
-  `lib/autovirt-patches.nix`
+  [`lib/autovirt-patches.nix`](../lib/autovirt-patches.nix)
 
 ## qemu/post-patch.nix — ACPI OEM Table ID
 
 - **Counters:** AutoVirt SETS this (replaces `"BXPC    "`)
 - **Breaks when:** AutoVirt changes the table ID for a vendor
 - **Repair:** Update `traits.<vendor>.patchedOemTableId` in
-  `lib/autovirt-patches.nix`
+  [`lib/autovirt-patches.nix`](../lib/autovirt-patches.nix)
 
 ## qemu/post-patch.nix -- aml_string format-security workaround
 
@@ -64,10 +65,10 @@ owns those, and `checks.sed-catalog-lean` fails if they reappear here.
 
 ## qemu/post-patch.nix -- ICH9 LPC bridge placement
 
-- **Counters:** AMD-v11.0.2 moves LPC to device 20; AMD-v11.0.0 and the
-  Intel patches leave it alone, so on Intel this is a no-op whose guard
-  still passes because stock QEMU already carries 31/0
-- **Breaks when:** the pairing with `ovmf/package.nix` is broken. OVMF
+- **Counters:** The AMD patches move LPC to device 20. The Intel patches
+  leave it at 31, so on Intel this is a no-op whose guard still passes
+  because stock QEMU already carries 31/0
+- **Breaks when:** the pairing with [`ovmf/post-patch.nix`](../ovmf/post-patch.nix) is broken. OVMF
   probes the PM register block at `0x1f:0`; if QEMU publishes LPC
   elsewhere the guest hangs in firmware with **no console output at all**.
   Upstream is itself inconsistent here -- its EDK2 patch addresses
@@ -102,15 +103,6 @@ owns those, and `checks.sed-catalog-lean` fails if they reappear here.
   would fail
 - **Repair:** Update the anchor + the FATAL guard
 
-## qemu/post-patch.nix — MCH host-bridge vendor (declarative)
-
-- **Counters:** AutoVirt SETS this; OVMF + QEMU on a real Q35 machine
-  must agree on the vendor
-- **Breaks when:** AutoVirt changes the anchor text (e.g., the class
-  function changes) OR moves the host bridge to a different directory
-- **Repair:** Update the grep pattern; the FATAL is loud so this
-  fails LOUDLY
-
 ## ovmf/post-patch.nix — Firmware vendor string
 
 - **Counters:** Stealth identity
@@ -130,7 +122,7 @@ owns those, and `checks.sed-catalog-lean` fails if they reappear here.
 
 - **Breaks when:** Same as DSC strip
 
-## ovmf/package.nix — AutoVirt BaseTools hunk filter
+## ovmf/post-patch.nix: AutoVirt BaseTools hunk filter
 
 - **Counters:** BaseTools is pre-built and symlinked into the OVMF
   build tree; AutoVirt's BaseTools hunk would corrupt the build
@@ -147,8 +139,8 @@ owns those, and `checks.sed-catalog-lean` fails if they reappear here.
 ## kernel/*.nix -- not catalogued here
 
 The kernel scripts are not restated in this catalog. Each of their edits
-now verifies its own effect (`landed` / `gone` / `exactly_one` from
-`kernel/prelude.nix`), and `checks.kernel-postpatch-fits-cachyos` and
+verifies its own effect (`landed` / `gone` / `exactly_one` from
+[`kernel/prelude.nix`](../kernel/prelude.nix)), and `checks.kernel-postpatch-fits-cachyos` and
 `checks.kernel-postpatch-fits-upstream` run the real scripts against real
 kernel sources for every enable-combination. A copy of the anchors here
 could only drift from the scripts that own them.
@@ -160,8 +152,8 @@ could only drift from the scripts that own them.
 When a sed is added or moved:
 
 1. Add or update the section here
-2. Add the corresponding guard in `tests/sed-contract-qemu.nix` or
-   `tests/sed-contract-edk2.nix`
+2. Add the corresponding guard in [`tests/sed-contract-qemu.nix`](../tests/sed-contract-qemu.nix) or
+   [`tests/sed-contract-edk2.nix`](../tests/sed-contract-edk2.nix)
 3. Run `nix flake check` -- the contract test must pass with the
    new anchor against the current upstream
 
