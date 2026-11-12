@@ -30,7 +30,14 @@
         "aarch64-linux"
       ];
 
-      imports = [ inputs.std.flakeModules.base ];
+      imports = [
+        inputs.std.flakeModules.base
+        {
+          perSystem.std.option-reference = {
+            "NixOS module" = ./module.nix;
+          };
+        }
+      ];
 
       flake.overlays.default = final: _prev: {
         qemu-stealth = final.callPackage ./qemu/package.nix {

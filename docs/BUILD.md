@@ -1,10 +1,10 @@
 # vfio-stealth-nix — Build & Operator Reference
 
-Companion to the top-level [README](../README.md). README §Quick Start
-covers the user-facing flake-input + module-import path. This doc
-covers the developer / operator commands beyond that — dev shell,
-formatters, hooks, tests, the update contract, and common
-troubleshooting.
+Companion to the top-level [README](../README.md). The README's Install
+and Use it sections cover the user-facing flake-input + module-import path.
+This doc covers the developer / operator commands beyond that: dev shell,
+formatters, hooks, tests, the upstreams and the update contract, the guest
+scripts, and common troubleshooting.
 
 ## Dev shell
 
@@ -21,7 +21,7 @@ It includes `nil`, a Nix language server for editor integration.
 
 ```bash
 nix flake check --no-build        # eval-only check
-nix fmt                           # format all .nix
+nix fmt                           # format all .nix with treefmt
 nix build .#default               # patched QEMU (qemu-stealth)
 nix build .#ovmf-stealth          # patched EDK2/OVMF
 nix build .#acpi-ssdt-stealth     # compiled ACPI SSDT tables
@@ -116,9 +116,35 @@ directly-booted guest exposes no ACPI for, and it needs neither KVM nor a VM.
 CI wires this in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). Each step fails the job on
 non-zero exit. No "passing eval" without a clean build and a booting VM.
 
+## Upstreams
+
+| | |
+|---|---|
+| Project | [Scrut1ny/AutoVirt](https://github.com/Scrut1ny/AutoVirt), whose QEMU and EDK2 patches are vendored in [`vendor/autovirt`](../vendor/autovirt), and [SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming), hand-ported in [`kernel/timing-patch.nix`](../kernel/timing-patch.nix) |
+| License | For the vendored AutoVirt patches see [`vendor/autovirt/README`](../vendor/autovirt/README). This repository records no licence for BetterTiming |
+| Tracked | [`scripts/update.sh`](../scripts/update.sh) |
+
+Both upstream techniques are vendored, not fetched at build time.
+
+- AutoVirt (QEMU + EDK2 hardware-emulation patches). Upstream is
+  [Scrut1ny/AutoVirt](https://github.com/Scrut1ny/AutoVirt), watched daily
+  with its live forks. The patches live in
+  [`vendor/autovirt`](../vendor/autovirt) and the packages build from those,
+  so the packages never depend on upstream being online.
+  [`vendor/autovirt/README`](../vendor/autovirt/README) records where the
+  patches came from and what this repository changed in them.
+- [SamuelTulach/BetterTiming](https://github.com/SamuelTulach/BetterTiming)
+  (TSC compensation). [`kernel/timing-patch.nix`](../kernel/timing-patch.nix)
+  is a hand-port. [`version.json`](../version.json) records the commit it was
+  ported from.
+
 ## Update contract
 
-[`scripts/update.sh`](../scripts/update.sh) changes no file in the repository
+[`.github/workflows/update.yml`](../.github/workflows/update.yml) runs
+[`scripts/update.sh`](../scripts/update.sh) on a daily cron and files an issue
+when the script reports something.
+
+The script changes no file in the repository
 and pushes nothing. It watches the upstreams and reports through its exit
 code. Adopting a change is a hand decision, described in
 [`RELEASE-PROCEDURE.md`](RELEASE-PROCEDURE.md). It watches:
@@ -151,6 +177,58 @@ Outputs (read by the workflow):
 - `new_version` and `upstream_url`, when a newer AutoVirt patch or an
   uncovered QEMU version was found.
 
+## Guest and host scripts
+
+Two PowerShell scripts in [`guest/`](../guest) handle cleanup and verification
+inside the Windows VM. A third script, for the host, sits beside them.
+
+### cleanup-registry.ps1
+
+[`guest/cleanup-registry.ps1`](../guest/cleanup-registry.ps1) removes
+QEMU/KVM/VirtIO registry artifacts left behind from before stealth was
+configured, or from VirtIO driver installation. Among others, it targets:
+
+- SMBIOS registry entries (`HKLM:\HARDWARE\DESCRIPTION\System\BIOS`). It
+  overwrites leaked QEMU/Bochs strings with the values of its `-Manufacturer`,
+  `-Product`, `-BIOSVendor` and `-BIOSVersion` parameters. Each has a default,
+  so pass your own board's strings.
+- VirtIO service keys (`CurrentControlSet\Services\VirtIO*`, `viostor`,
+  `vioscsi`, `netkvm`, `Balloon`). It removes driver service remnants.
+- QEMU/VirtIO PCI enumeration (`Enum\PCI\VEN_1AF4*`, `VEN_1B36*`,
+  `VEN_1234*`). It removes cached device entries.
+- QEMU Guest Agent service. It removes the `QEMU Guest Agent` service key if
+  present.
+
+Run it once, after applying the host-side vfio-stealth-nix configuration for
+the first time, or after installing or removing VirtIO guest tools.
+
+```powershell
+# Right-click PowerShell -> Run as Administrator
+.\cleanup-registry.ps1
+# Reboot after running
+```
+
+### verify-stealth.ps1
+
+[`guest/verify-stealth.ps1`](../guest/verify-stealth.ps1) is a read-only
+script that checks detection vectors from inside the Windows guest and prints
+PASS, FAIL, WARN or SKIP for each. It runs without Administrator, and a check
+that needs Administrator prints SKIP.
+
+```powershell
+.\verify-stealth.ps1
+```
+
+It ends with a summary line of the form
+`=== 0 failures, 0 warnings, 0 skipped ===`.
+
+### verify-host.sh
+
+[`guest/verify-host.sh`](../guest/verify-host.sh) runs on the host and takes
+a libvirt domain name, `win11` when none is given. It checks the kernel
+parameters, the patched kernel handlers, the QEMU binary and the domain XML,
+and exits with the number of failures.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -158,9 +236,9 @@ Outputs (read by the workflow):
 | `nix build` fails with `cannot resolve goto reenter_guest_fast` | Kernel newer than the patch target | Run `nix build .#checks.x86_64-linux.kernel-postpatch-fits-cachyos`; it names the edit that no longer lands. Re-aim that edit in `kernel/*.nix` |
 | Eval error: `option virtualisation.vfio-stealth.timing.enable already declared` | Loaded both this flake's module and an outdated copy from another flake | Drop the duplicate `imports` entry — only one stealth module per system |
 | `iasl` complains about ACPI SSDT compilation in `acpi-ssdt-stealth` | Outdated `iasl` | Bump nixpkgs input or `inputs.nixpkgs.follows = "nixpkgs";` to use the host's nixpkgs |
-| Guest still detected as VM despite `virtualisation.vfio-stealth.enable = true` | One of the kernel patches not applied | Confirm `boot.kernelPackages` is wired to a kernel built with `kernelPostPatch` appended (see README §Kernel Integration) |
-| The guest's libvirt domain lacks `kvm.hidden` and the other fragments | The caller did not place the `lib.mkStealthFeatures` result in its VM definition | The module defines no VM. Call `lib.mkStealthFeatures` and put `features`, `cpuFeatures`, `clock`, `sysinfo` and `qemuArgs` into the VM definition (see README §Quick Start) |
-| TPM-attesting detection software still rejects | Software emulation cannot address hardware-rooted attestation | See README §Known Limitations -- there is no software-only fix |
+| Guest still detected as VM despite `virtualisation.vfio-stealth.enable = true` | One of the kernel patches not applied | Confirm `boot.kernelPackages` is wired to a kernel built with `kernelPostPatch` appended (see the README, Install, or [`ARCHITECTURE.md`](ARCHITECTURE.md), Kernel-integration layering) |
+| The guest's libvirt domain lacks `kvm.hidden` and the other fragments | The caller did not place the `lib.mkStealthFeatures` result in its VM definition | The module defines no VM. Call `lib.mkStealthFeatures` and put `features`, `cpuFeatures`, `clock`, `sysinfo` and `qemuArgs` into the VM definition (see the README, Use it) |
+| TPM-attesting detection software still rejects | Software emulation cannot address hardware-rooted attestation | See [`COMPATIBILITY.md`](COMPATIBILITY.md), Known limitations. There is no software-only fix |
 
 For other issues, attach the failing nix log + the relevant module
 config snippet to a GitHub Issue.

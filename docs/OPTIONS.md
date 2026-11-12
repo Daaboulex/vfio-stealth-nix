@@ -1,241 +1,516 @@
-# vfio-stealth-nix — Option Reference
+# Options
 
-Companion to the top-level [README](../README.md). All options live
-under the `virtualisation.vfio-stealth.*` namespace. EDID / disk / optical /
-ACPI OEM strings have both module options (for discoverability) and
-build-time `qemu-stealth` arguments (for compilation). The build-time
-arguments are listed separately at the bottom.
+Every option the modules of this flake declare. This file is generated from the module sources: change a description there, then run `nix run .#std-write-option-reference`.
 
-Canonical reference for all `virtualisation.vfio-stealth.*` options and
-`qemu-stealth` build-time arguments.
+## NixOS module
 
-The module itself acts on few of these options. It sets the kernel parameters
-and `/etc/swtpm-localca.options`, checks assertions, warns about placeholder
-values, and fills the two read-only outputs at the end of this page. It
-defines no VM and picks no package. Most other options hold the values the
-caller passes to `lib.mkStealthFeatures`, and a description below that says
-what happens in the VM is true once the caller has placed the function's
-result in its VM definition.
+Declared in [module.nix](../module.nix).
 
-## Core
+### `virtualisation.vfio-stealth.enable`
 
-| Option              | Type                            | Default          | Description                                                                                                                                                                                                                                                                                                      | Detection vector                       |
-| ------------------- | ------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `enable`            | `bool`                          | `false`          | Enable the VFIO stealth hardware emulation stack                                                                                                                                                                                                                                                                 | --                                     |
-| `cpuVendor`         | `null` \| `"amd"` \| `"intel"`   | `null`           | **Required.** Host CPU vendor. It feeds the module's assertions only: it must be set, and `"intel"` refuses the three kernel patch options. It picks no package. The caller chooses `qemu-stealth` and `ovmf-stealth` or `qemu-stealth-intel` and `ovmf-stealth-intel`, and a choice that contradicts the host builds cleanly | Spoofed CPU vendor vs real host vendor |
-| `stripVirtio`       | `bool`                          | `true`           | The caller passes it to `lib.mkStealthFeatures`, whose `devicesToRemove` then names the VirtIO balloon, RNG and tablet devices for the caller to remove from its VM | VirtIO PCI vendor ID identification    |
-| `spoofMac`          | `bool`                          | `true`           | Declared only. No code in this flake reads it, so the caller sets the guest NIC's MAC address itself | MAC OUI reveals VM NIC vendor          |
-| `macPrefix`         | `str`                           | `"D8:BB:C1"`     | OUI prefix, three colon-separated hex bytes. Declared only. No code in this flake reads it | MAC address OUI                        |
-| `aperfMperf`        | `bool`                          | `true`           | Pass through IA32_APERF/MPERF MSRs to guest. Requires kernel 6.18+                                                                                                                                                                                                                                               | IET-based VM detection via MSR absence |
-| `hypervVendorId`    | `str` (1-12 chars)              | `"AuthAMDRyzen"` | Hyper-V vendor_id reported to guest. Avoid known VM values (AMDisbetter!, Microsoft Hv)                                                                                                                                                                                                                          | Hyper-V vendor_id identification       |
-| `hypervMode`        | `enum ["enlightened" "hidden"]` | `"enlightened"`  | "enlightened" exposes hypervisor + Hyper-V enlightenments. "hidden" conceals the hypervisor and emits no enlightenments                                                                                                                                                                                     | Hyper-V presence detection             |
-| `kernelCapabilities` | `nullOr (attrsOf bool)` | `null`       | Per-feature capability set from the host kernel. `null` = assume all features supported (back-compat). Set the attrset by hand after `zcat /proc/config.gz \| grep KVM_HYPERV`, with all 13 feature names as keys. See [Kernel capabilities](#kernel-capabilities) | Hyper-V capability mismatches          |
-| `kvmPvEnforceCpuid` | `bool`                          | `false`          | Pass `kvm-pv-enforce-cpuid=on` to the guest `-cpu` flag. AutoVirt's QEMU patch flipped the QEMU default to on; that flag faults RDMSR/WRMSR in the KVM paravirt range (0x4b564d00-0x4b564d08) with #GP unless the matching CPUID feature is set, which crashes Windows HAL/HvLoader. Off = pre-AutoVirt behavior | KVM paravirt MSR #GP on Win init       |
-| `pciMmio64Mb`       | `int`                           | `65536`          | Size of the OVMF 64-bit PCI MMIO window in MB. 65536 (64 GB) covers GPUs up to 64 GB VRAM. 0 = omit the flag (OVMF uses its default, which may be too small for modern GPUs)                                                                                                                                    | --                                     |
+Whether to enable VFIO hardware emulation stack.
 
-## Hyper-V features
+Type: `boolean`. Default: `false`.
 
-Of the 13 Hyper-V enlightenment features exposed by this module, only
-`vendor_id` and `relaxed` are unconditional (no KVM cap; libvirt-level
-settings). The other 11 all require `CONFIG_KVM_HYPERV=y` in the host
-kernel — verified against `arch/x86/kvm/x86.c:4817-4831` in the Linux
-kernel source, which puts every relevant `KVM_CAP_HYPERV_*` cap in a
-single `#ifdef CONFIG_KVM_HYPERV` block. To check your kernel:
+### `virtualisation.vfio-stealth.acpiOem.id`
 
-```sh
-zcat /proc/config.gz | grep KVM_HYPERV
-```
+6-char ACPI OEM ID (padded with spaces). Populates ACPI table header OEM ID field.
 
-| Option                        | Type   | Default | Kernel dep         | Description                                                                            |
-| ----------------------------- | ------ | ------- | ------------------ | -------------------------------------------------------------------------------------- |
-| `hypervFeatures.vendor_id`    | `bool` | `true`  | --                 | Hyper-V vendor_id exposure. Libvirt-level setting; no KVM cap. Supported on every kernel, but dropped when a hand-set `kernelCapabilities` leaves the key out. |
-| `hypervFeatures.relaxed`      | `bool` | `true`  | --                 | Relaxed timing (HvRelax). Libvirt-level setting; no KVM cap. Supported on every kernel, but dropped when a hand-set `kernelCapabilities` leaves the key out. |
-| `hypervFeatures.vapic`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | SynIC APIC virtualization (HvApic / `KVM_CAP_HYPERV_VAPIC`).                            |
-| `hypervFeatures.spinlocks`    | `bool` | `false` | `CONFIG_KVM_HYPERV` | Spinlock retry reporting (HvSpin / `KVM_CAP_HYPERV_SPIN`).                             |
-| `hypervFeatures.frequencies`  | `bool` | `false` | `CONFIG_KVM_HYPERV` | TSC frequency reporting (HvTscPage / `KVM_CAP_HYPERV_TIME`).                           |
-| `hypervFeatures.vpindex`      | `bool` | `false` | `CONFIG_KVM_HYPERV` | Virtual processor index (HvVpIndex / `KVM_CAP_HYPERV_VP_INDEX`).                       |
-| `hypervFeatures.synic`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | Synthetic interrupt controller (HvSynIC / `KVM_CAP_HYPERV_SYNIC` + `SYNIC2`).            |
-| `hypervFeatures.stimer`       | `bool` | `false` | `CONFIG_KVM_HYPERV` | Synthetic timers with direct mode.                                                      |
-| `hypervFeatures.reset`        | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V reset hypercall.                                                                |
-| `hypervFeatures.ipi`          | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V IPI hypercall (`KVM_CAP_HYPERV_SEND_IPI`).                                      |
-| `hypervFeatures.tlbflush`     | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V TLB flush hypercall (`KVM_CAP_HYPERV_TLBFLUSH`).                                |
-| `hypervFeatures.reenlightenment` | `bool` | `false` | `CONFIG_KVM_HYPERV` | TSC re-enlightenment notification (HvReenlightenment).                                 |
-| `hypervFeatures.runtime`      | `bool` | `false` | `CONFIG_KVM_HYPERV` | Hyper-V runtime (HvRuntime).                                                            |
+Type: `string`. Default: `"ALASKA"`.
 
-## Kernel capabilities
+### `virtualisation.vfio-stealth.acpiOem.tableId`
 
-`hypervFeatures.*` controls what the lib *requests*; `kernelCapabilities`
-controls what the host kernel can actually *provide*. The lib intersects
-the two: a feature is emitted only if both the user requests it AND the
-host kernel supports it. Features that are requested but unsupported are
-dropped from the output, and the VM starts without the dropped feature (no
-libvirt error). For each dropped feature the function returns one message in
-`warnings`, naming the missing `CONFIG_*` option. The function emits nothing
-itself: the caller adds that list to its own `warnings`.
+8-char ACPI OEM Table ID (padded with spaces). Populates ACPI table header OEM Table ID field.
 
-Set the attrset by hand. A key left out counts as unsupported, `vendor_id`
-and `relaxed` included, so the set names all 13 features:
+Type: `string`. Default: `"A M I   "`.
+
+### `virtualisation.vfio-stealth.acpiSsdt.fakeBattery`
+
+Include an emulated ACPI battery device in the SSDT table. Covers the 'no battery = server/VM' heuristic.
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.acpiSsdt.sensorProbes`
+
+Include CPU and VRM thermal zone probes (covers MSAcpi_ThermalZoneTemperature WMI checks).
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.acpiSsdt.spoofedDevices`
+
+Include emulated ACPI device entries in the SSDT table. Covers ACPI namespace enumeration checks.
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.aperfMperf`
+
+Pass through IA32_APERF/MPERF MSRs to guest (addresses IET-based VM indicators). Requires kernel 6.18+.
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.cpuIdentity.currentSpeed`
+
+CPU current speed in MHz for SMBIOS type 4. null = omit.
+
+Type: `null or signed integer`. Default: `null`.
+
+### `virtualisation.vfio-stealth.cpuIdentity.manufacturer`
+
+CPU manufacturer for SMBIOS type 4. null = 'Advanced Micro Devices, Inc.' Set to your CPU vendor (e.g. 'GenuineIntel' for Intel hosts).
+
+Type: `null or string`. Default: `null`.
+
+### `virtualisation.vfio-stealth.cpuIdentity.maxSpeed`
+
+CPU max speed in MHz for SMBIOS type 4. null = omit.
+
+Type: `null or signed integer`. Default: `null`.
+
+### `virtualisation.vfio-stealth.cpuIdentity.modelId`
+
+CPU model string reported to guest (e.g. 'AMD Ryzen 7 7800X3D 8-Core Processor'). null = use host CPU.
+
+Type: `null or string`. Default: `null`.
+
+### `virtualisation.vfio-stealth.cpuVendor`
+
+Host CPU vendor. Selects the AutoVirt patch set and the ACPI OEM identity the QEMU postPatch rewrites. There is deliberately no default: a mismatch builds cleanly and yields a guest whose spoofed CPU vendor contradicts the host.
+
+Type: `null or one of "amd", "intel"`. Default: `null`. Example: `"amd"`.
+
+### `virtualisation.vfio-stealth.cpuidPassthrough.enable`
+
+Disable CPUID interception entirely. Guest executes CPUID at native hardware speed (zero VM exit). Addresses software-counter timing checks (VMAware TIMER 95pts, SINGLE_STEP 100pts). Requires AMD host with host-passthrough CPU mode. When enabled, cpuidSpoof is skipped (passthrough takes precedence). Side effect: Hyper-V enlightenments are invisible to guest (Windows uses TSC directly). LIMITATION: the guest sees the host's raw topology (core count, thread count, NUMA nodes) via CPUID -- if the VM has fewer vCPUs than the host has threads, Windows deadlocks at boot waiting for processors that do not exist.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.cpuidSpoof.enable`
+
+CPUID leaf 0 emulation via Hypervisor-Phantom technique. Covers the hypervisor-present CPUID bit (leaf 1, bit 31) and hypervisor vendor string (leaf 0x40000000). Skipped when cpuidPassthrough.enable is true.
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.disk.model`
+
+Emulated disk model string (25 chars, space-padded). Populates Win32_DiskDrive.Model. Set to your real disk model.
+
+Type: `string`. Default: `"WDC WD10EZEX-00WN4A0     "`.
+
+### `virtualisation.vfio-stealth.disk.opticalModel`
+
+Emulated optical drive model (25 chars, space-padded). Populates Win32_CDROMDrive.Name.
+
+Type: `string`. Default: `"HL-DT-ST DVDRAM GH24NSC0 "`.
+
+### `virtualisation.vfio-stealth.disk.serial`
+
+IDE/SCSI disk serial string. Populates Win32_DiskDrive.SerialNumber. Set to your real disk serial from smartctl.
+
+Type: `string`. Default: `"Default string"`.
+
+### `virtualisation.vfio-stealth.edid.dpi`
+
+Monitor DPI.
+
+Type: `signed integer`. Default: `91`.
+
+### `virtualisation.vfio-stealth.edid.manufacturer`
+
+3-char EDID manufacturer code.
+
+Type: `string`. Default: `"ACI"`.
+
+### `virtualisation.vfio-stealth.edid.productCode`
+
+EDID product code (hex).
+
+Type: `string`. Default: `"0x2480"`.
+
+### `virtualisation.vfio-stealth.edid.serial`
+
+Monitor serial string.
+
+Type: `string`. Default: `"VG248QE"`.
+
+### `virtualisation.vfio-stealth.edid.week`
+
+EDID manufacture week.
+
+Type: `signed integer`. Default: `22`.
+
+### `virtualisation.vfio-stealth.edid.year`
+
+EDID manufacture year.
+
+Type: `signed integer`. Default: `2020`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.frequencies`
+
+TSC frequency reporting (HvTscPage). Requires CONFIG_KVM_HYPERV=y (KVM_CAP_HYPERV_TIME); libvirt errors with 'host doesn't support hyperv frequencies' otherwise.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.ipi`
+
+Hyper-V IPI hypercall. Requires CONFIG_KVM_HYPERV=y.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.reenlightenment`
+
+TSC re-enlightenment notification (HvReenlightenment). Requires CONFIG_KVM_HYPERV=y.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.relaxed`
+
+Relaxed timing (HvRelax). QEMU/libvirt-level setting with no KVM cap; always supported.
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.reset`
+
+Hyper-V reset hypercall. Requires CONFIG_KVM_HYPERV=y.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.runtime`
+
+Hyper-V runtime (HvRuntime). Requires CONFIG_KVM_HYPERV=y.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.spinlocks`
+
+Spinlock retry reporting (HvSpin). Requires CONFIG_KVM_HYPERV=y (KVM_CAP_HYPERV_SPIN); libvirt errors with 'host doesn't support hyperv spinlocks' otherwise.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.stimer`
+
+Synthetic timers (HvSyntheticTimers) with direct mode. Requires CONFIG_KVM_HYPERV=y.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.synic`
+
+Synthetic interrupt controller (HvSynIC). Requires CONFIG_KVM_HYPERV=y.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.tlbflush`
+
+Hyper-V TLB flush hypercall. Requires CONFIG_KVM_HYPERV=y.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.vapic`
+
+SynIC APIC virtualization (HvApic). Requires CONFIG_KVM_HYPERV=y in the host kernel (KVM_CAP_HYPERV_VAPIC); libvirt errors with 'host doesn't support hyperv vapic' otherwise.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.vendor_id`
+
+Hyper-V vendor_id exposure. Libvirt-level setting with no KVM cap; always supported.
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.hypervFeatures.vpindex`
+
+Virtual processor index (HvVpIndex). Requires CONFIG_KVM_HYPERV=y in the host kernel. Enables libvirtError: 'host doesn't support hyperv vpindex' if requested on a kernel that does not advertise it.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.hypervMode`
+
+Hyper-V enlightenment strategy for hardened VMs. "enlightened" exposes the hypervisor + Hyper-V enlightenments (paravirt perf; blends in with VBS-enabled Windows 11). "hidden" conceals the hypervisor and emits no enlightenments. Per-VM overridable via vms.<name>.hypervMode
+
+Type: `one of "enlightened", "hidden"`. Default: `"enlightened"`.
+
+### `virtualisation.vfio-stealth.hypervVendorId`
+
+Hyper-V vendor_id reported to guest (1–12 chars, libvirt hard limit). Avoid well-known VM values like 'AMDisbetter!' or 'Microsoft Hv'.
+
+Type: `string matching the pattern ^.{1,12}$`. Default: `"AuthAMDRyzen"`.
+
+### `virtualisation.vfio-stealth.kernelCapabilities`
+
+Per-feature capability set from the host kernel. null = assume all features supported (back-compat). Compute via lib.kernelCapabilities.fromConfigPath in your host config, or set the attrset by hand after running zcat /proc/config.gz | grep KVM_HYPERV on the host.
+
+Type: `null or (attribute set of boolean)`. Default: `null`.
+
+### `virtualisation.vfio-stealth.kernelParams.maxCState`
+
+processor.max_cstate value passed on the kernel command line. Lower values reduce timing jitter that can reveal virtualization.
+
+Type: `signed integer`. Default: `1`.
+
+### `virtualisation.vfio-stealth.kernelParams.tscReliable`
+
+Pass tsc=reliable on the kernel command line. Prevents kernel from falling back to HPET/ACPI PM timer, which detection software can flag.
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.kernelPostPatch`
+
+Combined kernel postPatch script. Apply via kernel overrideAttrs in host config.
+
+Type: `string`. Default: `""`. Read only.
+
+### `virtualisation.vfio-stealth.kvmPvEnforceCpuid`
+
+Pass kvm-pv-enforce-cpuid=on to the guest -cpu flag. AutoVirt's default is on; Windows guests without the matching CPUID feature fault with #GP in early HAL init. Off = pre-AutoVirt behavior. Per-VM override available via the consumer's vms.nix kvmPvEnforceCpuid option.
+
+Type: `boolean`. Default: `false`.
+
+### `virtualisation.vfio-stealth.libtpmsIdentityPatch`
+
+libtpms postPatch script that replaces hardcoded IBM/swtpm identity. Apply via libtpms.overrideAttrs in host config.
+
+Type: `string`. Default: `""`. Read only.
+
+### `virtualisation.vfio-stealth.macPrefix`
+
+OUI prefix used when spoofMac is enabled (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard NIC.
+
+Type: `string matching the pattern ^[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}$`. Default: `"D8:BB:C1"`.
+
+### `virtualisation.vfio-stealth.pciMmio64Mb`
+
+Size of the OVMF 64-bit PCI MMIO window in megabytes. 65536 (64 GB) covers GPUs up to 64 GB VRAM. Set to 0 to omit the flag (OVMF uses its default, which may be too small for modern GPUs).
+
+Type: `signed integer`. Default: `65536`.
+
+### `virtualisation.vfio-stealth.smbios.baseBoardAsset`
+
+Baseboard asset tag (SMBIOS Type 2).
+
+Type: `string`. Default: `"Default string"`.
+
+### `virtualisation.vfio-stealth.smbios.baseBoardLocation`
+
+Baseboard location in chassis (SMBIOS Type 2).
+
+Type: `string`. Default: `"Default string"`.
+
+### `virtualisation.vfio-stealth.smbios.baseBoardSerial`
+
+Baseboard serial number (SMBIOS Type 2). Set to your real board serial from dmidecode.
+
+Type: `string`. Default: `"Default string"`.
+
+### `virtualisation.vfio-stealth.smbios.baseBoardVersion`
+
+Baseboard version string (SMBIOS Type 2). Populates Win32_BaseBoard.Version.
+
+Type: `string`. Default: `"Rev 1.xx"`.
+
+### `virtualisation.vfio-stealth.smbios.biosDate`
+
+BIOS release date (MM/DD/YYYY format). Populates Win32_BIOS.ReleaseDate. OVMF defaults to 02/02/2022 which is a generic VM date. Set to your board's actual BIOS date.
+
+Type: `string`. Default: `"01/01/2025"`.
+
+### `virtualisation.vfio-stealth.smbios.biosRelease`
+
+BIOS release version (major.minor). Maps to SMBIOS Type 0 System BIOS Release field.
+
+Type: `string`. Default: `"2.4"`.
+
+### `virtualisation.vfio-stealth.smbios.biosVendor`
+
+SMBIOS BIOS vendor string. Populates WMI Win32_BIOS.Manufacturer.
+
+Type: `string`. Default: `"American Megatrends Inc."`.
+
+### `virtualisation.vfio-stealth.smbios.biosVersion`
+
+SMBIOS BIOS version string. Populates WMI Win32_BIOS.SMBIOSBIOSVersion.
+
+Type: `string`. Default: `"1001"`.
+
+### `virtualisation.vfio-stealth.smbios.cache.assocL1`
+
+SMBIOS type 7 associativity byte for L1 (7 = 8-way, the AMD Zen 4/5 L1d value). Other common: 9 (16-way), 6 (fully associative). See DSP0134 Table 36.
+
+Type: `signed integer`. Default: `7`.
+
+### `virtualisation.vfio-stealth.smbios.cache.assocL2`
+
+SMBIOS type 7 associativity byte for L2 (7 = 8-way, the AMD Zen 4/5 L2 value).
+
+Type: `signed integer`. Default: `7`.
+
+### `virtualisation.vfio-stealth.smbios.cache.assocL3`
+
+SMBIOS type 7 associativity byte for L3 (9 = 16-way, the AMD Zen 4/5 V-Cache value; use 7 for non-V-Cache CCDs).
+
+Type: `signed integer`. Default: `9`.
+
+### `virtualisation.vfio-stealth.smbios.cache.ecc`
+
+SMBIOS type 7 error correction type per DSP0134 Table 39. 0 = Reserved, 1 = Other, 2 = Unknown, 3 = None, 4 = Parity, 5 = Single-bit ECC, 6 = Multi-bit ECC. Consumer Ryzen has no cache ECC; server EPYC has parity on L3.
+
+Type: `signed integer`. Default: `3`.
+
+### `virtualisation.vfio-stealth.smbios.cache.l1`
+
+L1 cache size in KB for SMBIOS type 7.
+
+Type: `signed integer`. Default: `512`.
+
+### `virtualisation.vfio-stealth.smbios.cache.l2`
+
+L2 cache size in KB for SMBIOS type 7.
+
+Type: `signed integer`. Default: `8192`.
+
+### `virtualisation.vfio-stealth.smbios.cache.l3`
+
+L3 cache size in KB for SMBIOS type 7.
+
+Type: `signed integer`. Default: `32768`.
+
+### `virtualisation.vfio-stealth.smbios.manufacturer`
+
+SMBIOS system manufacturer string. Populates WMI Win32_ComputerSystem.Manufacturer.
+
+Type: `string`. Default: `"To Be Filled By O.E.M."`.
+
+### `virtualisation.vfio-stealth.smbios.memory.count`
+
+Number of DIMMs to report.
+
+Type: `signed integer`. Default: `2`.
+
+### `virtualisation.vfio-stealth.smbios.memory.manufacturer`
+
+DIMM manufacturer for SMBIOS type 17. Populates WMI Win32_PhysicalMemory.Manufacturer. Set to your real RAM vendor.
+
+Type: `string`. Default: `"Unknown"`.
+
+### `virtualisation.vfio-stealth.smbios.memory.partNumber`
+
+DIMM part number. Populates WMI Win32_PhysicalMemory.PartNumber. Set to your real DIMM part number.
+
+Type: `string`. Default: `"Unknown"`.
+
+### `virtualisation.vfio-stealth.smbios.memory.speed`
+
+Memory speed in MT/s. Populates WMI Win32_PhysicalMemory.Speed.
+
+Type: `signed integer`. Default: `4800`.
+
+### `virtualisation.vfio-stealth.smbios.oemStrings`
+
+OEM Strings for SMBIOS Type 11. Real boards populate 4-6 entries. Empty Type 11 is a VM indicator.
+
+Type: `list of string`.
+
+Default:
 
 ```nix
-virtualisation.vfio-stealth.kernelCapabilities = {
-  vendor_id = true;
-  relaxed = true;
-  vapic = true;
-  spinlocks = true;
-  frequencies = true;
-  vpindex = true;
-  synic = true;
-  stimer = true;
-  reset = true;
-  ipi = true;
-  tlbflush = true;
-  reenlightenment = true;
-  runtime = true;
-};
+[
+  "Default string"
+  "Default string"
+  "Default string"
+  "Default string"
+]
 ```
 
-[`lib/kernel-capabilities.nix`](../lib/kernel-capabilities.nix) holds
-`fromConfigText` and `fromConfigPath`, which parse a kernel `.config` into
-this attrset, and `emptyCapabilities` (all features = false). The file is not
-a flake output: `lib` exports `mkStealthFeatures` only.
+### `virtualisation.vfio-stealth.smbios.onboardDevices`
 
-## Kernel
+Onboard devices for SMBIOS Type 41. Set to match your board (e.g., LAN, SATA controllers from dmidecode -t 41). Empty = no Type 41 entries.
 
-| Option                     | Type   | Default | Description                                                                                                                                                            | Detection vector                                    |
-| -------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `timing.enable`            | `bool` | `true`  | Apply BetterTiming TSC compensation kernel patch                                                                                                                       | RDTSC/RDTSCP timing attacks                         |
-| `cpuidSpoof.enable`        | `bool` | `true`  | Apply CPUID leaf 0 override via Hypervisor-Phantom technique                                                                                                           | CPUID vendor string + hypervisor bit                |
-| `cpuidPassthrough.enable`  | `bool` | `false` | Disable CPUID interception entirely — guest executes at native speed. Handles TIMER + SINGLE_STEP. Requires AMD host-passthrough. When enabled, cpuidSpoof is skipped. | RDTSC software-counter timing, #DB exception timing |
-| `kernelParams.maxCState`   | `int`  | `1`     | `processor.max_cstate` kernel parameter                                                                                                                                | TSC stability (deep C-states cause drift)           |
-| `kernelParams.tscReliable` | `bool` | `true`  | Pass `tsc=reliable` on kernel command line                                                                                                                             | TSC source selection                                |
+Type: `list of (submodule)`. Default: `[ ]`.
 
-## SMBIOS
+### `virtualisation.vfio-stealth.smbios.onboardDevices.*.designation`
 
-| Option                       | Type               | Default                              | Description                                                                                                                                                               | Detection vector                        |
-| ---------------------------- | ------------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `smbios.manufacturer`        | `str`              | `"To Be Filled By O.E.M."`           | System + baseboard manufacturer (Types 1, 2)                                                                                                                              | `Win32_ComputerSystem.Manufacturer`     |
-| `smbios.product`             | `str`              | `"To Be Filled By O.E.M."`           | System + baseboard product (Types 1, 2)                                                                                                                                   | `Win32_ComputerSystem.Model`            |
-| `smbios.biosVendor`          | `str`              | `"American Megatrends Inc."`         | BIOS vendor string (Type 0)                                                                                                                                               | `Win32_BIOS.Manufacturer`               |
-| `smbios.biosVersion`         | `str`              | `"1001"`                             | BIOS version string (Type 0)                                                                                                                                              | `Win32_BIOS.SMBIOSBIOSVersion`          |
-| `smbios.biosDate`            | `str`              | `"01/01/2025"`                       | BIOS release date MM/DD/YYYY (Type 0). OVMF default 02/02/2022 is a generic VM date                                                                                       | `Win32_BIOS.ReleaseDate`                |
-| `smbios.biosRelease`         | `str`              | `"2.4"`                              | BIOS release version major.minor (Type 0 System BIOS Release field)                                                                                                       | `Win32_BIOS` release fields             |
-| `smbios.serial`              | `str`              | `"System Serial Number"`             | System serial number (Type 1)                                                                                                                                             | `Win32_ComputerSystemProduct.IdentifyingNumber` |
-| `smbios.baseBoardVersion`    | `str`              | `"Rev 1.xx"`                         | Baseboard version string (Type 2)                                                                                                                                         | `Win32_BaseBoard.Version`               |
-| `smbios.baseBoardSerial`     | `str`              | `"Default string"`                   | Baseboard serial number (Type 2, set from dmidecode)                                                                                                                      | `Win32_BaseBoard.SerialNumber`          |
-| `smbios.baseBoardAsset`      | `str`              | `"Default string"`                   | Baseboard asset tag (Type 2)                                                                                                                                              | `Win32_BaseBoard.Tag`                   |
-| `smbios.baseBoardLocation`   | `str`              | `"Default string"`                   | Baseboard location in chassis (Type 2)                                                                                                                                    | `Win32_BaseBoard.LocationInChassis`     |
-| `smbios.socketPrefix`        | `str`              | `"AM5"`                              | Processor socket designator prefix (Type 4)                                                                                                                               | `Win32_Processor.SocketDesignation`     |
-| `smbios.memory.manufacturer` | `str`              | `"Unknown"`                          | DIMM manufacturer (Type 17)                                                                                                                                               | `Win32_PhysicalMemory.Manufacturer`     |
-| `smbios.memory.partNumber`   | `str`              | `"Unknown"`                          | DIMM part number (Type 17)                                                                                                                                                | `Win32_PhysicalMemory.PartNumber`       |
-| `smbios.memory.speed`        | `int`              | `4800`                               | Memory speed MT/s (Type 17)                                                                                                                                               | `Win32_PhysicalMemory.Speed`            |
-| `smbios.memory.count`        | `int`              | `2`                                  | Number of DIMMs to report (Type 17)                                                                                                                                       | `Win32_PhysicalMemory` count            |
-| `smbios.oemStrings`          | `listOf str`       | `["Default string" ...]` (4 entries) | OEM Strings for Type 11. Real boards populate 4-6 entries; empty Type 11 is a VM indicator                                                                                | `Win32_ComputerSystem.OEMStringArray`   |
-| `smbios.onboardDevices`      | `listOf submodule` | `[ ]`                                | Onboard devices for Type 41 (submodule: designation, kind, instance). Set to match your board. Empty = no Type 41 entries                                                 | `Win32_OnBoardDevice`                   |
-| `smbios.cache.l1`            | `int`              | `512`                                | L1 cache size in KB (SMBIOS Type 7)                                                                                                                                       | `Win32_CacheMemory`                     |
-| `smbios.cache.l2`            | `int`              | `8192`                               | L2 cache size in KB (SMBIOS Type 7)                                                                                                                                       | `Win32_CacheMemory`                     |
-| `smbios.cache.l3`            | `int`              | `32768`                              | L3 cache size in KB (SMBIOS Type 7)                                                                                                                                       | `Win32_CacheMemory`                     |
-| `smbios.cache.assocL1`       | `int`              | `7`                                  | SMBIOS Type 7 L1 associativity byte (7 = 8-way, AMD Zen 4/5 L1d)                                                                                                          | `Win32_CacheMemory.Associativity`       |
-| `smbios.cache.assocL2`       | `int`              | `7`                                  | SMBIOS Type 7 L2 associativity byte (7 = 8-way)                                                                                                                           | `Win32_CacheMemory.Associativity`       |
-| `smbios.cache.assocL3`       | `int`              | `9`                                  | SMBIOS Type 7 L3 associativity byte (9 = 16-way V-Cache; 7 for non-V-Cache)                                                                                               | `Win32_CacheMemory.Associativity`       |
-| `smbios.cache.ecc`           | `int`              | `3`                                  | SMBIOS Type 7 error correction type per DSP0134 Table 39 (0 Reserved, 1 Other, 2 Unknown, 3 None, 4 Parity, 5 Single-bit ECC, 6 Multi-bit ECC). Consumer Ryzen has no ECC | `Win32_CacheMemory.ErrorCorrectionType` |
+Device designation string.
 
-## ACPI SSDT
+Type: `string`.
 
-| Option                    | Type   | Default | Description                                                            | Detection vector                      |
-| ------------------------- | ------ | ------- | ---------------------------------------------------------------------- | ------------------------------------- |
-| `acpiSsdt.spoofedDevices` | `bool` | `true`  | Include power/sleep buttons, AC adapter, timers, fan, thermal zone     | Missing fan/thermal = VM indicator    |
-| `acpiSsdt.fakeBattery`    | `bool` | `true`  | Include emulated ACPI battery (PNP0C0A) in SSDT                        | Missing battery is a VM indicator     |
-| `acpiSsdt.sensorProbes`   | `bool` | `true`  | Include CPU + VRM thermal zones with Timer()-based dynamic fluctuation | Static/missing thermal data flags VM  |
+### `virtualisation.vfio-stealth.smbios.onboardDevices.*.instance`
 
-## Network
+Device instance number.
 
-See "Core" above (`stripVirtio`, `spoofMac`, `macPrefix`).
+Type: `signed integer`.
 
-## Build-time qemu-stealth arguments
+### `virtualisation.vfio-stealth.smbios.onboardDevices.*.kind`
 
-These are NOT module options. Pass them via `callPackage` or an overlay
-override, e.g.:
+Device type.
 
-```nix
-nixpkgs.overlays = [
-  (final: prev: {
-    qemu-stealth = prev.qemu-stealth.override {
-      edidManufacturer = "ASU";
-      edidSerial = "PG279Q";
-      diskModel = "Samsung SSD 990 PRO 2TB ";
-    };
-  })
-];
-```
+Type: `one of "other", "unknown", "video", "scsi", "ethernet", "tokenring", "sound", "pata", "sata", "sas"`.
 
-### EDID (display identity)
+### `virtualisation.vfio-stealth.smbios.product`
 
-The module also exposes `virtualisation.vfio-stealth.edid.*` options
-(`manufacturer`, `serial`, `productCode`, `dpi`, `week`, `year`) that
-document the target EDID values for discoverability. The actual EDID
-binary is compiled by the build-time arguments below.
+SMBIOS product name string. Populates WMI Win32_ComputerSystem.Model.
 
-| Argument           | Default     | Description                        | Detection vector                |
-| ------------------ | ----------- | ---------------------------------- | ------------------------------- |
-| `edidManufacturer` | `"ACI"`     | 3-letter EDID manufacturer ID      | Monitor manufacturer identifier |
-| `edidSerial`       | `"VG248QE"` | Monitor serial string              | EDID serial number              |
-| `edidProductCode`  | `"0x2480"`  | EDID product code (hex)            | EDID product code field         |
-| `edidDpi`          | `91`        | Monitor DPI                        | EDID physical size calculation  |
-| `edidWeek`         | `22`        | Manufacture week (1-52)            | EDID manufacture date           |
-| `edidYear`         | `2020`      | Manufacture year                   | EDID manufacture date           |
-| `edidResX`         | `1920`      | Default EDID horizontal resolution | EDID preferred timing           |
-| `edidResY`         | `1080`      | Default EDID vertical resolution   | EDID preferred timing           |
+Type: `string`. Default: `"To Be Filled By O.E.M."`.
 
-### Disk / optical
+### `virtualisation.vfio-stealth.smbios.serial`
 
-The module also exposes `virtualisation.vfio-stealth.disk.*` options (`model`,
-`serial`, `opticalModel`) that document the target disk identity values
-for discoverability. The actual strings are compiled into QEMU by the
-build-time arguments below.
+SMBIOS system serial number. Populates WMI Win32_ComputerSystemProduct.IdentifyingNumber.
 
-| Argument            | Default                       | Description                                                        | Detection vector                    |
-| ------------------- | ----------------------------- | ------------------------------------------------------------------ | ----------------------------------- |
-| `diskModel`         | `"WDC WD10EZEX-00WN4A0     "` | IDE/SCSI disk model string (25 chars, space-padded)                | Disk model reveals QEMU default     |
-| `diskSerial`        | `"Default string"`            | IDE disk serial string (replaces AutoVirt blank serial)            | Blank disk serial is a VM indicator |
-| `opticalModel`      | `"HL-DT-ST DVDRAM GH24NSC0 "` | IDE/ATAPI optical drive model string (25 chars)                    | Optical drive model reveals QEMU    |
-| `scsiVendor`        | `"WDC"`                       | SCSI INQUIRY vendor string (8-char T10 format, auto-padded)        | SCSI vendor reveals QEMU default    |
-| `scsiTargetProduct` | `"SCSI Disk       "`          | SCSI target product for dead-LUN INQUIRY fallback (16-char padded) | SCSI target product reveals QEMU    |
+Type: `string`. Default: `"System Serial Number"`.
 
-### ACPI OEM
+### `virtualisation.vfio-stealth.smbios.socketPrefix`
 
-The module also exposes `virtualisation.vfio-stealth.acpiOem.*` options (`id`,
-`tableId`) that document the target ACPI OEM identity values for
-discoverability. The actual table headers are compiled into QEMU by the
-build-time arguments below.
+SMBIOS processor socket designator prefix (type 4). Populates WMI Win32_Processor.SocketDesignation.
 
-| Argument         | Default      | Description                     | Detection vector               |
-| ---------------- | ------------ | ------------------------------- | ------------------------------ |
-| `acpiOemId`      | `"ALASKA"`   | 6-char ACPI OEM ID              | ACPI table OEM ID reveals QEMU |
-| `acpiOemTableId` | `"A M I   "` | 8-char padded ACPI OEM Table ID | ACPI table OEM Table ID        |
+Type: `string`. Default: `"AM5"`.
 
-## CPU Identity
+### `virtualisation.vfio-stealth.spoofMac`
 
-| Option                     | Type         | Default | Description                                                                                            | Detection vector                    |
-| -------------------------- | ------------ | ------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------- |
-| `cpuIdentity.manufacturer` | `nullOr str` | `null`  | CPU manufacturer for SMBIOS Type 4. null = "Advanced Micro Devices, Inc." Set to your CPU vendor string | `Win32_Processor.Manufacturer`      |
-| `cpuIdentity.modelId`      | `nullOr str` | `null`  | CPU model string for SMBIOS Type 4 + QEMU `-global cpu.model-id`. null = use host CPU                  | `Win32_Processor.Name`              |
-| `cpuIdentity.maxSpeed`     | `nullOr int` | `null`  | Max CPU speed in MHz (Type 4). null = omit                                            | `Win32_Processor.MaxClockSpeed`     |
-| `cpuIdentity.currentSpeed` | `nullOr int` | `null`  | Current CPU speed in MHz (Type 4). null = omit                                        | `Win32_Processor.CurrentClockSpeed` |
+Override guest NIC MAC address with a realistic OUI prefix. Covers MAC OUI-based VM indicators.
 
-## TPM Identity
+Type: `boolean`. Default: `true`.
 
-| Option                     | Type   | Default                   | Description                                                    | Detection vector                |
-| -------------------------- | ------ | ------------------------- | -------------------------------------------------------------- | ------------------------------- |
-| `tpm.harden`               | `bool` | `true`                    | Configure swtpm to report realistic hardware TPM identity      | swtpm defaults report IBM/swtpm |
-| `tpm.manufacturer`         | `str`  | `"id:49465800"`           | TPM manufacturer ID (8 hex digits). id:49465800=Infineon       | Win32_Tpm manufacturer          |
-| `tpm.model`                | `str`  | `"SLB9672"`               | TPM model string. SLB9672 = Infineon discrete TPM              | Win32_Tpm model                 |
-| `tpm.firmwareVersion`      | `str`  | `"id:000F0018"`           | TPM firmware version. 0x000F0018 = FW 15.24 (Infineon SLB9672) | Win32_Tpm firmware version      |
-| `tpm.platformManufacturer` | `str`  | `"ASUSTeK COMPUTER INC."` | Platform manufacturer for TPM platform certificate             | TPM platform certificate        |
-| `tpm.platformModel`        | `str`  | `"System Product Name"`   | Platform model for TPM platform certificate                    | TPM platform certificate        |
+### `virtualisation.vfio-stealth.stripVirtio`
 
-## Read-only outputs
+Remove VirtIO balloon, RNG, and tablet devices from VM config when hardware emulation is enabled. Covers PCI device enumeration checks.
 
-| Attribute               | Type                | Description                                                                                                                                                                                                         |
-| ----------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kernelPostPatch`      | shell-script string | Append to `boot.kernelPackages.kernel.overrideAttrs.postPatch` to apply BetterTiming + CPUID emulation/passthrough to the kernel build. See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §Kernel-integration layering. |
-| `libtpmsIdentityPatch` | shell-script string | Append to `libtpms.overrideAttrs.postPatch` to replace hardcoded IBM/swtpm identity with configured TPM manufacturer/model.                                                                                         |
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.timing.enable`
+
+BetterTiming TSC compensation (hides VM exit timing from guests). Compensates RDTSC timing deltas from VM exits across CPUID/VMCALL. Also disables KVM hypercall instruction patching HOST-WIDE, so every VM on this host gets #UD for VMCALL/VMMCALL and Linux guests lose KVM paravirt features (kvmclock, PV TLB flush).
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.tpm.firmwareVersion`
+
+TPM firmware version (8 hex digits). 0x000F0018 = FW 15.24 (Infineon SLB9672).
+
+Type: `string matching the pattern ^[a-zA-Z0-9:]+$`. Default: `"id:000F0018"`.
+
+### `virtualisation.vfio-stealth.tpm.harden`
+
+Configure swtpm to report realistic hardware TPM identity. Affects EK/platform certificates (swtpm-localca.options) and protocol-level properties (libtpms patch).
+
+Type: `boolean`. Default: `true`.
+
+### `virtualisation.vfio-stealth.tpm.manufacturer`
+
+TPM manufacturer ID (8 hex digits). id:49465800=Infineon, id:414D4400=AMD fTPM, id:494E5443=Intel PTT.
+
+Type: `string matching the pattern ^[a-zA-Z0-9:]+$`. Default: `"id:49465800"`.
+
+### `virtualisation.vfio-stealth.tpm.model`
+
+TPM model string. Common: SLB9672 (Infineon discrete), AMD (fTPM).
+
+Type: `string matching the pattern ^[a-zA-Z0-9 _-]+$`. Default: `"SLB9672"`.
+
+### `virtualisation.vfio-stealth.tpm.platformManufacturer`
+
+Platform manufacturer for TPM platform certificate. Should match SMBIOS manufacturer.
+
+Type: `string`. Default: `"ASUSTeK COMPUTER INC."`.
+
+### `virtualisation.vfio-stealth.tpm.platformModel`
+
+Platform model for TPM platform certificate.
+
+Type: `string`. Default: `"System Product Name"`.
