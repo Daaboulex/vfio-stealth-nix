@@ -272,7 +272,7 @@ Type: `string`. Default: `""`. Read only.
 
 ### `virtualisation.vfio-stealth.macPrefix`
 
-OUI prefix meant for the guest NIC MAC address when spoofMac is on (colon-separated hex, e.g. D8:BB:C1). Realtek OUI matching ASUS X870E onboard NIC. Read by no code in this flake: the value is carried for the caller, who sets the MAC address in its VM definition.
+OUI prefix meant for the guest NIC MAC address when spoofMac is on (colon-separated hex, e.g. D8:BB:C1). Set it to the OUI of your board's own NIC. Read by no code in this flake: the value is carried for the caller, who sets the MAC address in its VM definition.
 
 Type: `string matching the pattern ^[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}$`. Default: `"D8:BB:C1"`.
 

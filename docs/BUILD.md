@@ -190,8 +190,8 @@ configured, or from VirtIO driver installation. Among others, it targets:
 
 - SMBIOS registry entries (`HKLM:\HARDWARE\DESCRIPTION\System\BIOS`). It
   overwrites leaked QEMU/Bochs strings with the values of its `-Manufacturer`,
-  `-Product`, `-BIOSVendor` and `-BIOSVersion` parameters. Each has a default,
-  so pass your own board's strings.
+  `-Product`, `-BIOSVendor` and `-BIOSVersion` parameters. `-Product` has no
+  default; the others do, so pass your own board's strings.
 - VirtIO service keys (`CurrentControlSet\Services\VirtIO*`, `viostor`,
   `vioscsi`, `netkvm`, `Balloon`). It removes driver service remnants.
 - QEMU/VirtIO PCI enumeration (`Enum\PCI\VEN_1AF4*`, `VEN_1B36*`,
@@ -204,7 +204,7 @@ the first time, or after installing or removing VirtIO guest tools.
 
 ```powershell
 # Right-click PowerShell -> Run as Administrator
-.\cleanup-registry.ps1
+.\cleanup-registry.ps1 -Product "<your board model>"
 # Reboot after running
 ```
 

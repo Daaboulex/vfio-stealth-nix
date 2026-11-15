@@ -2,7 +2,7 @@
 # Removes QEMU/KVM/VirtIO registry artifacts that game security software scans
 #
 # Usage: Right-click PowerShell -> Run as Administrator
-#   .\cleanup-registry.ps1
+#   .\cleanup-registry.ps1 -Product "<your board model>"
 #   .\cleanup-registry.ps1 -Manufacturer "Gigabyte Technology Co., Ltd." -Product "B650 AORUS ELITE AX"
 # Reboot after running.
 #
@@ -13,7 +13,8 @@
 
 param(
     [string]$Manufacturer = "ASUSTeK COMPUTER INC.",
-    [string]$Product = "ROG CROSSHAIR X870E HERO",
+    [Parameter(Mandatory = $true)]
+    [string]$Product,
     [string]$BIOSVendor = "American Megatrends Inc.",
     [string]$BIOSVersion = "2101",
     [string]$ChassisManufacturer = $Manufacturer,

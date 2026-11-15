@@ -167,8 +167,8 @@ itself on the next green run. Adoption is always a hand decision:
 4. Live VM boot test (the user's existing workflow):
    - `virsh start win11-amd`
    - Read `/tmp/ovmf-debug.log`, `/tmp/windows-serial.log`,
-     `/tmp/qemu-guest-errors.log` (all wired in
-     `parts/hosts/ryzen-9950x3d/default.nix`)
+     `/tmp/qemu-guest-errors.log` (all wired in the host's own
+     configuration)
 5. If the boot fails, the logs are the diagnostic starting point.
 
 ## Rollback
