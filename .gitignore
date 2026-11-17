@@ -68,3 +68,4 @@ venv/
 /build/
 /dist/
 /target/
+!tests/fixtures/consumer-stale/CLAUDE.md
