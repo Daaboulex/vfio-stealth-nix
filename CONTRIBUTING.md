@@ -17,9 +17,12 @@ Open an issue with the bug, request or task form.
   is not finished when work ends, or it verified a defect.
 - An idea, a maybe or a question is said once and dropped. It becomes an issue, with `later`, only
   when that person says keep it.
-- An issue has one type, which its form sets. Add `later` to an idea nobody owes and `waiting` to
-  one blocked on a person, a delivery or a decision. An issue that is not ours to solve, or no
-  longer true, is closed with one sentence saying why.
+- An issue's title starts with the part it concerns and a colon, the scope a commit for it would
+  carry. A matter that sits in another project carries that project's name.
+- An issue has one type, which its form sets. Add `later` to an idea nobody owes, `waiting` to one
+  blocked on a person, a delivery or a decision, and `upstream` to one that needs another project
+  to change first. An issue we want nothing from, that is answered or no longer true, is closed
+  with one sentence saying why.
 - An issue's goal stays in the words it was opened with. Later work ticks its "Done when" list and
   comments; it does not rewrite the goal.
 - Never record state, such as what was exported, what runs where or what was done: that is read at
