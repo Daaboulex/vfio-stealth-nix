@@ -9,14 +9,17 @@ let
   documents = [
     {
       name = "README.md";
+      key = "readme";
       file = ../README.md;
     }
     {
       name = "docs/GUIDE.md";
+      key = "guide";
       file = ../docs/GUIDE.md;
     }
     {
       name = "docs/QUICKSTART.md";
+      key = "quickstart";
       file = ../docs/QUICKSTART.md;
     }
   ];
@@ -69,10 +72,12 @@ let
     in
     assert lib.assertMsg (final.open == null)
       "guide-snippets: ${document.name} line ${toString final.open.number} opens a nix block that never closes";
-    map (
-      block:
+    lib.imap1 (
+      index: block:
       let
         text = lib.concatStringsSep "\n" block.body + "\n";
+        name = "${document.key}-${lib.fixedWidthString 2 "0" (toString index)}.txt";
+        snippet = ./snippets + "/${name}";
         firstLine = lib.findFirst (line: builtins.match "[[:space:]{}]*" line == null) (lib.head (
           block.body ++ [ "" ]
         )) block.body;
@@ -82,11 +87,14 @@ let
         inherit text;
         label = "${block.document} line ${toString block.number}: ${lib.strings.trim firstLine}";
         isModule = lib.hasInfix "virtualisation.vfio-stealth" text && !lib.hasInfix "nixosSystem" text;
-        value = import (
-          builtins.toFile "${baseNameOf block.document}-line-${toString block.number}.nix" text
-        );
+        value =
+          assert lib.assertMsg (builtins.pathExists snippet && builtins.readFile snippet == text)
+            "guide-snippets: tests/snippets/${name} differs from the nix block at ${block.document} line ${toString block.number}; copy the block into it";
+          import snippet;
       }
     ) final.blocks;
+
+  snippetFiles = lib.attrNames (builtins.readDir ./snippets);
 
   base = {
     virtualisation.vfio-stealth = {
@@ -175,6 +183,8 @@ let
   parsed = lib.all (block: builtins.seq block.value true) blocks;
 in
 assert parsed;
+assert lib.assertMsg (lib.length snippetFiles == lib.length blocks)
+  "guide-snippets: tests/snippets holds ${toString (lib.length snippetFiles)} files for ${toString (lib.length blocks)} nix blocks; remove the files no block has";
 assert lib.all check steps;
 runCommand "guide-snippets" { } ''
   echo "guide-snippets: ${toString (lib.length blocks)} nix blocks parse; ${toString (lib.length steps)} module blocks evaluate in document order"

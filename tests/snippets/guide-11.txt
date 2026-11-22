@@ -1,0 +1,1 @@
+{ virtualisation.vfio-stealth.hugepages.atBoot = true; }

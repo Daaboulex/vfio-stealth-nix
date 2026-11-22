@@ -1,0 +1,1 @@
+{ virtualisation.vfio-stealth.domains.win11.hugepages = true; }

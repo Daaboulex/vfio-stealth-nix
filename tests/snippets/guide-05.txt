@@ -1,0 +1,11 @@
+{
+  virtualisation.vfio-stealth = {
+    host.enable = true;
+    domains.win11.gpu = {
+      address = "0000:01:00.0";
+      audio = "0000:01:00.1";
+      binding = "boot";
+      ids = [ "10de:2484" "10de:228b" ];
+    };
+  };
+}

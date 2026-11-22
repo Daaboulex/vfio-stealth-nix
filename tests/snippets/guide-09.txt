@@ -1,0 +1,1 @@
+{ virtualisation.vfio-stealth.pinning.isolate = true; }
