@@ -1,0 +1,13 @@
+vfio-native KVM patches, vendored.
+
+Origin:   https://git.archworks.co/sandwich/vfio-native at
+          0e5d0b138fbb6c2859bb1cf9a2ec030e42f16eca (2026-10-13), patches/kvm/.
+Author:   Sandwich.
+License:  GPL-2.0, as the Linux kernel they patch.
+Local:    the files are unchanged. 0001 to 0004 make SVM instructions,
+          VMCALL, VMMCALL and ICEBP behave in the guest as on bare metal;
+          upstream offers them as a series for Linux. EXPERIMENTAL-0006 is
+          marked not for upstream by its author. Linux 7.3 carries its own
+          ICEBP interception, so kernel/svm-instruction-fixes.nix applies 0004
+          only to a kernel without it. 0005, a kernel selftest, is not
+          vendored. scripts/update.sh reports each upstream commit.

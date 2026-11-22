@@ -1,0 +1,36 @@
+{
+  Other = 1;
+  Unknown = 2;
+  DRAM = 3;
+  EDRAM = 4;
+  VRAM = 5;
+  SRAM = 6;
+  RAM = 7;
+  ROM = 8;
+  Flash = 9;
+  EEPROM = 10;
+  FEPROM = 11;
+  EPROM = 12;
+  CDRAM = 13;
+  "3DRAM" = 14;
+  SDRAM = 15;
+  SGRAM = 16;
+  RDRAM = 17;
+  DDR = 18;
+  DDR2 = 19;
+  "DDR2 FB-DIMM" = 20;
+  DDR3 = 24;
+  FBD2 = 25;
+  DDR4 = 26;
+  LPDDR = 27;
+  LPDDR2 = 28;
+  LPDDR3 = 29;
+  LPDDR4 = 30;
+  "Logical non-volatile device" = 31;
+  HBM = 32;
+  HBM2 = 33;
+  DDR5 = 34;
+  LPDDR5 = 35;
+  HBM3 = 36;
+  MRDIMM = 37;
+}

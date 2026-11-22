@@ -1,0 +1,115 @@
+{
+  "amd": {
+    "enlightened": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "HYPERVISOR_BIT",
+      "HYPERVISOR_STR",
+      "KVM_INTERCEPTION",
+      "SVM_EXCEPTIONS",
+      "THREAD_MISMATCH",
+      "TIMER"
+    ],
+    "hidden": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "KVM_INTERCEPTION",
+      "SVM_EXCEPTIONS",
+      "THREAD_MISMATCH",
+      "TIMER"
+    ],
+    "hidden-vbs": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "KVM_INTERCEPTION",
+      "THREAD_MISMATCH",
+      "TIMER"
+    ],
+    "enlightened-vbs": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "HYPERVISOR_BIT",
+      "HYPERVISOR_STR",
+      "INTERRUPT_SHADOW",
+      "KVM_INTERCEPTION",
+      "SINGLE_STEP",
+      "SVM_EXCEPTIONS",
+      "THREAD_MISMATCH",
+      "TIMER",
+      "VMID"
+    ],
+    "hidden-patched": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "THREAD_MISMATCH",
+      "TIMER"
+    ],
+    "enlightened-patched": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "HYPERVISOR_BIT",
+      "HYPERVISOR_STR",
+      "THREAD_MISMATCH",
+      "TIMER"
+    ]
+  },
+  "intel": {
+    "enlightened": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "HYPERVISOR_BIT",
+      "HYPERVISOR_STR",
+      "THREAD_MISMATCH",
+      "TIMER",
+      "TRAP"
+    ],
+    "hidden": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "KVM_INTERCEPTION",
+      "THREAD_MISMATCH",
+      "TIMER",
+      "TRAP"
+    ],
+    "hidden-vbs": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "THREAD_MISMATCH",
+      "TIMER"
+    ],
+    "enlightened-vbs": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "HYPERVISOR_BIT",
+      "HYPERVISOR_STR",
+      "SINGLE_STEP",
+      "THREAD_MISMATCH",
+      "TIMER",
+      "TRAP",
+      "VMID"
+    ],
+    "hidden-patched": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "THREAD_MISMATCH",
+      "TIMER",
+      "TRAP"
+    ],
+    "enlightened-patched": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "HYPERVISOR_BIT",
+      "HYPERVISOR_STR",
+      "THREAD_MISMATCH",
+      "TIMER",
+      "TRAP"
+    ],
+    "hidden-nowaet": [
+      "GPU_CAPABILITIES",
+      "KVM_INTERCEPTION",
+      "THREAD_MISMATCH",
+      "TIMER",
+      "TRAP"
+    ]
+  }
+}

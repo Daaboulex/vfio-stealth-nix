@@ -1,0 +1,42 @@
+diff --git a/hw/scsi/megasas.c b/hw/scsi/megasas.c
+--- a/hw/scsi/megasas.c
++++ b/hw/scsi/megasas.c
+@@ -36,6 +36,7 @@
+ #include "mfi.h"
+ #include "migration/vmstate.h"
+ #include "qom/object.h"
++#include "system/system.h"
+
+ #define MEGASAS_VERSION_GEN1 "1.70"
+ #define MEGASAS_VERSION_GEN2 "1.80"
+@@ -49,6 +50,7 @@
+ #define MEGASAS_MAX_ARRAYS 128
+
+ #define MEGASAS_HBA_SERIAL "QEMU123456"
++#define MEGASAS_HBA_SERIAL_DIGITS 8
+ #define NAA_LOCALLY_ASSIGNED_ID 0x3ULL
+ #define IEEE_COMPANY_LOCALLY_ASSIGNED 0x525400
+
+@@ -2416,7 +2418,21 @@ static void megasas_scsi_realize(PCIDevice *dev, Error **errp)
+         s->sas_addr |= PCI_FUNC(dev->devfn);
+     }
+     if (!s->hba_serial) {
+-        s->hba_serial = g_strdup(MEGASAS_HBA_SERIAL);
++        GChecksum *sum = g_checksum_new(G_CHECKSUM_SHA256);
++        GString *serial = g_string_new(MEGASAS_HBA_SERIAL);
++        char *path = qdev_get_dev_path(DEVICE(dev));
++        const char *digest;
++        int digit;
++
++        g_checksum_update(sum, qemu_uuid.data, sizeof(qemu_uuid.data));
++        g_checksum_update(sum, (const guchar *)(path ? path : ""), -1);
++        digest = g_checksum_get_string(sum);
++        for (digit = 0; digit < MEGASAS_HBA_SERIAL_DIGITS; digit++) {
++            g_string_append_c(serial, '0' + g_ascii_xdigit_value(digest[digit]) % 10);
++        }
++        s->hba_serial = g_string_free(serial, false);
++        g_checksum_free(sum);
++        g_free(path);
+     }
+
+     sge = s->fw_sge + MFI_PASS_FRAME_SIZE;

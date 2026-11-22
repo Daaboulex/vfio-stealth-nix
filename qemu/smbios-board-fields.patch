@@ -1,0 +1,203 @@
+diff --git a/hw/smbios/smbios.c b/hw/smbios/smbios.c
+--- a/hw/smbios/smbios.c
++++ b/hw/smbios/smbios.c
+@@ -27,6 +27,7 @@
+ #include "hw/firmware/smbios.h"
+ #include "hw/core/loader.h"
+ #include "hw/core/boards.h"
++#include "hw/core/cpu.h"
+ #include "hw/pci/pci_bus.h"
+ #include "hw/pci/pci_device.h"
+ #include "smbios_build.h"
+@@ -77,16 +78,23 @@ static struct {
+     uint64_t max_speed;
+     uint64_t current_speed;
+     uint64_t processor_id;
++    uint64_t voltage, external_clock, upgrade, characteristics;
++    uint64_t l1_cache_handle, l2_cache_handle, l3_cache_handle;
+ } type4 = {
+     .max_speed = DEFAULT_CPU_SPEED,
+     .current_speed = DEFAULT_CPU_SPEED,
+     .processor_id = 0,
+     .processor_family = 0x01, /* Other */
++    .upgrade = 0x01,
++    .characteristics = 0x02,
++    .l1_cache_handle = 0xFFFF,
++    .l2_cache_handle = 0xFFFF,
++    .l3_cache_handle = 0xFFFF,
+ };
+
+ struct type8_instance {
+     const char *internal_reference, *external_reference;
+-    uint8_t connector_type, port_type;
++    uint8_t internal_connector_type, connector_type, port_type;
+     QTAILQ_ENTRY(type8_instance) next;
+ };
+ static QTAILQ_HEAD(, type8_instance) type8 = QTAILQ_HEAD_INITIALIZER(type8);
+@@ -331,6 +339,34 @@ static const QemuOptDesc qemu_smbios_type4_opts[] = {
+         .name = "processor-id",
+         .type = QEMU_OPT_NUMBER,
+         .help = "processor id",
++    },{
++        .name = "voltage",
++        .type = QEMU_OPT_NUMBER,
++        .help = "voltage byte, bit 7 set and volts times ten below it",
++    },{
++        .name = "external-clock",
++        .type = QEMU_OPT_NUMBER,
++        .help = "external clock in MHz",
++    },{
++        .name = "upgrade",
++        .type = QEMU_OPT_NUMBER,
++        .help = "processor upgrade, the socket",
++    },{
++        .name = "characteristics",
++        .type = QEMU_OPT_NUMBER,
++        .help = "processor characteristics",
++    },{
++        .name = "l1-cache-handle",
++        .type = QEMU_OPT_NUMBER,
++        .help = "handle of the type 7 L1 cache",
++    },{
++        .name = "l2-cache-handle",
++        .type = QEMU_OPT_NUMBER,
++        .help = "handle of the type 7 L2 cache",
++    },{
++        .name = "l3-cache-handle",
++        .type = QEMU_OPT_NUMBER,
++        .help = "handle of the type 7 L3 cache",
+     },
+     { /* end of list */ }
+ };
+@@ -346,6 +382,11 @@ static const QemuOptDesc qemu_smbios_type8_opts[] = {
+         .type = QEMU_OPT_STRING,
+         .help = "internal reference designator",
+     },
++    {
++        .name = "internal_connector_type",
++        .type = QEMU_OPT_NUMBER,
++        .help = "internal connector type",
++    },
+     {
+         .name = "external_reference",
+         .type = QEMU_OPT_STRING,
+@@ -681,6 +722,7 @@ static void smbios_build_type_4_table(MachineState *ms, unsigned instance,
+                                       Error **errp)
+ {
+     char sock_str[128];
++    char *model_id = NULL;
+     size_t tbl_len = SMBIOS_TYPE_4_LEN_V28;
+     unsigned threads_per_socket;
+     unsigned cores_per_socket;
+@@ -692,10 +734,14 @@ static void smbios_build_type_4_table(MachineState *ms, unsigned instance,
+     SMBIOS_BUILD_TABLE_PRE_SIZE(4, T4_BASE + instance,
+                                 true, tbl_len); /* required */
+
+-    snprintf(sock_str, sizeof(sock_str), "%s%2x", type4.sock_pfx, instance);
++    if (instance) {
++        snprintf(sock_str, sizeof(sock_str), "%s%2x", type4.sock_pfx, instance);
++    } else {
++        snprintf(sock_str, sizeof(sock_str), "%s", type4.sock_pfx);
++    }
+     SMBIOS_TABLE_SET_STR(4, socket_designation_str, sock_str);
+     t->processor_type = 0x03; /* CPU */
+-    t->processor_family = 0xfe; /* use Processor Family 2 field */
++    t->processor_family = type4.processor_family < 0xfe ? type4.processor_family : 0xfe;
+     SMBIOS_TABLE_SET_STR(4, processor_manufacturer_str, type4.manufacturer);
+     if (type4.processor_id == 0) {
+         t->processor_id[0] = cpu_to_le32(smbios_cpuid_version);
+@@ -704,16 +750,21 @@ static void smbios_build_type_4_table(MachineState *ms, unsigned instance,
+         t->processor_id[0] = cpu_to_le32((uint32_t)type4.processor_id);
+         t->processor_id[1] = cpu_to_le32(type4.processor_id >> 32);
+     }
+-    SMBIOS_TABLE_SET_STR(4, processor_version_str, type4.version);
+-    t->voltage = 0;
+-    t->external_clock = cpu_to_le16(0); /* Unknown */
++    if (!type4.version && first_cpu) {
++        model_id = object_property_get_str(OBJECT(first_cpu), "model-id", NULL);
++    }
++    SMBIOS_TABLE_SET_STR(4, processor_version_str,
++                         (type4.version ? type4.version : model_id));
++    g_free(model_id);
++    t->voltage = type4.voltage;
++    t->external_clock = cpu_to_le16(type4.external_clock);
+     t->max_speed = cpu_to_le16(type4.max_speed);
+     t->current_speed = cpu_to_le16(type4.current_speed);
+     t->status = 0x41; /* Socket populated, CPU enabled */
+-    t->processor_upgrade = 0x01; /* Other */
+-    t->l1_cache_handle = cpu_to_le16(0xFFFF); /* N/A */
+-    t->l2_cache_handle = cpu_to_le16(0xFFFF); /* N/A */
+-    t->l3_cache_handle = cpu_to_le16(0xFFFF); /* N/A */
++    t->processor_upgrade = type4.upgrade;
++    t->l1_cache_handle = cpu_to_le16(type4.l1_cache_handle);
++    t->l2_cache_handle = cpu_to_le16(type4.l2_cache_handle);
++    t->l3_cache_handle = cpu_to_le16(type4.l3_cache_handle);
+     SMBIOS_TABLE_SET_STR(4, serial_number_str, type4.serial);
+     SMBIOS_TABLE_SET_STR(4, asset_tag_number_str, type4.asset);
+     SMBIOS_TABLE_SET_STR(4, part_number_str, type4.part);
+@@ -726,7 +777,7 @@ static void smbios_build_type_4_table(MachineState *ms, unsigned instance,
+
+     t->thread_count = (threads_per_socket > 255) ? 0xFF : threads_per_socket;
+
+-    t->processor_characteristics = cpu_to_le16(0x02); /* Unknown */
++    t->processor_characteristics = cpu_to_le16(type4.characteristics);
+     t->processor_family2 = cpu_to_le16(type4.processor_family);
+
+     if (tbl_len == SMBIOS_TYPE_4_LEN_V30) {
+@@ -754,8 +805,7 @@ static void smbios_build_type_8_table(void)
+
+         SMBIOS_TABLE_SET_STR(8, internal_reference_str, t8->internal_reference);
+         SMBIOS_TABLE_SET_STR(8, external_reference_str, t8->external_reference);
+-        /* most vendors seem to set this to None */
+-        t->internal_connector_type = 0x0;
++        t->internal_connector_type = t8->internal_connector_type;
+         t->external_connector_type = t8->connector_type;
+         t->port_type = t8->port_type;
+
+@@ -813,7 +863,7 @@ static void smbios_build_type_9_table(Error **errp)
+              * information, 0FFh should be populated in the fields of Segment
+              * Group Number, Bus Number, Device/Function Number.
+              */
+-            t->segment_group_number = 0xff;
++            t->segment_group_number = cpu_to_le16(0xffff);
+             t->bus_number = 0xff;
+             t->device_number = 0xff;
+         }
+@@ -1491,10 +1541,28 @@ void smbios_entry_add(QemuOpts *opts, Error **errp)
+                                                   DEFAULT_CPU_SPEED);
+             type4.current_speed = qemu_opt_get_number(opts, "current-speed",
+                                                       DEFAULT_CPU_SPEED);
++            type4.voltage = qemu_opt_get_number(opts, "voltage", 0);
++            type4.external_clock = qemu_opt_get_number(opts, "external-clock", 0);
++            type4.upgrade = qemu_opt_get_number(opts, "upgrade", 0x01);
++            type4.characteristics = qemu_opt_get_number(opts, "characteristics",
++                                                        0x02);
++            type4.l1_cache_handle = qemu_opt_get_number(opts, "l1-cache-handle",
++                                                        0xFFFF);
++            type4.l2_cache_handle = qemu_opt_get_number(opts, "l2-cache-handle",
++                                                        0xFFFF);
++            type4.l3_cache_handle = qemu_opt_get_number(opts, "l3-cache-handle",
++                                                        0xFFFF);
+             if (type4.max_speed > UINT16_MAX ||
+                 type4.current_speed > UINT16_MAX) {
+                 error_setg(errp, "SMBIOS CPU speed is too large (> %d)",
+                            UINT16_MAX);
++            } else if (type4.voltage > UINT8_MAX || type4.upgrade > UINT8_MAX ||
++                type4.external_clock > UINT16_MAX ||
++                type4.characteristics > UINT16_MAX ||
++                type4.l1_cache_handle > UINT16_MAX ||
++                type4.l2_cache_handle > UINT16_MAX ||
++                type4.l3_cache_handle > UINT16_MAX) {
++                error_setg(errp, "SMBIOS processor field is too large");
+             }
+             return;
+         case 8:
+@@ -1507,6 +1575,8 @@ void smbios_entry_add(QemuOpts *opts, Error **errp)
+             save_opt(&t8_i->external_reference, opts, "external_reference");
+             t8_i->connector_type = qemu_opt_get_number(opts,
+                                                        "connector_type", 0);
++            t8_i->internal_connector_type =
++                qemu_opt_get_number(opts, "internal_connector_type", 0);
+             t8_i->port_type = qemu_opt_get_number(opts, "port_type", 0);
+             QTAILQ_INSERT_TAIL(&type8, t8_i, next);
+             return;

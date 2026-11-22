@@ -1,0 +1,94 @@
+From 0a6b8d86c62bd4caebf27872019c7f66b753d61b Mon Sep 17 00:00:00 2001
+From: Sandwich <sandwich@archworks.co>
+Date: Sat, 5 Sep 2026 12:02:50 +0200
+Subject: [PATCH 1/5] KVM: SVM: intercept #GP when guest EFER.SVME is clear
+
+svm_set_efer() unconditionally sets EFER_SVME in the VMCB, because
+hardware requires it to run the guest at all.  A guest that has not
+itself enabled SVM therefore still runs with SVME set from the CPU's
+point of view.
+
+When such a guest executes an SVM instruction at CPL > 0, hardware
+passes the SVME check, observes CPL != 0, and injects #GP before the
+instruction intercept can fire.  Bare metal, where SVME really is clear,
+raises #UD instead.  The divergence is directly observable from
+unprivileged guest code.
+
+svm_recalc_instruction_intercepts() already carries a FIXME describing
+exactly this.  Close it by intercepting #GP while the guest's EFER.SVME
+is clear, so gp_interception() can decode the instruction and route it
+to its real handler, which injects the #UD the architecture specifies.
+The intercept is kept across a guest clearing SVME, and dropped again on
+SVME=1 where the erratum workaround does not need it.
+
+SEV guests are excluded for the same reason the erratum workaround
+excludes them: KVM can't decode their instructions, so the intercept
+would only reinject the same #GP.  SEV-ES guests additionally clear
+the #GP intercept in sev_es_init_vmcb().
+
+For nested guests, gp_interception() already routes a decoded SVM
+instruction through nested_svm_check_permissions(), which injects #UD
+when L2's SVME is clear.  When L1 intercepts #GP itself, the exit is
+reflected to L1 as before.
+
+Signed-off-by: Sandwich <sandwich@archworks.co>
+---
+ arch/x86/kvm/svm/svm.c | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
+index 1158f3e28..b0db02615 100644
+--- a/arch/x86/kvm/svm/svm.c
++++ b/arch/x86/kvm/svm/svm.c
+@@ -237,9 +237,11 @@ int svm_set_efer(struct kvm_vcpu *vcpu, u64 efer)
+ 				kvm_make_request(KVM_REQ_TRIPLE_FAULT, vcpu);
+ 
+ 			svm_leave_nested(vcpu);
+-			/* #GP intercept is still needed for vmware backdoor */
+-			if (!enable_vmware_backdoor)
+-				clr_exception_intercept(svm, GP_VECTOR);
++			/*
++			 * #GP stays intercepted: with SVME=0 it routes CPL>0
++			 * SVM instructions to the #UD the architecture requires,
++			 * see svm_recalc_instruction_intercepts().
++			 */
+ 
+ 			/*
+ 			 * Free the nested guest state, unless we are in SMM.
+@@ -263,6 +265,8 @@ int svm_set_efer(struct kvm_vcpu *vcpu, u64 efer)
+ 			 */
+ 			if (svm_gp_erratum_intercept && !is_sev_guest(vcpu))
+ 				set_exception_intercept(svm, GP_VECTOR);
++			else if (!enable_vmware_backdoor)
++				clr_exception_intercept(svm, GP_VECTOR);
+ 		}
+ 
+ 		svm_pmu_handle_nested_transition(svm);
+@@ -1073,16 +1077,20 @@ static void svm_recalc_instruction_intercepts(struct kvm_vcpu *vcpu)
+ 	 * are set when the VMCB is initialized and never cleared (if the
+ 	 * relevant intercepts are set, the enablements are meaningless anyway).
+ 	 *
+-	 * FIXME: When #GP is not intercepted, a #GP on these instructions (e.g.
+-	 * due to CPL > 0) could be injected by hardware before the instruction
+-	 * is intercepted, leading to #GP taking precedence over #UD from the
+-	 * guest's perspective.
++	 * Because hardware sees SVME=1, a #GP on these instructions (e.g. due
++	 * to CPL > 0) is injected before the instruction intercept fires, and
++	 * would take precedence over the #UD the guest should observe.  Also
++	 * intercept #GP so that gp_interception() can decode the instruction
++	 * and route it to its handler, which injects the #UD.  SEV guests are
++	 * excluded as KVM can't decode their instructions.
+ 	 */
+ 	if (!(vcpu->arch.efer & EFER_SVME)) {
+ 		svm_set_intercept(svm, INTERCEPT_VMLOAD);
+ 		svm_set_intercept(svm, INTERCEPT_VMSAVE);
+ 		svm_set_intercept(svm, INTERCEPT_CLGI);
+ 		svm_set_intercept(svm, INTERCEPT_STGI);
++		if (!is_sev_guest(vcpu))
++			set_exception_intercept(svm, GP_VECTOR);
+ 	} else {
+ 		/*
+ 		 * If hardware supports Virtual VMLOAD VMSAVE then enable it
+-- 
+2.55.0
+

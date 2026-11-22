@@ -1,0 +1,107 @@
+diff -r -U2 --suppress-blank-empty a/OvmfPkg/QemuVideoDxe/Driver.c b/OvmfPkg/QemuVideoDxe/Driver.c
+--- a/OvmfPkg/QemuVideoDxe/Driver.c
++++ b/OvmfPkg/QemuVideoDxe/Driver.c
+@@ -452,4 +452,18 @@
+   }
+
++  if (Private->EdidDiscovered.SizeOfEdid != 0) {
++    Status = gBS->InstallMultipleProtocolInterfaces (
++                    &Private->Handle,
++                    &gEfiEdidDiscoveredProtocolGuid,
++                    &Private->EdidDiscovered,
++                    &gEfiEdidActiveProtocolGuid,
++                    &Private->EdidActive,
++                    NULL
++                    );
++    if (EFI_ERROR (Status)) {
++      goto UninstallGop;
++    }
++  }
++
+   //
+   // Reference parent handle from child handle.
+@@ -471,4 +485,15 @@
+
+ UninstallGop:
++  if (Private->EdidDiscovered.SizeOfEdid != 0) {
++    gBS->UninstallMultipleProtocolInterfaces (
++           Private->Handle,
++           &gEfiEdidDiscoveredProtocolGuid,
++           &Private->EdidDiscovered,
++           &gEfiEdidActiveProtocolGuid,
++           &Private->EdidActive,
++           NULL
++           );
++  }
++
+   gBS->UninstallProtocolInterface (
+          Private->Handle,
+@@ -582,4 +607,18 @@
+
+   QemuVideoGraphicsOutputDestructor (Private);
++  if (Private->EdidDiscovered.SizeOfEdid != 0) {
++    Status = gBS->UninstallMultipleProtocolInterfaces (
++                    Private->Handle,
++                    &gEfiEdidDiscoveredProtocolGuid,
++                    &Private->EdidDiscovered,
++                    &gEfiEdidActiveProtocolGuid,
++                    &Private->EdidActive,
++                    NULL
++                    );
++    if (EFI_ERROR (Status)) {
++      return Status;
++    }
++  }
++
+   //
+   // Remove the GOP protocol interface from the system
+diff -r -U2 --suppress-blank-empty a/OvmfPkg/QemuVideoDxe/Initialize.c b/OvmfPkg/QemuVideoDxe/Initialize.c
+--- a/OvmfPkg/QemuVideoDxe/Initialize.c
++++ b/OvmfPkg/QemuVideoDxe/Initialize.c
+@@ -336,4 +336,11 @@
+     ));
+
++  if ((Private->Edid[126] + 1) * 128 <= sizeof (Private->Edid)) {
++    Private->EdidDiscovered.SizeOfEdid = (Private->Edid[126] + 1) * 128;
++    Private->EdidDiscovered.Edid       = Private->Edid;
++    Private->EdidActive.SizeOfEdid     = Private->EdidDiscovered.SizeOfEdid;
++    Private->EdidActive.Edid           = Private->Edid;
++  }
++
+   if ((Private->Edid[54] == 0x00) &&
+       (Private->Edid[55] == 0x00))
+@@ -378,5 +385,4 @@
+   }
+
+-  // TODO: register edid as gEfiEdidDiscoveredProtocolGuid ?
+ }
+
+diff -r -U2 --suppress-blank-empty a/OvmfPkg/QemuVideoDxe/Qemu.h b/OvmfPkg/QemuVideoDxe/Qemu.h
+--- a/OvmfPkg/QemuVideoDxe/Qemu.h
++++ b/OvmfPkg/QemuVideoDxe/Qemu.h
+@@ -19,4 +19,6 @@
+ #include <Protocol/DriverSupportedEfiVersion.h>
+ #include <Protocol/DevicePath.h>
++#include <Protocol/EdidActive.h>
++#include <Protocol/EdidDiscovered.h>
+
+ #include <Library/DebugLib.h>
+@@ -117,5 +119,7 @@
+   UINT8                           FrameBufferVramBarIndex;
+
+-  UINT8                           Edid[128];
++  UINT8                           Edid[384];
++  EFI_EDID_DISCOVERED_PROTOCOL    EdidDiscovered;
++  EFI_EDID_ACTIVE_PROTOCOL        EdidActive;
+ } QEMU_VIDEO_PRIVATE_DATA;
+
+diff -r -U2 --suppress-blank-empty a/OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf b/OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
+--- a/OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
++++ b/OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
+@@ -56,4 +56,6 @@
+ [Protocols]
+   gEfiGraphicsOutputProtocolGuid                # PROTOCOL BY_START
++  gEfiEdidDiscoveredProtocolGuid                # PROTOCOL BY_START
++  gEfiEdidActiveProtocolGuid                    # PROTOCOL BY_START
+   gEfiDevicePathProtocolGuid                    # PROTOCOL BY_START
+   gEfiPciIoProtocolGuid                         # PROTOCOL TO_START

@@ -1,0 +1,47 @@
+From 9826e3e9edc355aea6b2f2f386e538aa0f199542 Mon Sep 17 00:00:00 2001
+From: Sandwich <sandwich@archworks.co>
+Date: Sat, 5 Sep 2026 11:58:18 +0200
+Subject: [PATCH 2/5] KVM: x86: emulator: #UD, not #GP, for VMCALL at CPL > 0
+
+Targets VMAware check: KVM_INTERCEPTION
+
+0F 01 C1 is not an AMD instruction, and on Intel VMCALL is invalid
+outside VMX operation.  Hardware raises #UD for it at CPL > 0 on both
+vendors.
+
+The emulator declares VMCALL as Priv without PrivUD, so the generic CPL
+check injects #GP(0) instead.  Windows surfaces that to userspace as an
+access violation rather than an illegal instruction, which is guest-
+observable and differs from every physical machine.
+
+Add PrivUD so the existing branch injects #UD.  RIP is not advanced
+either way, and CPL0 VMCALL is unaffected, so a guest built for Intel
+and migrated onto an AMD host keeps working through
+emulator_fix_hypercall().
+
+Signed-off-by: Sandwich <sandwich@archworks.co>
+---
+ arch/x86/kvm/emulate.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/kvm/emulate.c b/arch/x86/kvm/emulate.c
+index b566ab5c7..a723d05d9 100644
+--- a/arch/x86/kvm/emulate.c
++++ b/arch/x86/kvm/emulate.c
+@@ -3969,7 +3969,12 @@ static const struct opcode ud = I(SrcNone, emulate_ud);
+ 
+ static const struct opcode group7_rm0[] = {
+ 	N,
+-	I(SrcNone | Priv | EmulateOnUD,	em_hypercall),
++	/*
++	 * 0F 01 C1 is not an AMD instruction, and on Intel VMCALL is invalid
++	 * outside VMX operation, i.e. hardware raises #UD at CPL > 0.  Without
++	 * PrivUD the CPL check below injects #GP, which is guest-observable.
++	 */
++	I(SrcNone | Priv | PrivUD | EmulateOnUD,	em_hypercall),
+ 	N, N, N, N, N, N,
+ };
+ 
+-- 
+2.55.0
+

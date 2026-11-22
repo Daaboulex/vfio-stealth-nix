@@ -1,0 +1,19 @@
+name: CI
+on:
+  push:
+    branches: [main, master, testing]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: Daaboulex/nix-packaging-standard/.github/workflows/package-ci.yml@release
+    with:
+      reclaim-disk: ${{ vars.RECLAIM_DISK || 'off' }}

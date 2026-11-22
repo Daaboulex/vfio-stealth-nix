@@ -1,0 +1,195 @@
+From ddc09a6009d5016130acfd1aa8eef69f99da5972 Mon Sep 17 00:00:00 2001
+From: Sandwich <sandwich@archworks.co>
+Date: Sat, 5 Sep 2026 12:23:22 +0200
+Subject: [PATCH] KVM: SVM: opt-in runtime CPUID passthrough with brand-string
+ override
+
+NOT FOR UPSTREAM.  Targets VMAware check: TIMER (instruction-latency
+detector).
+
+The detector times an intercepted CPUID against LFENCE using a cross-core
+cache-line counter, so the #VMEXIT world switch itself is what it
+measures and no clock can be adjusted to hide it.  The only way to stop
+paying it is to not exit.
+
+With cpuid_passthrough=1 the CPUID intercept is cleared on every guest
+entry and the guest executes raw CPUID.  Raw CPUID reports the host SKU,
+which contradicts a smaller declared topology, so the AMD Processor Name
+String MSRs (0xC0010030-35) are reprogrammed on the pinned core while the
+vCPU runs and restored in svm_vcpu_put().  Raw CPUID also advertises
+RDPRU, which KVM masks out and #UDs on; the RDPRU intercept is dropped
+together with the CPUID one so the guest gets the real instruction.
+
+Constraints, all deliberate:
+ - AMD only; the name-string MSRs are probed for writability at load and
+   the brand override is skipped when the probe fails.
+ - Requires strict 1:1 vCPU pinning, or the override leaks onto host
+   cores and the guest reads inconsistent brands.  The vCPU thread's
+   allowed-CPU mask is checked on every entry and passthrough is
+   withheld from any thread not confined to exactly one CPU.
+ - Enable only after the guest has booted.  Windows enumerates KVM's
+   synthetic leaf-1 bits (x2apic, tsc-deadline) during boot and hangs if
+   they vanish mid-enumeration.
+ - The #DB intercept is untouched.  Clearing it breaks KVM's single-step
+   re-injection and DR6 handling, which is separately detectable.
+
+Signed-off-by: Sandwich <sandwich@archworks.co>
+---
+ arch/x86/kvm/svm/svm.c | 120 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 120 insertions(+)
+
+diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
+index 34e025cba..bfc316505 100644
+--- a/arch/x86/kvm/svm/svm.c
++++ b/arch/x86/kvm/svm/svm.c
+@@ -179,6 +179,120 @@ module_param(vnmi, bool, 0444);
+ 
+ module_param(enable_mediated_pmu, bool, 0444);
+ 
++/*
++ * vfio-native: neutralise the VMAware TIMER instruction-latency detector on a
++ * strictly 1:1-pinned guest.  That detector times the #VMEXIT world switch on an
++ * intercepted CPUID with a cross-core cache counter; dropping CPUID interception
++ * removes the exit so the guest measures like bare metal.  Raw CPUID would then
++ * report the host SKU and trip VMAware's thread/brand checks, so the AMD
++ * Processor Name String MSRs (0xC0010030-35) are reprogrammed on the pinned core
++ * while the guest runs and restored when the vCPU yields the core.
++ *
++ * Opt-in and runtime-toggled (cpuid_passthrough).  It does NOT touch the #DB
++ * intercept: clearing that breaks KVM's single-step re-injection and DR6, which
++ * is separately detectable.  Requires 1:1 vCPU pinning - without it the dropped
++ * interception and reprogrammed brand leak onto the wrong cores.
++ */
++static bool cpuid_passthrough;
++module_param(cpuid_passthrough, bool, 0644);
++MODULE_PARM_DESC(cpuid_passthrough,
++		 "Drop CPUID/RDPRU interception and override the CPU brand on a 1:1-pinned guest (AMD only)");
++
++static char brand_string[48];
++module_param_string(brand_string, brand_string, sizeof(brand_string), 0644);
++MODULE_PARM_DESC(brand_string,
++		 "48-byte CPU brand string exposed via CPUID 0x80000002-4 while cpuid_passthrough is active");
++
++#define MSR_AMD_NAME_STRING 0xc0010030	/* AMD Processor Name String, 6 consecutive MSRs */
++
++static u64 hw_brand[6];
++static bool brand_msr_ok __ro_after_init;	/* the name-string MSRs are writable here */
++static DEFINE_PER_CPU(bool, brand_applied);	/* this core currently holds the override */
++
++static void svm_brand_probe(void)
++{
++	int i;
++
++	if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD)
++		return;
++	for (i = 0; i < 6; i++)
++		if (rdmsrq_safe(MSR_AMD_NAME_STRING + i, &hw_brand[i]))
++			return;
++	if (wrmsrq_safe(MSR_AMD_NAME_STRING, hw_brand[0]))	/* confirm writable */
++		return;
++	brand_msr_ok = true;
++}
++
++/* current cpu, preemption disabled */
++static void svm_brand_write(void)
++{
++	u64 regs[6] = {};
++	int i;
++
++	memcpy(regs, brand_string, sizeof(brand_string));
++	for (i = 0; i < 6; i++)
++		wrmsrq_safe(MSR_AMD_NAME_STRING + i, regs[i]);
++}
++
++/* current cpu, preemption disabled */
++static void svm_brand_restore(void)
++{
++	int i;
++
++	for (i = 0; i < 6; i++)
++		wrmsrq_safe(MSR_AMD_NAME_STRING + i, hw_brand[i]);
++}
++
++/* on guest entry */
++static void svm_passthrough_apply(struct kvm_vcpu *vcpu)
++{
++	struct vcpu_svm *svm = to_svm(vcpu);
++	/*
++	 * Only a vCPU thread confined to exactly one CPU may run with raw
++	 * CPUID and the brand override: on any other core the override is
++	 * missing and the guest reads two different brands.  Checking the
++	 * thread's own allowed mask here verifies the 1:1 pinning instead of
++	 * trusting the operator to have set it.
++	 */
++	bool on = cpuid_passthrough && vcpu->guest_debug == 0 &&
++		  cpumask_weight(current->cpus_ptr) == 1;
++
++	if (likely(!on)) {
++		if (unlikely(!svm_is_intercept(svm, INTERCEPT_CPUID))) {
++			svm_set_intercept(svm, INTERCEPT_CPUID);
++			svm_set_intercept(svm, INTERCEPT_RDPRU);
++		}
++		if (brand_msr_ok && this_cpu_read(brand_applied)) {
++			svm_brand_restore();
++			this_cpu_write(brand_applied, false);
++		}
++		return;
++	}
++
++	if (svm_is_intercept(svm, INTERCEPT_CPUID)) {
++		svm_clr_intercept(svm, INTERCEPT_CPUID);
++		/*
++		 * Raw CPUID advertises RDPRU, which KVM masks out and #UDs on.
++		 * A guest that sees the bit and executes the instruction must
++		 * get the real one, or the #UD is itself a hypervisor tell.
++		 */
++		svm_clr_intercept(svm, INTERCEPT_RDPRU);
++	}
++	if (brand_msr_ok && !this_cpu_read(brand_applied)) {
++		svm_brand_write();
++		this_cpu_write(brand_applied, true);
++	}
++}
++
++/* current cpu, preemption disabled */
++static void svm_passthrough_leave_cpu(void)
++{
++	if (brand_msr_ok && this_cpu_read(brand_applied)) {
++		svm_brand_restore();
++		this_cpu_write(brand_applied, false);
++	}
++}
++
+ static bool __ro_after_init svm_gp_erratum_intercept = true;
+ 
+ static u8 rsm_ins_bytes[] = "\x0f\xaa";
+@@ -1500,6 +1614,8 @@ static void svm_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
+ 
+ static void svm_vcpu_put(struct kvm_vcpu *vcpu)
+ {
++	svm_passthrough_leave_cpu();
++
+ 	if (kvm_vcpu_apicv_active(vcpu))
+ 		avic_vcpu_put(vcpu);
+ 
+@@ -4517,6 +4633,8 @@ static __no_kcsan fastpath_t svm_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
+ 	struct vcpu_svm *svm = to_svm(vcpu);
+ 	unsigned enter_flags = 0;
+ 
++	svm_passthrough_apply(vcpu);
++
+ 	if (!msr_write_intercepted(svm, MSR_IA32_SPEC_CTRL))
+ 		enter_flags |= KVM_ENTER_SAVE_SPEC_CTRL;
+ 
+@@ -5652,6 +5770,8 @@ static __init int svm_hardware_setup(void)
+ 	void *iopm_va;
+ 	int cpu, r;
+ 
++	svm_brand_probe();
++
+ 	/*
+ 	 * NX is required for shadow paging and for NPT if the NX huge pages
+ 	 * mitigation is enabled.
+-- 
+2.55.0
+

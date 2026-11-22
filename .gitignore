@@ -1,0 +1,70 @@
+# Canonical .gitignore — Nix Packaging Standard.
+# Bootstrapped into each repo by sync.sh. A repo may append its own entries
+# below a "# repo-specific" marker; the entries above are the fleet baseline.
+
+# Build outputs
+result
+result-*
+
+# Nix / direnv
+.direnv/
+
+# git-hooks.nix generated config (a /nix/store symlink — never commit)
+.pre-commit-config.yaml
+
+# AI agent artifacts — never tracked (also enforced by the no-ai-files CI gate)
+CLAUDE.md
+GEMINI.md
+AI-progress.json
+AI-tasks.json
+.session-handoff*.md
+.claude/
+.gemini/
+.codex/
+.cursor/
+.superpowers/
+.ai-context/
+.planning/
+
+# Caches
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.rumdl_cache/
+.mypy_cache/
+
+# ── repo-specific ────────────────────────────────────────────────
+# Scratch / one-shot exports from agent sessions (never tracked).
+*work*export*.txt
+*session*export*.txt
+
+# Editor backups + OS metadata
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# IDE state
+.vscode/
+.idea/
+
+.devshell/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+build/
+dist/
+target/
+*.egg-info/
+.eggs/
+node_modules/
+.venv/
+venv/
+/htmlcov/
+/coverage/
+/build/
+/dist/
+/target/

@@ -1,0 +1,47 @@
+{
+  "amd": {
+    "enlightened": [
+      "DEVICES",
+      "DMESG",
+      "FIRMWARE",
+      "HYPERVISOR_BIT",
+      "HYPERVISOR_STR",
+      "THREAD_COUNT",
+      "THREAD_MISMATCH"
+    ],
+    "hidden": [
+      "DEVICES",
+      "DMESG",
+      "FIRMWARE",
+      "THREAD_COUNT",
+      "THREAD_MISMATCH"
+    ]
+  },
+  "intel": {
+    "enlightened": [
+      "CPUID_SIGNATURE",
+      "DEVICES",
+      "DMESG",
+      "FIRMWARE",
+      "HYPERVISOR_BIT",
+      "HYPERVISOR_STR",
+      "THREAD_COUNT",
+      "THREAD_MISMATCH"
+    ],
+    "hidden": [
+      "CPUID_SIGNATURE",
+      "DEVICES",
+      "DMESG",
+      "FIRMWARE",
+      "THREAD_COUNT",
+      "THREAD_MISMATCH"
+    ],
+    "hidden-nowaet": [
+      "CPUID_SIGNATURE",
+      "DEVICES",
+      "DMESG",
+      "THREAD_COUNT",
+      "THREAD_MISMATCH"
+    ]
+  }
+}

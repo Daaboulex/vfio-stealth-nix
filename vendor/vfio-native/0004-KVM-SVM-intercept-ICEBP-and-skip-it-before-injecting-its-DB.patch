@@ -1,0 +1,93 @@
+From 93bb902ad3516b0c5a31482e27a5ecfd93f6799d Mon Sep 17 00:00:00 2001
+From: Sandwich <sandwich@archworks.co>
+Date: Sat, 5 Sep 2026 12:31:16 +0200
+Subject: [PATCH 4/5] KVM: SVM: intercept ICEBP and skip it before injecting
+ its #DB
+
+ICEBP (INT1, opcode F1) generates a trap-like #DB: the return RIP pushed
+for the exception is that of the instruction following the ICEBP.
+
+SVM does not report ICEBP's #DB through the #DB exception intercept, so
+the guest normally takes it directly and correctly.  But when delivery
+of that #DB is interrupted by a VM-exit - a nested page fault on a cold
+IDT, handler or stack page is the common case - the exit reports the
+pending #DB in EXITINTINFO with the saved RIP still on the ICEBP, and
+svm_complete_interrupts() re-queues it as a plain hardware exception.
+The injected #DB then pushes that RIP, so the guest's handler sees the
+ICEBP's own address and an IRET re-executes it.  The divergence is
+observable from unprivileged guest code (an SEH/signal handler reading
+the context RIP) and is sporadic, since it needs the delivery to touch
+a page KVM has not mapped.
+
+VMX already handles ICEBP: the #DB VM-exit is tagged as a privileged
+software exception (is_icebp()) and handle_exception_nmi() skips the
+instruction before queueing the #DB.  SVM has the equivalent signal in
+the dedicated ICEBP instruction intercept, which fires before the #DB
+exists.
+
+Enable the ICEBP intercept alongside the #DB exception intercept, skip
+the instruction and queue the #DB with the same DR6 payload the
+exception path uses.  Once RIP has been advanced, an injection that is
+itself interrupted is re-injected with the advanced RIP.  The vendor
+skip helper is used deliberately, as on VMX: a pending single-step #DB
+on the ICEBP itself is superseded by the ICEBP's #DB.  The emulator
+decodes 0xF1, so the non-NRIPS fallback works.
+
+For nested guests the #DB is reflected to L1 with L2's RIP past the
+ICEBP, matching what the VMX path does today.
+
+Signed-off-by: Sandwich <sandwich@archworks.co>
+---
+ arch/x86/kvm/svm/svm.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
+index b0db02615..5b37855ee 100644
+--- a/arch/x86/kvm/svm/svm.c
++++ b/arch/x86/kvm/svm/svm.c
+@@ -1153,6 +1153,7 @@ static void init_vmcb(struct kvm_vcpu *vcpu, bool init_event)
+ 	set_exception_intercept(svm, MC_VECTOR);
+ 	set_exception_intercept(svm, AC_VECTOR);
+ 	set_exception_intercept(svm, DB_VECTOR);
++	svm_set_intercept(svm, INTERCEPT_ICEBP);
+ 	/*
+ 	 * Guest access to VMware backdoor ports could legitimately
+ 	 * trigger #GP because of TSS I/O permission bitmap.
+@@ -2078,6 +2079,26 @@ static int db_interception(struct kvm_vcpu *vcpu)
+ 	return 1;
+ }
+ 
++static int icebp_interception(struct kvm_vcpu *vcpu)
++{
++	struct vcpu_svm *svm = to_svm(vcpu);
++	u32 payload = svm->vmcb->save.dr6 ^ DR6_ACTIVE_LOW;
++
++	/*
++	 * ICEBP generates a trap-like #DB, but is intercepted as an
++	 * instruction, i.e. RIP still points at the ICEBP itself.  Skip it
++	 * before injecting the #DB so the guest observes the RIP of the next
++	 * instruction, as it does on bare metal and under VMX (see is_icebp()).
++	 * Use the vendor skip helper: a single-step #DB on the ICEBP is
++	 * superseded by the ICEBP's own #DB.
++	 */
++	if (!svm_skip_emulated_instruction(vcpu))
++		return 0;
++
++	kvm_queue_exception_p(vcpu, DB_VECTOR, payload);
++	return 1;
++}
++
+ static int bp_interception(struct kvm_vcpu *vcpu)
+ {
+ 	struct vcpu_svm *svm = to_svm(vcpu);
+@@ -3369,6 +3390,7 @@ static int (*const svm_exit_handlers[])(struct kvm_vcpu *vcpu) = {
+ 	[SVM_EXIT_WRITE_DR6]			= dr_interception,
+ 	[SVM_EXIT_WRITE_DR7]			= dr_interception,
+ 	[SVM_EXIT_EXCP_BASE + DB_VECTOR]	= db_interception,
++	[SVM_EXIT_ICEBP]			= icebp_interception,
+ 	[SVM_EXIT_EXCP_BASE + BP_VECTOR]	= bp_interception,
+ 	[SVM_EXIT_EXCP_BASE + UD_VECTOR]	= ud_interception,
+ 	[SVM_EXIT_EXCP_BASE + PF_VECTOR]	= pf_interception,
+-- 
+2.55.0
+

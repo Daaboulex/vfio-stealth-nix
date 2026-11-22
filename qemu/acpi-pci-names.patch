@@ -1,0 +1,118 @@
+--- a/hw/acpi/pcihp.c
++++ b/hw/acpi/pcihp.c
+@@ -775,6 +775,30 @@
+     }
+ }
+
++static bool is_devfn_ignored_generic(const int devfn, const PCIBus *bus);
++
++static void pci_acpi_name(char *name, const PCIBus *bus, int devfn)
++{
++    char other_name[5];
++    bool present = bus->devices[devfn] != NULL;
++
++    get_mimic_pci_name(name, devfn);
++    for (int other = 0; other < ARRAY_SIZE(bus->devices); other++) {
++        bool other_present = bus->devices[other] &&
++                             !is_devfn_ignored_generic(other, bus);
++
++        if (other == devfn || (present && !other_present) ||
++            (present == other_present && other > devfn)) {
++            continue;
++        }
++        get_mimic_pci_name(other_name, other);
++        if (strcmp(other_name, name) == 0) {
++            snprintf(name, 5, "RP%02X", devfn);
++            return;
++        }
++    }
++}
++
+ bool build_append_notification_callback(Aml *parent_scope, const PCIBus *bus)
+ {
+     Aml *method;
+@@ -784,7 +808,9 @@
+     GQueue *pcnt_bus_list = g_queue_new();
+
+     QLIST_FOREACH(sec, &bus->child, sibling) {
+-        Aml *br_scope = aml_scope("S%.02X", sec->parent_dev->devfn);
++        char br_name[5];
++        pci_acpi_name(br_name, bus, sec->parent_dev->devfn);
++        Aml *br_scope = aml_scope("%s", br_name);
+         if (pci_bus_is_root(sec)) {
+             continue;
+         }
+@@ -823,7 +849,9 @@
+
+     /* Notify about child bus events in any case */
+     while ((sec = g_queue_pop_head(pcnt_bus_list))) {
+-        aml_append(method, aml_name("^S%.02X.PCNT", sec->parent_dev->devfn));
++        char pcnt_name[5];
++        pci_acpi_name(pcnt_name, bus, sec->parent_dev->devfn);
++        aml_append(method, aml_name("^%s.PCNT", pcnt_name));
+     }
+
+     aml_append(parent_scope, method);
+@@ -874,13 +902,16 @@
+     return method;
+ }
+
+-static void build_append_pcihp_notify_entry(Aml *method, int slot)
++static void build_append_pcihp_notify_entry(Aml *method, const PCIBus *bus, int slot)
+ {
+     Aml *if_ctx;
+     int32_t devfn = PCI_DEVFN(slot, 0);
+
+     if_ctx = aml_if(aml_and(aml_arg(0), aml_int(0x1U << slot), NULL));
+-    aml_append(if_ctx, aml_notify(aml_name("S%.02X", devfn), aml_arg(1)));
++    char name[5];
++
++    pci_acpi_name(name, bus, devfn);
++    aml_append(if_ctx, aml_notify(aml_name("%s", name), aml_arg(1)));
+     aml_append(method, if_ctx);
+ }
+
+@@ -943,10 +974,12 @@
+             continue;
+         }
+
++        char slot_name[5];
++        pci_acpi_name(slot_name, bus, devfn);
+         if (bus->devices[devfn]) {
+-            dev = aml_scope("S%.02X", devfn);
++            dev = aml_scope("%s", slot_name);
+         } else {
+-            dev = aml_device("S%.02X", devfn);
++            dev = aml_device("%s", slot_name);
+             aml_append(dev, aml_name_decl("_ADR", aml_int(adr)));
+         }
+
+@@ -965,7 +998,7 @@
+         );
+         aml_append(dev, method);
+
+-        build_append_pcihp_notify_entry(notify_method, slot);
++        build_append_pcihp_notify_entry(notify_method, bus, slot);
+
+         /* device descriptor has been composed, add it into parent context */
+         aml_append(parent_scope, dev);
+@@ -990,18 +1023,7 @@
+         /* start to compose PCI device descriptor */
+
+         char mimic_name[5];
+-        get_mimic_pci_name(mimic_name, devfn);
+-        for (int prior = 0; prior < devfn; prior++) {
+-            char prior_name[5];
+-            if (!bus->devices[prior] || is_devfn_ignored_generic(prior, bus)) {
+-                continue;
+-            }
+-            get_mimic_pci_name(prior_name, prior);
+-            if (strcmp(prior_name, mimic_name) == 0) {
+-                snprintf(mimic_name, sizeof(mimic_name), "RP%02X", devfn);
+-                break;
+-            }
+-        }
++        pci_acpi_name(mimic_name, bus, devfn);
+         dev = aml_device("%s", mimic_name);
+
+         aml_append(dev, aml_name_decl("_ADR", aml_int(adr)));

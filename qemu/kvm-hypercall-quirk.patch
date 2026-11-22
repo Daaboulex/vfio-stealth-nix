@@ -1,0 +1,25 @@
+diff -r -U3 --suppress-blank-empty a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -3610,6 +3610,21 @@
+         }
+     }
+
++    ret = kvm_check_extension(s, KVM_CAP_DISABLE_QUIRKS2);
++    if (ret & KVM_X86_QUIRK_FIX_HYPERCALL_INSN) {
++        uint64_t quirks = KVM_X86_QUIRK_FIX_HYPERCALL_INSN;
++
++        if (s->honor_guest_pat != ON_OFF_AUTO_OFF &&
++            (ret & KVM_X86_QUIRK_IGNORE_GUEST_PAT)) {
++            quirks |= KVM_X86_QUIRK_IGNORE_GUEST_PAT;
++        }
++        ret = kvm_vm_enable_cap(s, KVM_CAP_DISABLE_QUIRKS2, 0, quirks);
++        if (ret < 0) {
++            error_report("failed to disable KVM_X86_QUIRK_FIX_HYPERCALL_INSN");
++            return ret;
++        }
++    }
++
+     first = false;
+     return 0;
+ }

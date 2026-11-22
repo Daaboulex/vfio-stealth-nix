@@ -1,0 +1,64 @@
+From 122f8478087bd13892672a6feb3e3417e882c316 Mon Sep 17 00:00:00 2001
+From: Sandwich <sandwich@archworks.co>
+Date: Sat, 5 Sep 2026 11:58:18 +0200
+Subject: [PATCH 3/5] KVM: x86: #UD for KVM hypercalls issued at CPL > 0
+
+Targets VMAware check: KVM_INTERCEPTION
+
+VMMCALL is only a legal instruction because the hypervisor intercepts
+it; bare metal raises #UD.  kvm_emulate_hypercall() instead returns
+-KVM_EPERM for a CPL > 0 caller and skips the instruction, so the guest
+observes no exception at all - which is directly observable and differs
+from every physical machine.
+
+Inject #UD for CPL > 0 instead.  Every KVM_HC_* already failed for such
+callers, so only the shape of the failure changes, and no legitimate
+hypercall is issued from userspace.
+
+The check is placed after the Xen and Hyper-V dispatch, so enlightened
+guests keep their own CPL semantics.  kvm_hv_hypercall() already does
+the identical thing for the Hyper-V ABI, so this makes the KVM PV path
+consistent with it.
+
+Signed-off-by: Sandwich <sandwich@archworks.co>
+---
+ arch/x86/kvm/x86.c | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index 47cb9eba1..0dd7ebcc0 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -10503,14 +10503,27 @@ EXPORT_SYMBOL_FOR_KVM_INTERNAL(____kvm_emulate_hypercall);
+ 
+ int kvm_emulate_hypercall(struct kvm_vcpu *vcpu)
+ {
++	int cpl;
++
+ 	if (kvm_xen_hypercall_enabled(vcpu->kvm))
+ 		return kvm_xen_hypercall(vcpu);
+ 
+ 	if (kvm_hv_hypercall_enabled(vcpu))
+ 		return kvm_hv_hypercall(vcpu);
+ 
+-	return __kvm_emulate_hypercall(vcpu, kvm_x86_call(get_cpl)(vcpu),
+-				       complete_hypercall_exit);
++	/*
++	 * Bare metal #UDs on VMMCALL from CPL > 0 (the intercept is what
++	 * makes it legal at all); returning -KVM_EPERM and skipping the
++	 * insn instead is guest-observable.  Xen and Hyper-V guests are
++	 * dispatched above and keep their own CPL semantics.
++	 */
++	cpl = kvm_x86_call(get_cpl)(vcpu);
++	if (cpl) {
++		kvm_queue_exception(vcpu, UD_VECTOR);
++		return 1;
++	}
++
++	return __kvm_emulate_hypercall(vcpu, cpl, complete_hypercall_exit);
+ }
+ EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_emulate_hypercall);
+ 
+-- 
+2.55.0
+

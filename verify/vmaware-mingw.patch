@@ -1,0 +1,73 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -148 +148 @@
+-target_link_libraries(${TARGET} PRIVATE $<$<PLATFORM_ID:Windows>:DbgHelp>)
++target_link_libraries(${TARGET} PRIVATE $<$<PLATFORM_ID:Windows>:dbghelp>)
+--- a/src/vmaware.hpp
++++ b/src/vmaware.hpp
+@@ -1139 +1139,6 @@
+-                __cpuid_count(leaf, subleaf, a, b, c, d);
++                int regs[4] = { 0 };
++                __cpuidex(regs, static_cast<int>(leaf), static_cast<int>(subleaf));
++                a = static_cast<u32>(regs[0]);
++                b = static_cast<u32>(regs[1]);
++                c = static_cast<u32>(regs[2]);
++                d = static_cast<u32>(regs[3]);
+@@ -7181,0 +7187,13 @@
++        #if (VMAWARE_X86_64) && !(VMAWARE_MSVC)
++            static VMAWARE_NOINLINE void raise_trap() noexcept {
++                __asm__ volatile (
++                    "pushfq \n\t"
++                    "orq $0x100, (%%rsp) \n\t"
++                    "popfq \n\t"
++                    "nop \n\t"
++                    :
++                :
++                    : "cc", "memory"
++                );
++            }
++        #endif
+@@ -7189,9 +7207 @@
+-                    __asm__ volatile (
+-                        "pushfq \n\t"
+-                        "orq $0x100, (%%rsp) \n\t"
+-                        "popfq \n\t"
+-                        "nop \n\t"
+-                        :
+-                    :
+-                        : "cc", "memory"
+-                    );
++                    raise_trap();
+@@ -8805,0 +8816,10 @@
++    #if (VMAWARE_CLANG || VMAWARE_GCC)
++        struct descriptor_table {
++            static VMAWARE_NOINLINE void store_sgdt(u8* buffer) noexcept {
++                __asm__ volatile("sgdt (%0)" : : "r"(buffer) : "memory");
++            }
++            static VMAWARE_NOINLINE void store_sidt(u8* buffer) noexcept {
++                __asm__ volatile("sidt (%0)" : : "r"(buffer) : "memory");
++            }
++        };
++    #endif
+@@ -8825 +8845 @@
+-                                __asm__ volatile("sgdt %0" : "=m"(gdtr));
++                                descriptor_table::store_sgdt(gdtr);
+@@ -8890 +8910 @@
+-                                __asm__ volatile("sidt %0" : "=m"(idtr_buffer));
++                                descriptor_table::store_sidt(idtr_buffer);
+@@ -11002 +11022 @@
+-        const bool s0_supported = caps.AoAc;
++        const bool s0_supported = caps.spare2[2];
+@@ -11728,8 +11748,4 @@
+-            OBJECT_ATTRIBUTES obj_attr = {
+-                sizeof(OBJECT_ATTRIBUTES),
+-                nullptr,
+-                &u_path,
+-                OBJ_CASE_INSENSITIVE,
+-                nullptr,
+-                nullptr
+-            };
++            OBJECT_ATTRIBUTES obj_attr{};
++            obj_attr.Length = sizeof(OBJECT_ATTRIBUTES);
++            obj_attr.ObjectName = &u_path;
++            obj_attr.Attributes = OBJ_CASE_INSENSITIVE;

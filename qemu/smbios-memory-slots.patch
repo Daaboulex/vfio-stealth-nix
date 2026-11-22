@@ -1,0 +1,154 @@
+--- a/hw/smbios/smbios.c
++++ b/hw/smbios/smbios.c
+@@ -563,6 +563,8 @@
+ #define T41_BASE 0x2900
+ #define T127_BASE 0x7F00
+
++@smbiosMemorySlots@
++
+ static void smbios_build_type_0_table(void)
+ {
+     SMBIOS_BUILD_TABLE_PRE(0, T0_BASE, false); /* optional, leave up to BIOS */
+@@ -846,7 +848,7 @@
+
+ #define MAX_T16_STD_SZ 0x80000000 /* 2T in Kilobytes */
+
+-static void smbios_build_type_16_table(unsigned dimm_cnt)
++static void smbios_build_type_16_table(unsigned dimm_cnt, uint64_t max_capacity)
+ {
+     uint64_t size_kb;
+
+@@ -855,13 +857,13 @@
+     t->location = 0x01; /* Other */
+     t->use = 0x03; /* System memory */
+     t->error_correction = 0x06; /* Multi-bit ECC (for Microsoft, per SeaBIOS) */
+-    size_kb = QEMU_ALIGN_UP(current_machine->ram_size, KiB) / KiB;
++    size_kb = QEMU_ALIGN_UP(max_capacity, KiB) / KiB;
+     if (size_kb < MAX_T16_STD_SZ) {
+         t->maximum_capacity = cpu_to_le32(size_kb);
+         t->extended_maximum_capacity = cpu_to_le64(0);
+     } else {
+         t->maximum_capacity = cpu_to_le32(MAX_T16_STD_SZ);
+-        t->extended_maximum_capacity = cpu_to_le64(current_machine->ram_size);
++        t->extended_maximum_capacity = cpu_to_le64(max_capacity);
+     }
+     t->memory_error_information_handle = cpu_to_le16(0xFFFE); /* Not provided */
+     t->number_of_memory_devices = cpu_to_le16(dimm_cnt);
+@@ -872,17 +874,17 @@
+ #define MAX_T17_STD_SZ 0x7FFF /* (32G - 1M), in Megabytes */
+ #define MAX_T17_EXT_SZ 0x80000000 /* 2P, in Megabytes */
+
+-static void smbios_build_type_17_table(unsigned instance, uint64_t size)
++static void smbios_build_type_17_table(unsigned instance, uint64_t size,
++                                       const char *locator, const char *bank, const char *serial)
+ {
+-    char loc_str[128];
+     uint64_t size_mb;
+
+     SMBIOS_BUILD_TABLE_PRE(17, T17_BASE + instance, true); /* required */
+
+     t->physical_memory_array_handle = cpu_to_le16(0x1000); /* Type 16 above */
+     t->memory_error_information_handle = cpu_to_le16(0xFFFE); /* Not provided */
+-    t->total_width = cpu_to_le16(0xFFFF); /* Unknown */
+-    t->data_width = cpu_to_le16(0xFFFF); /* Unknown */
++    t->total_width = cpu_to_le16(size ? SMBIOS_MEMORY_TOTAL_WIDTH : 0xFFFF);
++    t->data_width = cpu_to_le16(size ? SMBIOS_MEMORY_DATA_WIDTH : 0xFFFF);
+     size_mb = QEMU_ALIGN_UP(size, MiB) / MiB;
+     if (size_mb < MAX_T17_STD_SZ) {
+         t->size = cpu_to_le16(size_mb);
+@@ -892,23 +894,22 @@
+         t->size = cpu_to_le16(MAX_T17_STD_SZ);
+         t->extended_size = cpu_to_le32(size_mb);
+     }
+-    t->form_factor = 0x09; /* DIMM */
++    t->form_factor = size ? 0x09 : 0x02;
+     t->device_set = 0; /* Not in a set */
+-    snprintf(loc_str, sizeof(loc_str), "%s %d", type17.loc_pfx, instance);
+-    SMBIOS_TABLE_SET_STR(17, device_locator_str, loc_str);
+-    SMBIOS_TABLE_SET_STR(17, bank_locator_str, type17.bank);
+-    t->memory_type = 0x07; /* RAM */
+-    t->type_detail = cpu_to_le16(0x02); /* Other */
+-    t->speed = cpu_to_le16(type17.speed);
+-    SMBIOS_TABLE_SET_STR(17, manufacturer_str, type17.manufacturer);
+-    SMBIOS_TABLE_SET_STR(17, serial_number_str, type17.serial);
+-    SMBIOS_TABLE_SET_STR(17, asset_tag_number_str, type17.asset);
+-    SMBIOS_TABLE_SET_STR(17, part_number_str, type17.part);
+-    t->attributes = 0; /* Unknown */
++    SMBIOS_TABLE_SET_STR(17, device_locator_str, locator);
++    SMBIOS_TABLE_SET_STR(17, bank_locator_str, bank);
++    t->memory_type = size ? SMBIOS_MEMORY_TYPE : 0x02;
++    t->type_detail = cpu_to_le16(size ? SMBIOS_MEMORY_TYPE_DETAIL : 0x04);
++    t->speed = cpu_to_le16(size ? type17.speed : 0);
++    SMBIOS_TABLE_SET_STR(17, manufacturer_str, (size ? type17.manufacturer : NULL));
++    SMBIOS_TABLE_SET_STR(17, serial_number_str, (size ? (serial ? serial : type17.serial) : NULL));
++    SMBIOS_TABLE_SET_STR(17, asset_tag_number_str, (size ? type17.asset : NULL));
++    SMBIOS_TABLE_SET_STR(17, part_number_str, (size ? type17.part : NULL));
++    t->attributes = size ? SMBIOS_MEMORY_RANK : 0;
+     t->configured_clock_speed = t->speed; /* reuse value for max speed */
+-    t->minimum_voltage = cpu_to_le16(0); /* Unknown */
+-    t->maximum_voltage = cpu_to_le16(0); /* Unknown */
+-    t->configured_voltage = cpu_to_le16(0); /* Unknown */
++    t->minimum_voltage = cpu_to_le16(size ? SMBIOS_MEMORY_VOLTAGE_MV : 0);
++    t->maximum_voltage = cpu_to_le16(size ? SMBIOS_MEMORY_VOLTAGE_MV : 0);
++    t->configured_voltage = cpu_to_le16(size ? SMBIOS_MEMORY_VOLTAGE_MV : 0);
+
+     SMBIOS_BUILD_TABLE_POST;
+ }
+@@ -936,7 +937,7 @@
+         t->extended_ending_address = cpu_to_le64(end);
+     }
+     t->memory_array_handle = cpu_to_le16(0x1000); /* Type 16 above */
+-    t->partition_width = 1; /* One device per row */
++    t->partition_width = SMBIOS_MEMORY_MODULES;
+
+     SMBIOS_BUILD_TABLE_POST;
+ }
+@@ -1101,8 +1102,8 @@
+                        uint8_t **anchor, size_t *anchor_len,
+                        Error **errp)
+ {
+-    unsigned i, dimm_cnt, offset;
+-    MachineClass *mc = MACHINE_GET_CLASS(ms);
++    unsigned i, dimm_cnt, offset, placed;
++    uint64_t module_size;
+     ERRP_GUARD();
+
+     assert(ep_type == SMBIOS_ENTRY_POINT_TYPE_32 ||
+@@ -1133,12 +1134,8 @@
+     smbios_build_type_9_table(errp);
+     smbios_build_type_11_table();
+
+-#define GET_DIMM_SZ ((i < dimm_cnt - 1) ? mc->smbios_memory_device_size \
+-    : ((current_machine->ram_size - 1) % mc->smbios_memory_device_size) + 1)
+-
+-    dimm_cnt = QEMU_ALIGN_UP(current_machine->ram_size,
+-                             mc->smbios_memory_device_size) /
+-               mc->smbios_memory_device_size;
++    dimm_cnt = ARRAY_SIZE(smbios_memory_slots);
++    module_size = current_machine->ram_size / SMBIOS_MEMORY_MODULES;
+
+     /*
+      * The offset determines if we need to keep additional space between
+@@ -1150,10 +1147,19 @@
+     offset = (dimm_cnt > (T19_BASE - T17_BASE)) ? \
+              dimm_cnt - (T19_BASE - T17_BASE) : 0;
+
+-    smbios_build_type_16_table(dimm_cnt);
++    smbios_build_type_16_table(dimm_cnt, SMBIOS_MEMORY_MAX_CAPACITY);
+
+-    for (i = 0; i < dimm_cnt; i++) {
+-        smbios_build_type_17_table(i, GET_DIMM_SZ);
++    for (i = 0, placed = 0; i < dimm_cnt; i++) {
++        uint64_t size = 0;
++
++        if (smbios_memory_slots[i].populated) {
++            placed++;
++            size = placed < SMBIOS_MEMORY_MODULES ? module_size :
++                   current_machine->ram_size -
++                   (SMBIOS_MEMORY_MODULES - 1) * module_size;
++        }
++        smbios_build_type_17_table(i, size, smbios_memory_slots[i].locator,
++                                   smbios_memory_slots[i].bank, smbios_memory_slots[i].serial);
+     }
+
+     for (i = 0; i < mem_array_size; i++) {

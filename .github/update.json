@@ -1,0 +1,20 @@
+{
+  "package": "vfio-stealth",
+  "upstream": {
+    "type": "custom"
+  },
+  "packageFile": "version.json",
+  "hashes": [],
+  "description": "Patched QEMU, OVMF and KVM with a NixOS module, so a VFIO guest reads as a real PC",
+  "topics": [
+    "nix",
+    "nixos",
+    "flake",
+    "nixos-module",
+    "vfio",
+    "qemu",
+    "kvm",
+    "gpu-passthrough",
+    "virtualization"
+  ]
+}

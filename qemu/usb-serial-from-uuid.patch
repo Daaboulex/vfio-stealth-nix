@@ -1,0 +1,39 @@
+diff --git a/hw/usb/desc.c b/hw/usb/desc.c
+--- a/hw/usb/desc.c
++++ b/hw/usb/desc.c
+@@ -1,6 +1,7 @@
+ #include "qemu/osdep.h"
+
+ #include "hw/usb/usb.h"
++#include "system/system.h"
+ #include "desc.h"
+ #include "trace.h"
+
+@@ -557,6 +558,7 @@ void usb_desc_create_serial(USBDevice *dev)
+     const USBDesc *desc = usb_device_get_usb_desc(dev);
+     int index = desc->id.iSerialNumber;
+     char *path, *serial;
++    GChecksum *sum;
+
+     if (dev->serial) {
+         /* 'serial' usb bus property has priority if present */
+@@ -566,12 +568,13 @@ void usb_desc_create_serial(USBDevice *dev)
+
+     assert(index != 0 && desc->str[index] != NULL);
+     path = qdev_get_dev_path(hcd);
+-    if (path) {
+-        serial = g_strdup_printf("%s-%s-%s", desc->str[index],
+-                                 path, dev->port->path);
+-    } else {
+-        serial = g_strdup_printf("%s-%s", desc->str[index], dev->port->path);
+-    }
++    sum = g_checksum_new(G_CHECKSUM_SHA256);
++    g_checksum_update(sum, qemu_uuid.data, sizeof(qemu_uuid.data));
++    g_checksum_update(sum, (const guchar *)(path ? path : ""), -1);
++    g_checksum_update(sum, (const guchar *)dev->port->path, -1);
++    serial = g_ascii_strup(g_checksum_get_string(sum),
++                           strlen(desc->str[index]));
++    g_checksum_free(sum);
+     usb_desc_set_string(dev, index, serial);
+     g_free(path);
+     g_free(serial);

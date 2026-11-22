@@ -1,0 +1,18 @@
+--- a/hw/i386/acpi-build.c
++++ b/hw/i386/acpi-build.c
+@@ -421,15 +421,8 @@
+         aml_append(if_ctx, aml_return(zero));
+     }
+     aml_append(method, if_ctx);
+
+-    if_ctx = aml_if(aml_lor(aml_equal(period, zero),
+-                            aml_lgreater(period, aml_int(100000000))));
+-    {
+-        aml_append(if_ctx, aml_return(zero));
+-    }
+-    aml_append(method, if_ctx);
+-
+     aml_append(method, aml_return(aml_int(0x0F)));
+     aml_append(dev, method);
+
+     crs = aml_resource_template();
