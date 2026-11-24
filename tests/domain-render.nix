@@ -420,6 +420,11 @@ let
           "0000:05:00.0"
         ]
     ) "domain-render: the hook plan for managed is ${builtins.toJSON plan.domains.managed}")
+    (lib.assertMsg (lib.all (tool: lib.elem tool (map lib.getName config.environment.systemPackages)) [
+      "vfio-stealth-gpus"
+      "pciutils"
+      "dmidecode"
+    ]) "domain-render: tools.enable did not install the finder and the tools the guide uses")
     (lib.assertMsg (lib.hasInfix "options kvmfr static_size_mb=64" kvmfrSystem.config.boot.extraModprobeConfig) "domain-render: kvmfr.sizeMb did not reach the kvmfr module")
   ];
 in

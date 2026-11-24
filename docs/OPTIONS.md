@@ -1666,6 +1666,12 @@ BetterTiming TSC compensation: traps RDTSC and RDTSCP in every VM on the host, a
 
 Type: `boolean`. Default: `cpuVendor == "amd"`.
 
+### `virtualisation.vfio-stealth.tools.enable`
+
+Install the commands the setup reads this machine with: vfio-stealth-gpus, which lists each GPU with its IOMMU group and prints its gpu settings, and lspci, lsusb, dmidecode, smartctl, lsscsi, edid-decode, tpm2_getcap and mokutil. Turn it off once the identity and the VMs are set.
+
+Type: `boolean`. Default: `true`.
+
 ### `virtualisation.vfio-stealth.tpm.firmwareVersion`
 
 TPM firmware version, id: and 8 hex digits, such as id:000F0018 for firmware 15.24 of an Infineon SLB9672. The guest reads it as TPM2_PT_FIRMWARE_VERSION_1 and in the EK certificate.

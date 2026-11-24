@@ -11,6 +11,7 @@
     enable = true;
     cpuVendor = "amd";
     identity.seed = "pick a private phrase for this host";
+    tools.enable = false;
 
     smbios = {
       manufacturer = "Example Inc.";

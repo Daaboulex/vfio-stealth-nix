@@ -983,6 +983,12 @@ in
       };
     };
 
+    tools.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Install the commands the setup reads this machine with: vfio-stealth-gpus, which lists each GPU with its IOMMU group and prints its gpu settings, and lspci, lsusb, dmidecode, smartctl, lsscsi, edid-decode, tpm2_getcap and mokutil. Turn it off once the identity and the VMs are set.";
+    };
+
     user = lib.mkOption {
       type = lib.types.nullOr (lib.types.passwdEntry lib.types.str);
       default = null;
@@ -1483,6 +1489,20 @@ in
               )
             );
       }
+
+      (lib.mkIf cfg.tools.enable {
+        environment.systemPackages = [
+          (pkgs.callPackage ./host/gpus.nix { })
+          pkgs.pciutils
+          pkgs.usbutils
+          pkgs.dmidecode
+          pkgs.smartmontools
+          pkgs.lsscsi
+          pkgs.edid-decode
+          pkgs.tpm2-tools
+          pkgs.mokutil
+        ];
+      })
 
       (lib.mkIf cfg.host.enable {
         boot.kernelModules = [

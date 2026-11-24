@@ -355,6 +355,7 @@
               };
               acpi-ssdt-stealth = pkgs.callPackage ./acpi/package.nix { };
               smbios-extract = pkgs.callPackage ./smbios/package.nix { };
+              vfio-stealth-gpus = pkgs.callPackage ./host/gpus.nix { };
               smbios-stealth-tables = pkgs.callPackage ./smbios/tables-package.nix { };
             })
           ];
@@ -457,6 +458,7 @@
                 smbios-extract = pkgs.callPackage ./smbios/package.nix { };
               };
               qemu-hook = pkgs.callPackage ./tests/qemu-hook.nix { };
+              gpus = pkgs.callPackage ./tests/gpus.nix { };
               domain-render = pkgs.callPackage ./tests/domain-render.nix {
                 inherit (inputs.nixpkgs.lib) nixosSystem;
                 inherit (inputs) nixvirt;

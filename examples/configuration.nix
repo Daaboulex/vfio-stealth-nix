@@ -6,12 +6,6 @@
     "flakes"
   ];
 
-  environment.systemPackages = with pkgs; [
-    pciutils
-    usbutils
-    dmidecode
-  ];
-
   boot.kernelPackages = pkgs.linuxPackagesFor (
     config.virtualisation.vfio-stealth.packages.kernelFor pkgs.linux_latest
   );
