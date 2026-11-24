@@ -116,6 +116,27 @@ let
     ) (lib.attrValues cfg.domains)
   );
 
+  gpuDriversByVendor = {
+    "10de" = [
+      "nouveau"
+      "nvidia"
+    ];
+    "1002" = [
+      "amdgpu"
+      "radeon"
+    ];
+    "8086" = [
+      "i915"
+      "xe"
+    ];
+  };
+
+  bootGpuDrivers = lib.unique (
+    lib.concatMap (
+      id: lib.attrByPath [ (lib.toLower (builtins.substring 0 4 id)) ] [ ] gpuDriversByVendor
+    ) bootIds
+  );
+
   soundVms = lib.attrNames (lib.filterAttrs (_: domain: domain.sound != null) cfg.domains);
 
   evdevPaths =
@@ -1475,6 +1496,7 @@ in
           options vfio-pci disable_idle_d3=1
           softdep snd_hda_intel pre: vfio-pci
         ''
+        + lib.concatMapStrings (driver: "softdep ${driver} pre: vfio-pci\n") bootGpuDrivers
         + lib.optionalString cfg.kvmfr.enable ''
           options kvmfr static_size_mb=${toString cfg.kvmfr.sizeMb}
         '';

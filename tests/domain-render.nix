@@ -372,6 +372,16 @@ let
     (lib.assertMsg (
       failed kvmfrSystem == [ ]
     ) "domain-render: the kvmfr host fails its assertions: ${builtins.toJSON (failed kvmfrSystem)}")
+    (lib.assertMsg
+      (
+        lib.all (driver: lib.hasInfix "softdep ${driver} pre: vfio-pci\n" config.boot.extraModprobeConfig) [
+          "nouveau"
+          "nvidia"
+        ]
+        && !lib.hasInfix "softdep amdgpu" config.boot.extraModprobeConfig
+      )
+      "domain-render: binding \"boot\" of an NVIDIA card did not make exactly its drivers wait for vfio-pci: ${config.boot.extraModprobeConfig}"
+    )
     (lib.assertMsg (lib.elem "vfio-pci.ids=10de:2484,10de:228b" config.boot.kernelParams) "domain-render: binding \"boot\" did not put the GPU's ids in vfio-pci.ids: ${builtins.toJSON config.boot.kernelParams}")
     (lib.assertMsg (lib.elem "vfio_pci" config.boot.initrd.kernelModules) "domain-render: binding \"boot\" did not load vfio_pci in the initrd")
     (lib.assertMsg (
