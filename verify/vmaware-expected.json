@@ -6,6 +6,7 @@
       "FIRMWARE",
       "HYPERVISOR_BIT",
       "HYPERVISOR_STR",
+      "SYSTEMD",
       "THREAD_COUNT",
       "THREAD_MISMATCH"
     ],
@@ -25,6 +26,7 @@
       "FIRMWARE",
       "HYPERVISOR_BIT",
       "HYPERVISOR_STR",
+      "SYSTEMD",
       "THREAD_COUNT",
       "THREAD_MISMATCH"
     ],

@@ -18,6 +18,7 @@
   pciutils,
   tpm2-tools,
   systemd,
+  systemdMinimal,
   systemdUkify,
   dosfstools,
   mtools,
@@ -94,6 +95,7 @@ let
         tpm2-tools
         helper
         vmaware
+        systemdMinimal
         busybox
       ]
     }
@@ -149,10 +151,12 @@ let
     section usb sh -c 'value() { if [ -f "$1" ]; then cat "$1"; fi; }; for d in /sys/bus/usb/devices/*; do if [ -f "$d/idVendor" ]; then echo "$(basename "$d")|$(cat "$d/idVendor")|$(cat "$d/idProduct")|$(value "$d/manufacturer")|$(value "$d/product")|$(value "$d/serial")"; fi; done'
     section hda sh -c 'for c in /sys/bus/hdaudio/devices/*; do if [ -f "$c/vendor_id" ]; then driver=none; if [ -e "$c/driver" ]; then driver=$(basename "$(readlink -f "$c/driver")"); fi; echo "$(basename "$c") $(cat "$c/vendor_id") $(cat "$c/subsystem_id") $driver"; fi; done'
     section secure-boot od -A n -t x1 -v /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
-    mkdir -p /bin /usr/sbin
+    mkdir -p /bin /usr/sbin /usr/bin
     ln -s ${busybox}/bin/sh /bin/sh
     ln -s ${busybox}/bin/dmesg /bin/dmesg
     ln -s ${dmidecode}/bin/dmidecode /usr/sbin/dmidecode
+    ln -s ${systemdMinimal}/bin/systemd-detect-virt /usr/bin/systemd-detect-virt
+    section detect-virt systemd-detect-virt
     section vmaware sh -c 'vmaware --json --output /tmp/vmaware.json && cat /tmp/vmaware.json'
     section dmesg dmesg
     echo VFIO-PROBE-DONE
@@ -322,6 +326,18 @@ let
       expect = {
         kernel = "unsigned";
         secureBoot = false;
+      };
+    }
+    {
+      name = "viommu";
+      domain = {
+        disks = [ { source = "/probe/unsigned.img"; } ];
+        iommu = true;
+      };
+      expect = {
+        kernel = "unsigned";
+        secureBoot = false;
+        vmaware = lib.optional (cfg.cpuVendor == "intel") "FIRMWARE";
       };
     }
     {

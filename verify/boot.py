@@ -1430,10 +1430,16 @@ def problems_of(case, record, directory):
             f"VMAware gave no report: {sections_found.get('vmaware', {}).get('output', '')[-2000:]!r}"
         )
     else:
-        for technique in sorted(set(vmaware["techniques"]) - vmaware_expected):
+        allowed = vmaware_expected | set(expect.get("vmaware", []))
+        for technique in sorted(set(vmaware["techniques"]) - allowed):
             found.append(
                 f"VMAware detects {technique}, which verify/vmaware-expected.json does not expect for cpuVendor {config['cpuVendor']}, hypervMode {config['hypervMode']} and acpi.waet {config['acpi']['waet']}"
             )
+    detect = sections_found.get("detect-virt", {}).get("output", "").strip()
+    if config["hypervMode"] == "hidden" and detect != "none":
+        found.append(
+            f"systemd-detect-virt reports {detect!r} in hidden mode, where it should find no VM"
+        )
     dmi = sections_found.get("dmidecode", {}).get("output", "")
     if f"Manufacturer: {config['board']['manufacturer']}" not in dmi:
         found.append(
@@ -1534,6 +1540,9 @@ for record in records.values():
     )
     if record["vmaware"]:
         print(f"{record['name']}: vmaware {' '.join(record['vmaware']['techniques'])}")
+    detect = record["sections"].get("detect-virt", {}).get("output", "").strip()
+    if detect:
+        print(f"{record['name']}: systemd-detect-virt {detect}")
 fired = {
     technique
     for record in records.values()
