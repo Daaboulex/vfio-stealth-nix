@@ -659,8 +659,10 @@ A KDE Plasma session opens every GPU it finds. To make it leave the other card
 alone, set `KWIN_DRM_DEVICES` to the host GPU's `/dev/dri/card` path.
 
 If you use Windows' Virtualization-based Security (Memory integrity) with a
-passed GPU, the VM needs its own IOMMU, `iommu = true;`. Without it, the
-screen stays black once VBS starts. The VM's IOMMU gives each passed device an
+passed GPU on AMD, the VM needs its own IOMMU, `iommu = true;`. Without it, the
+screen stays black once VBS starts. On Intel, Windows with VBS does not start
+with the VM's IOMMU; see [Known limitations](COMPATIBILITY.md#known-limitations).
+The VM's IOMMU gives each passed device an
 address space of its own. QEMU refuses that for two devices in one IOMMU
 group, so the hook refuses such a domain and names the group. A GPU whose
 video and audio functions share a group runs without `iommu`, and so without
@@ -1036,7 +1038,7 @@ These options describe each VM under `domains`.
 | `domains.<name>.gpu.extraFunctions` | default, or the further functions of the GPU's group | the whole group goes to the VM |
 | `domains.<name>.gpu.rom`, `domains.<name>.gpu.rom.file`, `domains.<name>.gpu.rom.bar` | default | needed only as [When a ROM file is needed](#when-a-rom-file-is-needed) says |
 | `domains.<name>.gpu.resizeBar2Mb`, `domains.<name>.gpu.rebindOnStop` | default | they act only with `binding = "hook"` |
-| `domains.<name>.iommu` | `true` with a GPU and VBS | Windows gets the DMA protection VBS needs; every passed device then needs an IOMMU group of its own |
+| `domains.<name>.iommu` | `true` with a GPU and VBS on AMD, `false` on Intel | Windows gets the DMA protection VBS needs; every passed device then needs an IOMMU group of its own |
 | `domains.<name>.stopServices` | yours: host services that hold the GPU open, such as a fan or RGB daemon | the hook stops them before it binds the GPU and starts them after |
 | `domains.<name>.hostDevices` | yours: the NVMe controller the guest boots from | the guest sees the real drive at full speed; see [Prepare storage](#prepare-storage) |
 | `domains.<name>.disks` | default with an NVMe controller passed through, else one disk | the controller replaces it |

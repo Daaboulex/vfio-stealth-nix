@@ -743,7 +743,7 @@ Type: `null or one of "enlightened", "hidden"`. Default: `null`.
 
 ### `virtualisation.vfio-stealth.domains.<name>.iommu`
 
-Give the VM an IOMMU of the host's vendor, AMD-Vi on AMD and VT-d on Intel, with interrupt remapping, as a real board has. Windows' own hypervisor then finds I/O remapping hardware, which VBS uses for DMA protection; without it a guest with VBS and a passed-through GPU can show no picture. Each passed-through device then needs an IOMMU group of its own on the host: a group of several devices, such as a GPU whose audio and USB functions share its group, is refused.
+Give the VM an IOMMU of the host's vendor, AMD-Vi on AMD and VT-d on Intel, with interrupt remapping, as a real board has. Windows' own hypervisor then finds I/O remapping hardware, which VBS uses for DMA protection; without it a guest with VBS and a passed-through GPU can show no picture. On Intel, Windows with VBS does not start with this IOMMU. Each passed-through device then needs an IOMMU group of its own on the host: a group of several devices, such as a GPU whose audio and USB functions share its group, is refused.
 
 Type: `boolean`. Default: `false`.
 
