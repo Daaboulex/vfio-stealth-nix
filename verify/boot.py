@@ -1,4 +1,3 @@
-import itertools
 import json
 import os
 import pathlib
@@ -38,8 +37,6 @@ vmaware_expected = set(
 serial_dir = out / "serial"
 serial_dir.mkdir(parents=True)
 work = pathlib.Path.cwd() / "vms"
-host_cpus = itertools.cycle(sorted(os.sched_getaffinity(0)))
-pinned_cpu = {}
 
 
 def libvirt_argv(case, xml_path):
@@ -147,6 +144,12 @@ def start_tpm(directory):
     )
 
 
+def pin_to_current_cpu():
+    stat = pathlib.Path("/proc/self/stat").read_text()
+    cpu = int(stat.rsplit(")", 1)[1].split()[36])
+    os.sched_setaffinity(0, {cpu})
+
+
 def start(case, attempt):
     directory = work / case["name"] / f"attempt-{attempt}"
     directory.mkdir(parents=True)
@@ -183,15 +186,13 @@ def start(case, attempt):
         adapt(libvirt_argv(case, directory / "domain.xml"), directory, nvram.text) + nic
     )
     (directory / "argv.json").write_text(json.dumps(argv, indent=1))
-    cpu = next(host_cpus)
-    pinned_cpu[directory] = cpu
     with open(directory / "qemu.log", "w") as log:
         process = subprocess.Popen(
             argv,
             cwd=directory,
             stdout=log,
             stderr=subprocess.STDOUT,
-            preexec_fn=lambda: os.sched_setaffinity(0, {cpu}),
+            preexec_fn=pin_to_current_cpu,
         )
     return directory, process, tpm
 
@@ -1494,7 +1495,6 @@ while running:
         attempts[name].append(
             {
                 "attempt": attempt,
-                "cpu": pinned_cpu[directory],
                 "outcome": "finished" if done else "stalled",
                 "seconds": record["seconds"],
                 "serial": f"serial/{serial}",
