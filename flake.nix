@@ -141,6 +141,11 @@
                 ]
               )
           );
+          runtimeSetsOf =
+            vendor:
+            lib.concatMapStringsSep " " (name: "legacyPackages.x86_64-linux.evidence.kernel-runtime.${name}") (
+              lib.attrNames (lib.filterAttrs (_: set: set.cpuVendor == vendor) kernelRuntimeSets)
+            );
           kernelVariants = import ./tests/kernel-variants.nix {
             inherit lib;
             inherit (inputs.nixpkgs.lib) nixosSystem;
@@ -374,11 +379,15 @@
                   ];
                   text = ''
                     flake=$(git rev-parse --show-toplevel)
-                    attrs=(checks.x86_64-linux.boot-matrix checks.x86_64-linux.boot-matrix-hidden checks.x86_64-linux.boot-matrix-intel checks.x86_64-linux.boot-matrix-intel-hidden checks.x86_64-linux.boot-matrix-intel-hidden-nowaet ${
-                      lib.concatMapStringsSep " " (name: "legacyPackages.x86_64-linux.evidence.kernel-runtime.${name}") (
-                        lib.attrNames kernelRuntimeSets
-                      )
-                    })
+                    case $(grep -m1 vendor_id /proc/cpuinfo) in
+                      *AuthenticAMD) runtimeSets=(${runtimeSetsOf "amd"}) ;;
+                      *GenuineIntel) runtimeSets=(${runtimeSetsOf "intel"}) ;;
+                      *)
+                        echo "evidence: the kernel-runtime sets need an AMD or Intel host" >&2
+                        exit 1
+                        ;;
+                    esac
+                    attrs=(checks.x86_64-linux.boot-matrix checks.x86_64-linux.boot-matrix-hidden checks.x86_64-linux.boot-matrix-hidden-nowaet checks.x86_64-linux.boot-matrix-intel checks.x86_64-linux.boot-matrix-intel-hidden checks.x86_64-linux.boot-matrix-intel-hidden-nowaet "''${runtimeSets[@]}")
                     built=$(nix build --no-link --print-out-paths "''${attrs[@]/#/$flake#}")
                     mapfile -t current <<<"$built"
                     if [ "''${1:-}" = --against ]; then

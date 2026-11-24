@@ -99,7 +99,10 @@ testers.runNixOSTest (
   in
   {
     name = "kernel-runtime-${variant.name}";
-    passthru.variant = variant.name;
+    passthru = {
+      variant = variant.name;
+      inherit cpuVendor;
+    };
     globalTimeout = 1800;
     nodes.stock =
       { pkgs, ... }:
