@@ -459,6 +459,7 @@
               };
               qemu-hook = pkgs.callPackage ./tests/qemu-hook.nix { };
               gpus = pkgs.callPackage ./tests/gpus.nix { };
+              vmaware-docs = pkgs.callPackage ./tests/vmaware-docs.nix { };
               domain-render = pkgs.callPackage ./tests/domain-render.nix {
                 inherit (inputs.nixpkgs.lib) nixosSystem;
                 inherit (inputs) nixvirt;
