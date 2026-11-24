@@ -5,7 +5,7 @@
   },
   "packageFile": "version.json",
   "hashes": [],
-  "description": "Patched QEMU, OVMF and KVM with a NixOS module, so a VFIO guest reads as a real PC",
+  "description": "NixOS module for VFIO VMs that read as a real PC: patched QEMU, OVMF and KVM, the passthrough host layer, and VMs declared in Nix",
   "topics": [
     "nix",
     "nixos",
