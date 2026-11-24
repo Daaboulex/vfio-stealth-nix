@@ -1,6 +1,9 @@
 {
-  virtualisation.vfio-stealth.evdev = {
-    keyboard = "/dev/input/by-id/usb-Example_Keyboard-event-kbd";
-    mouse = "/dev/input/by-id/usb-Example_Mouse-event-mouse";
+  virtualisation.vfio-stealth = {
+    host.enable = true;
+    user = "alice";
+    kvmfr = { enable = true; sizeMb = 64; };
+    lookingGlass.client = true;
+    domains.win11.lookingGlass = true;
   };
 }

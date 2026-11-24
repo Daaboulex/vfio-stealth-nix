@@ -8,7 +8,7 @@ Find the symptom you see, then its cause and fix. When none fits, the
 | You see | Why | Fix |
 |---|---|---|
 | `error: experimental Nix feature 'nix-command' is disabled` | a fresh NixOS has flakes and the `nix` command off | [Turn on flakes](GUIDE.md#turn-on-flakes) |
-| `lspci: command not found`, or the same for `dmidecode` and the other tools | NixOS does not install them, and a `nix shell` ends with its terminal | [Install the tools this guide uses](GUIDE.md#install-the-tools-this-guide-uses) |
+| `lspci: command not found`, or the same for `dmidecode`, `vfio-stealth-gpus` and the other tools | NixOS does not install them, and the module installs them only once it is in your system, with `tools.enable` on | before [Add the flake](GUIDE.md#add-the-flake), run the finder with `nix run github:Daaboulex/vfio-stealth-nix#vfio-stealth-gpus`; after it, rebuild with `tools.enable` left on |
 | The rebuild says a file, such as a GPU ROM, does not exist | a flake sees only the files git tracks | `git add` the file in `/etc/nixos` |
 | A `vfio-stealth:` warning at rebuild | an identity value still at a default every install shares | set the option it names; [Read the identity from your machine](GUIDE.md#read-the-identity-from-your-machine) says from where |
 | The screen stays dark at boot, with no disk-encryption password prompt, after binding a GPU with `binding = "boot"` | vfio-pci took the card the firmware shows its picture on, and the prompt went with it | put the host GPU's driver in the initrd, such as `hardware.amdgpu.initrd.enable = true;`, or make the host GPU the primary display in the firmware setup |

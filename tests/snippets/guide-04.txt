@@ -1,13 +1,21 @@
 {
-  virtualisation.libvirtd.enable = true;
-  programs.virt-manager.enable = true;
-  users.users.alice = {
-    isNormalUser = true;
-    extraGroups = [ "libvirtd" ];
-  };
-
   virtualisation.vfio-stealth = {
-    enable = true;
-    cpuVendor = "amd";
+    identity.seed = "pick a private phrase for this host";
+    smbios = {
+      manufacturer = "Example Inc.";
+      product = "Example Board X1";
+      biosVendor = "American Megatrends International, LLC.";
+      biosVersion = "1.20";
+      biosDate = "03/12/2025";
+      memory.manufacturer = "Example Memory";
+      memory.partNumber = "EX-DDR5-16G";
+      cache = { l1 = 512; l2 = 8192; l3 = 32768; };
+      onboardDevices = [ { designation = "Onboard LAN"; kind = "ethernet"; instance = 1; } ];
+    };
+    disk = {
+      model = "Example SSD 1TB";
+      firmware = "EX01";
+    };
+    macPrefix = "D8:BB:C1";
   };
 }

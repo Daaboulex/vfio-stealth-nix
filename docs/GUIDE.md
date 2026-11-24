@@ -29,25 +29,12 @@ below needs them. Without them you see
 
 ### Install the tools this guide uses
 
-NixOS does not install `lspci`, `dmidecode` and the other tools the steps
-read your hardware with. Install them with your system, so every new terminal
-has them:
-
-```nix
-{ pkgs, ... }:
-{
-  environment.systemPackages = with pkgs; [
-    pciutils
-    usbutils
-    dmidecode
-    smartmontools
-    lsscsi
-    edid-decode
-    tpm2-tools
-    mokutil
-  ];
-}
-```
+You do not install them yourself. From [Add the flake](#add-the-flake) on,
+the module installs every tool the steps read your machine with, `lspci`,
+`dmidecode` and the rest, through `tools.enable`, which is on by default. It
+also installs `vfio-stealth-gpus`, which finds your GPU's settings for you.
+Before that step, [Check the hardware](#check-the-hardware) runs the finder
+straight from GitHub. Once your VM runs, you can turn `tools.enable` off.
 
 ### Back up the VMs you already have
 
@@ -109,29 +96,27 @@ own, before you change any configuration. You need:
    nothing on Intel, add `boot.kernelParams = [ "intel_iommu=on" ];` to your
    configuration, rebuild, reboot and check again. If it is still empty, the
    IOMMU is off in the firmware setup.
-4. List the IOMMU groups:
+4. List your GPUs and their IOMMU groups:
 
    ```sh
-   for group in /sys/kernel/iommu_groups/*; do
-     echo "group ${group##*/}"
-     for device in "$group"/devices/*; do
-       echo "  $(lspci -nns "${device##*/}")"
-     done
-   done
+   nix run github:Daaboulex/vfio-stealth-nix#vfio-stealth-gpus
    ```
 
-5. Find your GPU in the list. Its group is fine when it holds only the GPU's
-   own functions (the video function, its HDMI audio, sometimes a USB
-   controller on the card), apart from PCI bridges. Each of these functions
-   goes to the VM: the audio function as `gpu.audio`, a USB-C controller or
-   any other function as `gpu.extraFunctions`.
+   For each GPU it prints its IOMMU group and whether that group can go to a
+   VM. A group can when it holds only the card's own functions, such as its
+   video, its HDMI audio and sometimes a USB controller, apart from PCI
+   bridges. It worked when the GPU you want to pass says "The group holds only
+   this card, so it can go to a VM", followed by its `gpu` settings, which you
+   use in [Add a GPU](#add-a-gpu). "No IOMMU group" means the IOMMU is still
+   off.
 
 > [!IMPORTANT]
 > VFIO hands a whole group to a VM, never one device of it. Devices in one
 > group can reach each other's memory without the IOMMU in between, so every
 > device of the group goes to the guest, or the VM does not start.
 
-If your GPU shares its group with other devices, try another slot first. A
+If the finder says the group also holds other devices, try another slot
+first. A
 slot wired to the CPU usually has a group of its own; one wired to the
 chipset often shares. A PCIe port without the ACS capability puts everything
 below it in one group, unless the kernel's quirk list vouches for that port.
@@ -603,17 +588,17 @@ link. A VM defined this way gets none of the hook's work at start and stop.
 This section gives the VM a real GPU of its own. Your desktop then needs a
 second GPU, as [Check the hardware](#check-the-hardware) says.
 
-1. Find the GPU's functions and ids:
+1. Print the GPU's settings. The module installed the finder:
 
    ```sh
-   lspci -nn -D | grep -i -e vga -e 3d -e audio
+   vfio-stealth-gpus
    ```
 
-   A line such as
-   `0000:01:00.0 VGA compatible controller [0300]: Example GPU [10de:2484]`
-   gives the address `0000:01:00.0` and the id `10de:2484`.
-2. Check its group, as in [Check the hardware](#check-the-hardware).
-3. Pick how the GPU reaches vfio-pci:
+   For a card whose IOMMU group can go to a VM, it prints a `gpu = { ... };`
+   block with its address, its audio function, any further functions as
+   `extraFunctions`, and its ids. If your card shows no block, the finder
+   says why: its group also holds other devices, or the IOMMU is off.
+2. Pick how the GPU reaches vfio-pci:
 
    | `gpu.binding` | When it fits |
    |---|---|
@@ -625,7 +610,8 @@ second GPU, as [Check the hardware](#check-the-hardware) says.
    desktop, and a GPU that a running desktop holds open cannot be taken from
    its driver cleanly. Run the desktop on another GPU, and cable the
    passed-through card to a monitor input of its own.
-4. Declare it, with the host layer on:
+3. Declare it with the settings the finder printed, the binding you picked,
+   and the host layer on:
 
    ```nix
    {
@@ -641,10 +627,9 @@ second GPU, as [Check the hardware](#check-the-hardware) says.
    }
    ```
 
-   If the GPU's group holds a further function, such as `0000:01:00.2`, put
-   it in `gpu.extraFunctions = [ "0000:01:00.2" ];`. With `"boot"`, add its
-   ids to `ids` as well.
-5. Rebuild, and reboot if you use `"boot"`. With `"boot"`, it worked when
+   Keep `extraFunctions` if the finder printed it. `ids` matters only with
+   `"boot"`.
+4. Rebuild, and reboot if you use `"boot"`. With `"boot"`, it worked when
    `lspci -k -s 01:00.0` shows `Kernel driver in use: vfio-pci`.
 
 > [!NOTE]
@@ -893,6 +878,7 @@ These options turn the module on and name your CPU vendor and your seed.
 |---|---|---|
 | `enable` | `true` | turns the module on |
 | `cpuVendor` | yours: `"amd"` or `"intel"`, as `grep -m1 vendor_id /proc/cpuinfo` prints AuthenticAMD or GenuineIntel | picks the QEMU and OVMF pair and the kernel patches |
+| `tools.enable` | default while you set up, `false` after | it installs the finder and the tools the setup reads your machine with |
 | `identity.seed` | a private phrase of your own, unique to this host | every unique serial and id left unset is derived from it; without it they are the values every host without a seed shares |
 
 ### Board identity

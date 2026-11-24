@@ -1,13 +1,22 @@
-{ pkgs, ... }:
 {
-  environment.systemPackages = with pkgs; [
-    pciutils
-    usbutils
-    dmidecode
-    smartmontools
-    lsscsi
-    edid-decode
-    tpm2-tools
-    mokutil
-  ];
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    vfio-stealth = {
+      url = "github:Daaboulex/vfio-stealth-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs =
+    { nixpkgs, vfio-stealth, ... }:
+    {
+      nixosConfigurations.vm-host = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          vfio-stealth.nixosModules.default
+          ./hardware-configuration.nix
+          ./configuration.nix
+        ];
+      };
+    };
 }

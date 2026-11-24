@@ -1,1 +1,6 @@
-{ virtualisation.vfio-stealth.hugepages.atBoot = true; }
+{
+  virtualisation.vfio-stealth.evdev = {
+    keyboard = "/dev/input/by-id/usb-Example_Keyboard-event-kbd";
+    mouse = "/dev/input/by-id/usb-Example_Mouse-event-mouse";
+  };
+}
