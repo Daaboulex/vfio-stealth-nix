@@ -4,6 +4,7 @@ import os
 import pathlib
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -246,6 +247,7 @@ def qemu_log():
 disk = prepare_disk()
 nvram_path, nic = domain_xml(disk)
 tpm = start_tpm()
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
 atexit.register(stop, tpm)
 argv = adapt(libvirt_argv(), nvram_path) + nic
 (work / "argv.json").write_text(json.dumps(argv, indent=1))
