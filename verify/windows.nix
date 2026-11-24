@@ -15,6 +15,7 @@
   iso,
   installed,
   vbs,
+  iommu,
   gpu,
   hostDevices,
   memory,
@@ -49,6 +50,7 @@ let
         cores
         threads
         pinning
+        iommu
         ;
       disks = [
         {
@@ -148,7 +150,7 @@ let
       config = {
         inherit (cfg) cpuVendor hypervMode;
         inherit (cfg.acpi) waet;
-        inherit vbs;
+        inherit vbs iommu;
       };
     }
   );
@@ -159,13 +161,14 @@ let
       config = {
         inherit (cfg) cpuVendor hypervMode;
         inherit (cfg.acpi) waet;
-        inherit vbs;
+        inherit vbs iommu;
         patchedKernel = true;
       };
     }
   );
 in
-runCommand "vfio-stealth-windows-${cfg.cpuVendor}-${cfg.hypervMode}${lib.optionalString vbs "-vbs"}"
+runCommand
+  "vfio-stealth-windows-${cfg.cpuVendor}-${cfg.hypervMode}${lib.optionalString vbs "-vbs"}${lib.optionalString iommu "-iommu"}"
   {
     nativeBuildInputs = [
       python3

@@ -18,6 +18,7 @@ stalled = run["stalled"]
 expected_key = (
     config["hypervMode"]
     + ("-vbs" if config["vbs"] else "")
+    + ("-iommu" if config.get("iommu") else "")
     + ("" if config["waet"] else "-nowaet")
     + ("-patched" if config.get("patchedKernel") else "")
 )
@@ -175,6 +176,13 @@ else:
         failures.append(
             f"VBS was switched on, but Win32_DeviceGuard reports VirtualizationBasedSecurityStatus {guard.get('VirtualizationBasedSecurityStatus')} and SecurityServicesRunning {guard.get('SecurityServicesRunning')}; running VBS with HVCI reports 2 and a running service 2"
         )
+    dma_protection = 3
+    if config.get("iommu") and dma_protection not in (
+        guard.get("AvailableSecurityProperties") or []
+    ):
+        failures.append(
+            f"the VM has an IOMMU, but Win32_DeviceGuard reports AvailableSecurityProperties {guard.get('AvailableSecurityProperties')}, without {dma_protection}, DMA protection"
+        )
     for index, device in enumerate(record["passed"]):
         want = f"VEN_{device['vendor'][2:].upper()}&DEV_{device['device'][2:].upper()}"
         listed = [
@@ -215,6 +223,7 @@ if record["device_guard"]:
                 "VirtualizationBasedSecurityStatus",
                 "SecurityServicesRunning",
                 "SecurityServicesConfigured",
+                "AvailableSecurityProperties",
             )
         )
     )

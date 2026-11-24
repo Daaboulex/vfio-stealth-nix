@@ -58,6 +58,13 @@
       "SVM_EXCEPTIONS",
       "THREAD_MISMATCH",
       "TIMER"
+    ],
+    "hidden-vbs-iommu": [
+      "FIRMWARE",
+      "GPU_CAPABILITIES",
+      "KVM_INTERCEPTION",
+      "THREAD_MISMATCH",
+      "TIMER"
     ]
   },
   "intel": {

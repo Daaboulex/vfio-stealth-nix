@@ -407,6 +407,7 @@
                 installed ? null,
                 settings ? { },
                 vbs ? false,
+                iommu ? false,
                 gpu ? null,
                 hostDevices ? [ ],
                 memory ? 4096,
@@ -426,6 +427,7 @@
                   iso
                   installed
                   vbs
+                  iommu
                   gpu
                   hostDevices
                   memory
