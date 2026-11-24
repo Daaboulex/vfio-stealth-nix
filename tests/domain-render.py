@@ -194,6 +194,13 @@ def check(name, want):
             name,
             f"has no {want['iommu']} IOMMU with interrupt remapping and a QEMU IOAPIC",
         )
+    if ("amd-iommu.dma-remap=on" in args) != (want["iommu"] == "amd"):
+        fail(
+            name,
+            "sets amd-iommu.dma-remap=on without an AMD IOMMU"
+            if want["iommu"] != "amd"
+            else "has an AMD IOMMU without amd-iommu.dma-remap=on, so the guest's device DMA goes to the wrong memory",
+        )
 
     sounds = root.findall("devices/sound")
     audios = root.findall("devices/audio")

@@ -1424,6 +1424,13 @@ def problems_of(case, record, directory):
         found.append(
             "the firmware handed over no framebuffer, so its video driver did not drive the card"
         )
+    disk_errors = [
+        line
+        for line in boot_log.splitlines()
+        if "qc timeout" in line or "I/O error" in line
+    ]
+    if disk_errors:
+        found.append(f"the guest's disks failed commands: {disk_errors[:5]}")
     vmaware = record["vmaware"]
     if vmaware is None:
         found.append(

@@ -207,6 +207,12 @@ let
     "memory-backend-file,id=looking-glass,mem-path=/dev/kvmfr0,size=${toString cfg.kvmfr.sizeMb}M,share=yes"
   ];
 
+  # why: QEMU's amd-iommu leaves every device's DMA untranslated unless dma-remap is on, and libvirt has no attribute for it
+  amdIommuTranslationArgs = lib.optionals (domain.iommu && cfg.cpuVendor == "amd") [
+    "-global"
+    "amd-iommu.dma-remap=on"
+  ];
+
   generated = {
     type = "kvm";
     inherit name;
@@ -331,6 +337,7 @@ let
       ]
       ++ evdevArgs
       ++ kvmfrArgs
+      ++ amdIommuTranslationArgs
       ++ domain.extraQemuArgs
     );
   }
