@@ -1,9 +1,1 @@
-{
-  virtualisation.vfio-stealth = {
-    host.enable = true;
-    user = "alice";
-    kvmfr = { enable = true; sizeMb = 64; };
-    lookingGlass.client = true;
-    domains.win11.lookingGlass = true;
-  };
-}
+{ virtualisation.vfio-stealth.domains.win11.hugepages = true; }

@@ -179,6 +179,7 @@ fails when its anchor moves, and a check that reads the result.
 | A domain or host option | [module.nix](../module.nix), rendered in [domain.nix](../domain.nix) or the host layer | a type, and an assertion for each refused combination | a refusal case in [tests/module-assertions.nix](../tests/module-assertions.nix); a new value of a switch gets a setting in [tests/option-combinations.nix](../tests/option-combinations.nix) |
 | A third-party source | vendor it with a README naming origin, commit and licence, and pin it in [version.json](../version.json) | a watch in [scripts/update.sh](../scripts/update.sh) that exits 1 with what to do when it moves, and 2 when a fetch fails | run the script with the pin moved back |
 | A new VMAware detection | the fix where it belongs, or a limitation row in [COMPATIBILITY.md](COMPATIBILITY.md) | | its entry leaves [verify/vmaware-expected.json](../verify/vmaware-expected.json) and [verify/vmaware-expected-windows.json](../verify/vmaware-expected-windows.json) |
+| A failure users hit that no check catches | its cause fixed in the code where it can be | | a row in [TROUBLESHOOTING.md](TROUBLESHOOTING.md) with what they see, why, and the fix |
 | Any option text | its `description` in [module.nix](../module.nix) | `std-option-reference` fails while [OPTIONS.md](OPTIONS.md) differs | `nix run .#std-write-option-reference` rewrites it |
 
 A new check is shown to fail on the code before the change before it counts.

@@ -1,11 +1,21 @@
 {
   virtualisation.vfio-stealth = {
-    host.enable = true;
-    domains.win11.gpu = {
-      address = "0000:01:00.0";
-      audio = "0000:01:00.1";
-      binding = "boot";
-      ids = [ "10de:2484" "10de:228b" ];
+    identity.seed = "pick a private phrase for this host";
+    smbios = {
+      manufacturer = "Example Inc.";
+      product = "Example Board X1";
+      biosVendor = "American Megatrends International, LLC.";
+      biosVersion = "1.20";
+      biosDate = "03/12/2025";
+      memory.manufacturer = "Example Memory";
+      memory.partNumber = "EX-DDR5-16G";
+      cache = { l1 = 512; l2 = 8192; l3 = 32768; };
+      onboardDevices = [ { designation = "Onboard LAN"; kind = "ethernet"; instance = 1; } ];
     };
+    disk = {
+      model = "Example SSD 1TB";
+      firmware = "EX01";
+    };
+    macPrefix = "D8:BB:C1";
   };
 }

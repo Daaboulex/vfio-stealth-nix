@@ -1,1 +1,10 @@
-{ virtualisation.vfio-stealth.domains.win11.usb = [ { vendor = 4660; product = 22136; } ]; }
+{
+  virtualisation.vfio-stealth.domains.win11 = {
+    memory = 8192;
+    cores = 4;
+    machine = "pc-q35-10.0";
+    disks = [ { source = "/var/lib/libvirt/images/win11.qcow2"; format = "qcow2"; } ];
+    cdroms = [ "/var/lib/libvirt/images/win11.iso" ];
+    network = { };
+  };
+}

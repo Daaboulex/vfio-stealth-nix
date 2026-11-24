@@ -1,13 +1,26 @@
 # Quickstart
 
-The shortest path to a Windows VM on the stealth stack, without a GPU.
-[GUIDE.md](GUIDE.md) explains each step and adds the identity, a GPU and the
-[hardened gaming settings](GUIDE.md#hardened-gaming-settings).
+The shortest path to a Windows VM on the stealth stack, without a GPU. It
+leaves your board's identity, the kernel patches and a GPU for later;
+[GUIDE.md](GUIDE.md) explains each step and adds them. When a step does not
+end as it says, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-You need an x86_64 host with CPU virtualisation turned on, as
-[Check the hardware](GUIDE.md#check-the-hardware) shows, and flakes turned on,
-as the start of [GUIDE.md](GUIDE.md) shows. The commands assume a flake in
-`/etc/nixos` with a host named `vm-host`; change both to yours.
+## Before you start
+
+- You need an x86_64 host with CPU virtualisation and the IOMMU turned on in
+  the firmware setup, as [Check the hardware](GUIDE.md#check-the-hardware)
+  shows.
+- Turn on flakes, as [Turn on flakes](GUIDE.md#turn-on-flakes) shows. Without
+  them the `nix` commands below fail with "experimental Nix feature
+  'nix-command' is disabled".
+- The commands assume a flake in `/etc/nixos` with a host named `vm-host`;
+  change both to yours.
+
+> [!WARNING]
+> At step 6, NixVirt starts managing every VM on `qemu:///system` and deletes
+> each one you have not declared. Back up the VMs you already have first, as
+> [Back up the VMs you already have](GUIDE.md#back-up-the-vms-you-already-have)
+> shows.
 
 ## 1. Add the flake
 
@@ -101,9 +114,7 @@ next to the disk as `/var/lib/libvirt/images/win11.iso`. If the images sit on bt
 
 ## 6. Declare the VM
 
-Read [Declare a first VM without a GPU](GUIDE.md#declare-a-first-vm-without-a-gpu)
-first: once one VM is declared, NixVirt deletes every VM on `qemu:///system`
-that is not. Set `machine` to the newest type
+This is the step the warning above is about. Set `machine` to the newest type
 `virsh -c qemu:///system capabilities | grep -o 'pc-q35-[0-9.]*' | sort -V | tail -1`
 prints.
 
@@ -131,13 +142,11 @@ virsh -c qemu:///system net-autostart default
 
 ## 7. Start it and install Windows
 
-```sh
-virsh -c qemu:///system start win11
-```
-
-Open the VM's console in virt-manager, press a key when it asks to boot from
-the CD, and install as on a real PC.
-[Install Windows](GUIDE.md#install-windows) covers the rest.
+Open virt-manager, double-click `win11` so its console window opens, then
+press the play button there. Click into the window: the "Press any key to boot
+from CD or DVD" prompt waits only about five seconds. Press a key, then
+install as on a real PC. [Install Windows](GUIDE.md#install-windows) covers
+the rest.
 
 ## 8. Check from inside Windows
 

@@ -1,13 +1,1 @@
-{
-  virtualisation.libvirtd.enable = true;
-  programs.virt-manager.enable = true;
-  users.users.alice = {
-    isNormalUser = true;
-    extraGroups = [ "libvirtd" ];
-  };
-
-  virtualisation.vfio-stealth = {
-    enable = true;
-    cpuVendor = "amd";
-  };
-}
+{ nix.settings.experimental-features = [ "nix-command" "flakes" ]; }

@@ -1,1 +1,1 @@
-{ virtualisation.vfio-stealth.domains.win11.hugepages = true; }
+{ virtualisation.vfio-stealth.domains.win11.usb = [ { vendor = 4660; product = 22136; } ]; }
