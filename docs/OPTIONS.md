@@ -979,9 +979,15 @@ More keyboard event devices passed the same way, such as the other interfaces of
 
 Type: `list of absolute path not in the Nix store`. Default: `[ ]`.
 
+### `virtualisation.vfio-stealth.evdev.grabToggle`
+
+The keys that switch the keyboard and mouse between host and guest: both Ctrl keys, both Alt keys, both Shift keys, both Meta keys, Scroll Lock, or Ctrl and Scroll Lock. Pick a pair the guest's own shortcuts do not use.
+
+Type: `one of "ctrl-ctrl", "alt-alt", "shift-shift", "meta-meta", "scrolllock", "ctrl-scrolllock"`. Default: `"ctrl-ctrl"`.
+
 ### `virtualisation.vfio-stealth.evdev.keyboard`
 
-The keyboard every VM in domains takes over through QEMU's input-linux, switched between host and guest with both Ctrl keys. Use its /dev/input/by-id path, which survives a replug.
+The keyboard every VM in domains takes over through QEMU's input-linux, switched between host and guest with the keys grabToggle names. Use its /dev/input/by-id path, which survives a replug.
 
 Type: `null or absolute path not in the Nix store`. Default: `null`. Example: `"/dev/input/by-id/usb-Example_Keyboard-event-kbd"`.
 

@@ -187,12 +187,12 @@ let
   evdevArgs =
     lib.optionals (cfg.evdev.keyboard != null) [
       "-object"
-      "input-linux,id=kbd,evdev=${escape cfg.evdev.keyboard},grab_all=on,repeat=on"
+      "input-linux,id=kbd,evdev=${escape cfg.evdev.keyboard},grab_all=on,repeat=on,grab-toggle=${cfg.evdev.grabToggle}"
     ]
     ++ lib.concatLists (
       lib.imap1 (i: path: [
         "-object"
-        "input-linux,id=kbd${toString i},evdev=${escape path},grab_all=on"
+        "input-linux,id=kbd${toString i},evdev=${escape path},grab_all=on,grab-toggle=${cfg.evdev.grabToggle}"
       ]) cfg.evdev.extraKeyboards
     )
     ++ lib.optionals (cfg.evdev.mouse != null) [

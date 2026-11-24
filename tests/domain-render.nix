@@ -50,6 +50,7 @@ let
     evdev = {
       inherit keyboard mouse;
       extraKeyboards = [ keyboardExtra ];
+      grabToggle = "alt-alt";
     };
     lookingGlass.shmemSizeMb = 32;
     hugepages.size = "1G";
@@ -203,8 +204,8 @@ let
     );
 
   evdevArgs = [
-    "input-linux,id=kbd,evdev=${keyboard},grab_all=on,repeat=on"
-    "input-linux,id=kbd1,evdev=${keyboardExtra},grab_all=on"
+    "input-linux,id=kbd,evdev=${keyboard},grab_all=on,repeat=on,grab-toggle=alt-alt"
+    "input-linux,id=kbd1,evdev=${keyboardExtra},grab_all=on,grab-toggle=alt-alt"
     "input-linux,id=mouse,evdev=${mouse}"
   ];
 

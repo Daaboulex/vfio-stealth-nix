@@ -1065,7 +1065,19 @@ in
         type = lib.types.nullOr lib.types.externalPath;
         default = null;
         example = "/dev/input/by-id/usb-Example_Keyboard-event-kbd";
-        description = "The keyboard every VM in domains takes over through QEMU's input-linux, switched between host and guest with both Ctrl keys. Use its /dev/input/by-id path, which survives a replug.";
+        description = "The keyboard every VM in domains takes over through QEMU's input-linux, switched between host and guest with the keys grabToggle names. Use its /dev/input/by-id path, which survives a replug.";
+      };
+      grabToggle = lib.mkOption {
+        type = lib.types.enum [
+          "ctrl-ctrl"
+          "alt-alt"
+          "shift-shift"
+          "meta-meta"
+          "scrolllock"
+          "ctrl-scrolllock"
+        ];
+        default = "ctrl-ctrl";
+        description = "The keys that switch the keyboard and mouse between host and guest: both Ctrl keys, both Alt keys, both Shift keys, both Meta keys, Scroll Lock, or Ctrl and Scroll Lock. Pick a pair the guest's own shortcuts do not use.";
       };
       extraKeyboards = lib.mkOption {
         type = lib.types.listOf lib.types.externalPath;
