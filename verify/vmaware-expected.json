@@ -16,6 +16,12 @@
       "FIRMWARE",
       "THREAD_COUNT",
       "THREAD_MISMATCH"
+    ],
+    "hidden-nowaet": [
+      "DEVICES",
+      "DMESG",
+      "THREAD_COUNT",
+      "THREAD_MISMATCH"
     ]
   },
   "intel": {

@@ -51,6 +51,13 @@
       "HYPERVISOR_STR",
       "THREAD_MISMATCH",
       "TIMER"
+    ],
+    "hidden-nowaet": [
+      "GPU_CAPABILITIES",
+      "KVM_INTERCEPTION",
+      "SVM_EXCEPTIONS",
+      "THREAD_MISMATCH",
+      "TIMER"
     ]
   },
   "intel": {

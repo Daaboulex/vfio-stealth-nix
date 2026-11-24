@@ -762,6 +762,10 @@
 
               boot-matrix = bootCheck "amd" { };
               boot-matrix-hidden = bootCheck "amd" { hypervMode = "hidden"; };
+              boot-matrix-hidden-nowaet = bootCheck "amd" {
+                hypervMode = "hidden";
+                acpi.waet = false;
+              };
 
               boot-matrix-intel = bootCheck "intel" { };
               boot-matrix-intel-hidden = bootCheck "intel" {
