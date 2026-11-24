@@ -1159,15 +1159,16 @@ project measures itself against. Each technique it reports names one thing it
 found, and most of them go away with a setting. This table gives the reason
 for each and the setting that removes it:
 
-| VMAware reports | Why | Setting that removes it |
+| VMAware reports | Why | What removes it |
 |---|---|---|
-| HYPERVISOR_BIT, HYPERVISOR_STR, and in a Linux guest `systemd virtualisation` | the default `hypervMode = "enlightened"` shows the hypervisor, which Hyper-V enlightenments need | `hypervMode = "hidden"` |
+| HYPERVISOR_BIT, HYPERVISOR_STR, and in a Linux guest `systemd virtualisation` | the default `hypervMode = "enlightened"` shows the hypervisor, which the Hyper-V speedups need | `hypervMode = "hidden"` |
+| SINGLE_STEP and VMID, and INTERRUPT_SHADOW on AMD, with VBS or Memory integrity on | Windows' own Hyper-V in enlightened mode | `hypervMode = "hidden"` |
 | THREAD_MISMATCH | the VM has fewer vCPUs than the CPU model it shows has threads | `cpuIdentity.modelId`, naming a CPU with as many threads as the VM has vCPUs |
-| FIRMWARE | the WAET table, which Windows needs for fast timer reads | none; keep `acpi.waet` |
-| GPU_CAPABILITIES | an emulated display; a passed-through GPU with its driver does not show it | a GPU |
+| FIRMWARE | the WAET table, which Windows uses to read its timers the fast way; on Intel also the VM's IOMMU, `iommu` | `acpi.waet = false`, which may slow Windows down; leaving `iommu` off |
+| GPU_CAPABILITIES | an emulated display, whose basic driver has no gamma ramp | not measured yet: a passed-through GPU with its own driver may remove it |
 | KVM_INTERCEPTION, and SVM_EXCEPTIONS on AMD | a host kernel without the kernel patches | the kernel built through `packages.kernelFor` |
-| TIMER, and TRAP on Intel | timing and the CPU's own debug behaviour | `timing.enable` on AMD; nothing on Intel |
-| low file access count, in a Linux guest | a freshly installed system, VM or not | none needed |
+| TIMER, and TRAP on Intel | how long a CPUID takes, and the Intel CPU's own debug behaviour | `timing.enable` on AMD; nothing on Intel |
+| low file access count, in a Linux guest | the desktop's list of recently opened files has 10 entries or fewer, as on any fresh install | using the desktop for a while |
 
 [COMPATIBILITY.md](COMPATIBILITY.md#known-limitations) gives the full reason
 for each that stays.
