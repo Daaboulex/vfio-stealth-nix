@@ -9,13 +9,14 @@
 let
   cfg = config.virtualisation.vfio-stealth;
 
-  kernelPrelude = import ./kernel/prelude.nix;
-  timingPatchScript = import ./kernel/timing-patch.nix;
-  cpuidPatchScript = import ./kernel/cpuid-patch.nix;
-  cpuidDisableScript = import ./kernel/cpuid-disable.nix;
-  instructionFixesScript = import ./kernel/instruction-fixes.nix;
-  svmInstructionFixesScript = import ./kernel/svm-instruction-fixes.nix;
-  pinnedCpuidScript = import ./kernel/pinned-cpuid-passthrough.nix;
+  kernelPatch = import ./kernel/post-patch.nix { inherit lib; } {
+    inherit (cfg) cpuVendor;
+    instructionFixes = cfg.enable && cfg.instructionFixes.enable;
+    timing = cfg.enable && cfg.timing.enable;
+    cpuidSpoof = cfg.enable && cfg.cpuidSpoof.enable;
+    cpuidPassthrough = cfg.enable && cfg.cpuidPassthrough.enable;
+    pinnedCpuid = cfg.enable && cfg.cpuidPassthrough.pinned;
+  };
 
   microsoftDbx =
     let
@@ -1197,25 +1198,14 @@ in
             message = "virtualisation.vfio-stealth.cpuVendor: must be \"amd\" or \"intel\"; it picks the QEMU and OVMF pair and the kernel patches";
           }
           {
-            assertion =
-              cfg.cpuVendor != "intel"
-              || !(
-                cfg.timing.enable
-                || cfg.cpuidSpoof.enable
-                || cfg.cpuidPassthrough.enable
-                || cfg.cpuidPassthrough.pinned
-              );
-            message = "virtualisation.vfio-stealth: timing.enable, cpuidSpoof.enable, cpuidPassthrough.enable and cpuidPassthrough.pinned require cpuVendor \"amd\"; they patch KVM's SVM code, which kvm-intel never runs";
-          }
-          {
-            assertion = !(cfg.cpuidPassthrough.enable && cfg.cpuidPassthrough.pinned);
-            message = "virtualisation.vfio-stealth.cpuidPassthrough: enable stops every CPUID exit already, so pinned has nothing to switch; set one";
-          }
-          {
             assertion = !(cfg.cpuidPassthrough.enable && cfg.hypervMode == "enlightened");
             message = "virtualisation.vfio-stealth: cpuidPassthrough.enable hides Hyper-V enlightenments from the guest; set hypervMode to \"hidden\"";
           }
         ]
+        ++ map (message: {
+          assertion = false;
+          inherit message;
+        }) kernelPatch.refusals
         ++ (
           let
             needHost =
@@ -1644,21 +1634,7 @@ in
   options.virtualisation.vfio-stealth.kernelPostPatch = lib.mkOption {
     type = lib.types.str;
     readOnly = true;
-    default =
-      let
-        scripts =
-          lib.optionalString (cfg.enable && cfg.instructionFixes.enable) instructionFixesScript
-          + lib.optionalString (
-            cfg.enable && cfg.instructionFixes.enable && cfg.cpuVendor == "amd"
-          ) svmInstructionFixesScript
-          + lib.optionalString (cfg.enable && cfg.cpuidPassthrough.pinned) pinnedCpuidScript
-          + lib.optionalString (cfg.enable && cfg.timing.enable) timingPatchScript
-          + lib.optionalString (
-            cfg.enable && cfg.cpuidSpoof.enable && !cfg.cpuidPassthrough.enable
-          ) cpuidPatchScript
-          + lib.optionalString (cfg.enable && cfg.cpuidPassthrough.enable) cpuidDisableScript;
-      in
-      lib.optionalString (scripts != "") kernelPrelude + scripts;
+    default = kernelPatch.script;
     description = "Combined kernel postPatch script. packages.kernelFor appends it to a kernel package.";
   };
 

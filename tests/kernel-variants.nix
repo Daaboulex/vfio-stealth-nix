@@ -1,103 +1,51 @@
-{
-  lib,
-  nixosSystem,
-  module,
-}:
+{ lib }:
 
 let
+  kernelPatch = import ../kernel/post-patch.nix { inherit lib; };
+
   switches = [
     {
       name = "instruction-fixes";
-      path = [
-        "instructionFixes"
-        "enable"
-      ];
+      key = "instructionFixes";
     }
     {
       name = "pinned-cpuid";
-      path = [
-        "cpuidPassthrough"
-        "pinned"
-      ];
+      key = "pinnedCpuid";
     }
     {
       name = "timing";
-      path = [
-        "timing"
-        "enable"
-      ];
+      key = "timing";
     }
     {
       name = "cpuid-spoof";
-      path = [
-        "cpuidSpoof"
-        "enable"
-      ];
+      key = "cpuidSpoof";
     }
     {
       name = "cpuid-passthrough";
-      path = [
-        "cpuidPassthrough"
-        "enable"
-      ];
+      key = "cpuidPassthrough";
     }
-  ];
-
-  settingsTheKernelIgnores = [
-    { hypervMode = "enlightened"; }
-    { hypervMode = "hidden"; }
   ];
 
   subsets = lib.foldr (switch: rest: rest ++ map (chosen: [ switch ] ++ chosen) rest) [
     [ ]
   ] switches;
 
-  evaluate =
-    cpuVendor: settings:
-    (nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        module
-        {
-          virtualisation.vfio-stealth = {
-            enable = true;
-            inherit cpuVendor;
-          }
-          // settings;
-          virtualisation.libvirtd.enable = true;
-          fileSystems."/" = {
-            device = "/dev/disk/by-label/nixos";
-            fsType = "ext4";
-          };
-          boot.loader.grub.enable = false;
-          system.stateVersion = lib.trivial.release;
-        }
-      ];
-    }).config;
-
-  accepts = config: lib.all (a: a.assertion) config.assertions;
-
   variantOf =
     cpuVendor: chosen:
     let
-      switched = lib.foldl' lib.recursiveUpdate { } (
-        map (switch: lib.setAttrByPath switch.path (lib.elem switch chosen)) switches
-      );
-      accepting = lib.findFirst accepts null (
-        map (extra: evaluate cpuVendor (switched // extra)) settingsTheKernelIgnores
+      patch = kernelPatch (
+        {
+          inherit cpuVendor;
+        }
+        // lib.listToAttrs (map (switch: lib.nameValuePair switch.key (lib.elem switch chosen)) switches)
       );
     in
-    lib.optional (accepting != null) (
-      let
-        variant = {
-          name =
-            lib.optionalString (cpuVendor == "intel") "intel-"
-            + lib.concatMapStringsSep "+" (switch: switch.name) chosen;
-          body = accepting.virtualisation.vfio-stealth.kernelPostPatch;
-        };
-      in
-      builtins.deepSeq variant variant
-    );
+    lib.optional (patch.refusals == [ ]) {
+      name =
+        lib.optionalString (cpuVendor == "intel") "intel-"
+        + lib.concatMapStringsSep "+" (switch: switch.name) chosen;
+      body = patch.script;
+    };
 
   variants =
     lib.foldl'

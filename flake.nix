@@ -155,11 +155,7 @@
                 modules = args.modules ++ [ { nixpkgs.pkgs = inputs.nixpkgs.legacyPackages.${args.system}; } ];
               }
             );
-          kernelVariants = import ./tests/kernel-variants.nix {
-            inherit lib;
-            inherit nixosSystem;
-            module = self.nixosModules.default;
-          };
+          kernelVariants = import ./tests/kernel-variants.nix { inherit lib; };
           vendorPackage =
             cpuVendor: name:
             self.packages.${pkgs.stdenv.hostPlatform.system}.${
