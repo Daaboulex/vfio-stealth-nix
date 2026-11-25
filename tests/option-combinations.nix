@@ -474,7 +474,16 @@ let
       warnings = if refused == [ ] then builtins.seq evaluated config.warnings else [ ];
     };
 
-  results = map (row: { inherit row; } // resultOf row) rows;
+  results = map (
+    row:
+    let
+      result = {
+        inherit row;
+      }
+      // resultOf row;
+    in
+    builtins.deepSeq result result
+  ) rows;
   accepted = lib.filter (result: result.accepted) results;
   warned = lib.filter (result: result.warnings != [ ]) accepted;
 

@@ -146,9 +146,18 @@
             lib.concatMapStringsSep " " (name: "legacyPackages.x86_64-linux.evidence.kernel-runtime.${name}") (
               lib.attrNames (lib.filterAttrs (_: set: set.cpuVendor == vendor) kernelRuntimeSets)
             );
+          # why: each NixOS evaluation would otherwise build its own nixpkgs, which more than doubles the checks' evaluation memory
+          nixosSystem =
+            args:
+            inputs.nixpkgs.lib.nixosSystem (
+              args
+              // {
+                modules = args.modules ++ [ { nixpkgs.pkgs = inputs.nixpkgs.legacyPackages.${args.system}; } ];
+              }
+            );
           kernelVariants = import ./tests/kernel-variants.nix {
             inherit lib;
-            inherit (inputs.nixpkgs.lib) nixosSystem;
+            inherit nixosSystem;
             module = self.nixosModules.default;
           };
           vendorPackage =
@@ -182,7 +191,7 @@
             cpuVendor: settings: (exampleHost cpuVendor settings).virtualisation.vfio-stealth.bootCheck;
           exampleHost =
             cpuVendor: settings:
-            (inputs.nixpkgs.lib.nixosSystem {
+            (nixosSystem {
               system = "x86_64-linux";
               modules = [
                 self.nixosModules.default
@@ -472,7 +481,7 @@
               gpus = pkgs.callPackage ./tests/gpus.nix { };
               vmaware-docs = pkgs.callPackage ./tests/vmaware-docs.nix { };
               domain-render = pkgs.callPackage ./tests/domain-render.nix {
-                inherit (inputs.nixpkgs.lib) nixosSystem;
+                inherit nixosSystem;
                 inherit (inputs) nixvirt;
                 module = self.nixosModules.default;
               };
@@ -604,7 +613,7 @@
               };
 
               vmaware-not-shipped = pkgs.callPackage ./tests/vmaware-not-shipped.nix {
-                inherit (inputs.nixpkgs.lib) nixosSystem;
+                inherit nixosSystem;
                 module = self.nixosModules.default;
                 vmaware = pkgs.callPackage ./verify/vmaware.nix { };
               };
@@ -737,27 +746,27 @@
               };
 
               module-assertions = pkgs.callPackage ./tests/module-assertions.nix {
-                inherit (inputs.nixpkgs.lib) nixosSystem;
+                inherit nixosSystem;
                 module = self.nixosModules.default;
               };
 
               identity-seed = pkgs.callPackage ./tests/identity-seed.nix {
-                inherit (inputs.nixpkgs.lib) nixosSystem;
+                inherit nixosSystem;
                 module = self.nixosModules.default;
               };
 
               option-combinations = pkgs.callPackage ./tests/option-combinations.nix {
-                inherit (inputs.nixpkgs.lib) nixosSystem;
+                inherit nixosSystem;
                 module = self.nixosModules.default;
               };
 
               guide-snippets = pkgs.callPackage ./tests/guide-snippets.nix {
-                inherit (inputs.nixpkgs.lib) nixosSystem;
+                inherit nixosSystem;
                 module = self.nixosModules.default;
               };
 
               examples = pkgs.callPackage ./tests/examples.nix {
-                inherit (inputs.nixpkgs.lib) nixosSystem;
+                inherit nixosSystem;
                 module = self.nixosModules.default;
               };
 

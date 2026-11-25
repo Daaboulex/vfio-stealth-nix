@@ -87,12 +87,17 @@ let
         map (extra: evaluate cpuVendor (switched // extra)) settingsTheKernelIgnores
       );
     in
-    lib.optional (accepting != null) {
-      name =
-        lib.optionalString (cpuVendor == "intel") "intel-"
-        + lib.concatMapStringsSep "+" (switch: switch.name) chosen;
-      body = accepting.virtualisation.vfio-stealth.kernelPostPatch;
-    };
+    lib.optional (accepting != null) (
+      let
+        variant = {
+          name =
+            lib.optionalString (cpuVendor == "intel") "intel-"
+            + lib.concatMapStringsSep "+" (switch: switch.name) chosen;
+          body = accepting.virtualisation.vfio-stealth.kernelPostPatch;
+        };
+      in
+      builtins.deepSeq variant variant
+    );
 
   variants =
     lib.foldl'
