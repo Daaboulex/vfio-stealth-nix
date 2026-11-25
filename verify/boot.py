@@ -12,6 +12,8 @@ from xml.etree import ElementTree
 
 ATTEMPTS = 3
 ATTEMPT_SECONDS = 90
+VM_OVERHEAD_MEGABYTES = 512
+SHARE_OF_HOST_MEMORY_KEPT_FREE = 0.25
 DONE = "VFIO-PROBE-DONE"
 REFUSED = "Access Denied"
 NO_OPTION = "No bootable option or device was found"
@@ -148,6 +150,31 @@ def pin_to_current_cpu():
     stat = pathlib.Path("/proc/self/stat").read_text()
     cpu = int(stat.rsplit(")", 1)[1].split()[36])
     os.sched_setaffinity(0, {cpu})
+
+
+def vm_megabytes(case):
+    memory = ElementTree.parse(case["xml"]).getroot().find("memory")
+    scale = {"KiB": 1 / 1024, "MiB": 1, "GiB": 1024}[memory.get("unit", "KiB")]
+    return int(memory.text) * scale
+
+
+def meminfo_megabytes(field):
+    meminfo = pathlib.Path("/proc/meminfo").read_text()
+    return int(re.search(rf"^{field}:\s+(\d+) kB", meminfo, re.M).group(1)) / 1024
+
+
+def room_for(case, running_count):
+    cores = int(os.environ.get("NIX_BUILD_CORES") or 0) or len(os.sched_getaffinity(0))
+    available = meminfo_megabytes("MemAvailable")
+    reserve = meminfo_megabytes("MemTotal") * SHARE_OF_HOST_MEMORY_KEPT_FREE
+    needed = vm_megabytes(case) + VM_OVERHEAD_MEGABYTES + reserve
+    fits = running_count == 0 or (running_count < cores and available >= needed)
+    if fits:
+        print(
+            f"{case['name']}: starting beside {running_count} running VMs with {available:.0f} MiB free",
+            flush=True,
+        )
+    return fits
 
 
 def start(case, attempt):
@@ -1470,13 +1497,15 @@ def problems_of(case, record, directory):
 
 
 running = {}
-for case in plan["cases"]:
-    directory, process, tpm = start(case, 1)
-    running[case["name"]] = (case, 1, directory, process, tpm, time.monotonic())
+waiting = list(plan["cases"])
 attempts = {case["name"]: [] for case in plan["cases"]}
 records = {}
 directories = {}
-while running:
+while running or waiting:
+    while waiting and room_for(waiting[0], len(running)):
+        case = waiting.pop(0)
+        directory, process, tpm = start(case, 1)
+        running[case["name"]] = (case, 1, directory, process, tpm, time.monotonic())
     for name, (case, attempt, directory, process, tpm, began) in list(running.items()):
         elapsed = time.monotonic() - began
         done = finished(case, serial_text(directory)) or process.poll() is not None
