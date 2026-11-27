@@ -608,15 +608,15 @@ assert lib.assertMsg
       -e '/^static const USBDesc desc_braille = {/,/^};/s|\.iManufacturer     = STR_MANUFACTURER,|.iManufacturer     = STR_MANUFACTURER_BRAILLE,|' \
       -e '/^static const USBDesc desc_serial = {/,/^};/{s|\.idVendor          = 0x0403,|.idVendor          = ${usbSerial.vendor},|;s|\.idProduct         = 0x6001,|.idProduct         = ${usbSerial.product},|}' \
       -e '/^static const USBDesc desc_serial = {/,/^};/s|\.bcdDevice         = 0x0400,|.bcdDevice         = ${usbSerial.release},|' hw/usb/dev-serial.c
-    substituteInPlace hw/usb/dev-serial.c \
-      --replace-fail '[STR_PRODUCT_SERIAL]  = "QEMU USB SERIAL",' '[STR_PRODUCT_SERIAL]  = "${usbSerial.name}",' \
-      --replace-fail '[STR_PRODUCT_BRAILLE] = "QEMU USB BAUM BRAILLE",' '[STR_PRODUCT_BRAILLE] = "${usbBraille.name}",' \
-      --replace-fail '[STR_SERIALNUMBER]    = "1",' '[STR_SERIALNUMBER]    = "${serialTemplate usbSerial}",'
     landed hw/usb/dev-serial.c '[STR_MANUFACTURER_BRAILLE] = "${usbBraille.manufacturer}",' "the braille display names its own maker"
     landed hw/usb/dev-serial.c '.iManufacturer     = STR_MANUFACTURER_BRAILLE,' "the braille display points at its own maker"
     landed hw/usb/dev-serial.c '.bcdDevice         = ${usbSerial.release},' "the serial adapter reports the release of the chip it names"
     landed hw/usb/dev-serial.c '.idVendor          = ${usbSerial.vendor},' "the serial adapter keeps the vendor id of the chip it names"
     landed hw/usb/dev-serial.c '.idProduct         = ${usbSerial.product},' "the serial adapter keeps the product id of the chip it names"
+    substituteInPlace hw/usb/dev-serial.c \
+      --replace-fail '[STR_PRODUCT_SERIAL]  = "QEMU USB SERIAL",' '[STR_PRODUCT_SERIAL]  = "${usbSerial.name}",' \
+      --replace-fail '[STR_PRODUCT_BRAILLE] = "QEMU USB BAUM BRAILLE",' '[STR_PRODUCT_BRAILLE] = "${usbBraille.name}",' \
+      --replace-fail '[STR_SERIALNUMBER]    = "1",' '[STR_SERIALNUMBER]    = "${serialTemplate usbSerial}",'
     gone hw/usb/dev-serial.c '= "QEMU",' "the serial adapter's maker is not QEMU"
     # why: QEMU plugs the adapter in only while its character device is open and unplugs it again when it closes, where a real adapter stays on the bus
     substituteInPlace hw/usb/dev-serial.c \
@@ -675,6 +675,9 @@ assert lib.assertMsg
     sed -i -e 's|^#define RNDIS_VENDOR_NUM .*$|#define RNDIS_VENDOR_NUM        ${usbPhone.vendor}|' \
       -e 's|^#define RNDIS_PRODUCT_NUM .*$|#define RNDIS_PRODUCT_NUM       ${usbPhone.tetherProduct}|' \
       -e '/^ *\[STRING_SUBSET\] *= "[^"]*",$/d' hw/usb/dev-network.c
+    landed hw/usb/dev-network.c '#define RNDIS_VENDOR_NUM        ${usbPhone.vendor}' "the network device reports the phone's vendor id"
+    landed hw/usb/dev-network.c '#define RNDIS_PRODUCT_NUM       ${usbPhone.tetherProduct}' "the network device reports the phone's tethering id"
+    gone hw/usb/dev-network.c '[STRING_SUBSET]' "no unused QEMU string is left for a guest to read by index"
     substituteInPlace hw/usb/dev-network.c \
       --replace-fail '[STRING_MANUFACTURER]       = "QEMU",' '[STRING_MANUFACTURER]       = "${usbPhone.manufacturer}",' \
       --replace-fail '[STRING_PRODUCT]            = "RNDIS/QEMU USB Network Device",' '[STRING_PRODUCT]            = "${usbPhone.name}",' \
@@ -686,10 +689,8 @@ assert lib.assertMsg
       --replace-fail '[STRING_SERIALNUMBER]       = "1",' '[STRING_SERIALNUMBER]       = "${serialTemplate usbPhone}",' \
       --replace-fail 'pstrcpy((char *)outbuf, outlen, "QEMU USB RNDIS Net");' 'pstrcpy((char *)outbuf, outlen, "");' \
       --replace-fail 's->vendorid = 0x1234;' 's->vendorid = 0;'
-    landed hw/usb/dev-network.c '#define RNDIS_PRODUCT_NUM       ${usbPhone.tetherProduct}' "the network device reports the phone's tethering id"
     gone hw/usb/dev-network.c '"QEMU USB Net ' "no network interface string names QEMU"
     gone hw/usb/dev-network.c '"QEMU USB RNDIS Net"' "the RNDIS vendor description does not name QEMU"
-    gone hw/usb/dev-network.c '[STRING_SUBSET]' "no unused QEMU string is left for a guest to read by index"
 
     # why: Windows binds the generation counter on its compatible id, and the hardware id names the hypervisor; Hyper-V's own id replaces QEMU's
     substituteInPlace hw/acpi/vmgenid.c \

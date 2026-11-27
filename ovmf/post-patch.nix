@@ -94,6 +94,10 @@ in
 
   # why: OVMF reads QEMU's EDID only for a resolution, so Windows on an emulated display found no monitor and named it Default_Monitor
   sed -i 's/\r$//' OvmfPkg/QemuVideoDxe/Qemu.h OvmfPkg/QemuVideoDxe/Initialize.c OvmfPkg/QemuVideoDxe/Driver.c OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
+  gone OvmfPkg/QemuVideoDxe/Qemu.h $'\r' "Qemu.h has LF line endings for edid-protocols.patch"
+  gone OvmfPkg/QemuVideoDxe/Initialize.c $'\r' "Initialize.c has LF line endings for edid-protocols.patch"
+  gone OvmfPkg/QemuVideoDxe/Driver.c $'\r' "Driver.c has LF line endings for edid-protocols.patch"
+  gone OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf $'\r' "QemuVideoDxe.inf has LF line endings for edid-protocols.patch"
   patch -p1 -F0 --no-backup-if-mismatch -i ${./edid-protocols.patch} || {
     echo "FATAL: ovmf/edid-protocols.patch did not apply with zero fuzz"
     exit 1
