@@ -42,10 +42,16 @@ let
     in
     lib.assertMsg (lib.any (lib.hasInfix fragment) messages) "module-assertions: ${name} was not refused with a message containing '${fragment}'; failing assertions: ${builtins.toJSON messages}";
 
-  rejectsType =
-    name: settings: attribute:
+  evaluates =
+    attribute: settings:
+    (builtins.tryEval (builtins.deepSeq (attribute (evaluate settings)) true)).success;
+
+  refusesOnly =
+    name: accepted: refused: attribute:
+    assert lib.assertMsg (evaluates attribute accepted)
+      "module-assertions: the accepted twin of ${name} does not evaluate, so its refusal proves nothing";
     lib.assertMsg (
-      !(builtins.tryEval (builtins.deepSeq (attribute (evaluate settings)) true)).success
+      !evaluates attribute refused
     ) "module-assertions: ${name} was accepted although its value is malformed";
 
   optionsWith =
@@ -474,10 +480,17 @@ let
     ) "module-assertions: edid.resolution does not reach the QEMU build")
     (typeRefuses "an EDID width of 0" [ "edid" "resolution" "width" ] 0)
     (typeRefuses "an EDID height above 4095" [ "edid" "resolution" "height" ] 4096)
-    (rejectsType "a PCI subsystem device below 0x40" {
-      cpuVendor = "amd";
-      pciSubsystem = "8086:0000";
-    } (config: config.virtualisation.vfio-stealth.packages.qemu.drvPath))
+    (refusesOnly "a PCI subsystem device below 0x40"
+      {
+        cpuVendor = "amd";
+        pciSubsystem = "8086:0040";
+      }
+      {
+        cpuVendor = "amd";
+        pciSubsystem = "8086:003f";
+      }
+      (config: config.virtualisation.vfio-stealth.packages.qemu.drvPath)
+    )
     (typeRefuses "a TPM manufacturer without the id: form" [ "tpm" "manufacturer" ] "IFX")
     (typeRefuses "a five-character ACPI OEM id" [ "acpiOem" "id" ] "SHORT")
     (lib.assertMsg
