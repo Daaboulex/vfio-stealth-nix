@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 
 ATTEMPTS = 3
 ATTEMPT_SECONDS = 90
+SILENCE_CHARACTERS = 800
 VM_OVERHEAD_MEGABYTES = 512
 SHARE_OF_HOST_MEMORY_KEPT_FREE = 0.25
 DONE = "VFIO-PROBE-DONE"
@@ -1411,7 +1412,16 @@ def evidence(case, directory, seconds, process):
         "firmware_lines": sorted(set(re.findall(r"BdsDxe: [^\n]*", text))),
         "qemu_exit": process.poll(),
         "qemu_log": (directory / "qemu.log").read_text()[-2000:],
+        "serial_tail": text[-SILENCE_CHARACTERS:],
     }
+
+
+def last_words(record):
+    return (
+        f"firmware said: {record['firmware_lines']}; "
+        f"the serial console ended with {record['serial_tail']!r}; "
+        f"QEMU said {record['qemu_log'][-SILENCE_CHARACTERS:]!r}"
+    )
 
 
 def problems_of(case, record, directory):
@@ -1425,11 +1435,13 @@ def problems_of(case, record, directory):
                 "Secure Boot with the Microsoft keys booted an unsigned loader"
             )
         if not record["refused"]:
-            found.append("the firmware never refused the unsigned loader")
+            found.append(
+                f"the firmware never refused the unsigned loader; {last_words(record)}"
+            )
         return found
     if not record["finished"]:
         found.append(
-            f"the probe did not finish in {len(record['attempts'])} boots of {ATTEMPT_SECONDS} s; firmware said: {record['firmware_lines']}"
+            f"the probe did not finish in {len(record['attempts'])} boots of {ATTEMPT_SECONDS} s; {last_words(record)}"
         )
         return found
     if record["kernel"] != expect["kernel"]:
