@@ -5,6 +5,8 @@ on:
     - cron: "0 4 * * 3"
     - cron: "0 4 * * 1,2,4,5,6"
   workflow_dispatch:
+  repository_dispatch:
+    types: [maintenance-retry]
 
 permissions:
   contents: write
