@@ -50,6 +50,7 @@ explains why the parts are built the way they are.
 
 - The VM tests need a builder with `/dev/kvm`. `detect-finds-plain-virt` does not need it and runs under TCG, because GitHub's aarch64 runners have no KVM.
 - If a `boot-matrix` boot reaches no result in time, it is retried, and evidence.json lists every boot. On some KVM hosts, stock QEMU with nixpkgs' stock OVMF runs very slowly in some boots, at random, in the firmware or in the boot stub. A boot that finishes with a wrong result fails at once.
+- GitHub does not let a workflow choose the CPU of an x86 runner. On a runner with an Intel Xeon Platinum 8573C, where KVM runs nested, every `boot-matrix` probe stalled with no firmware output, while the same lock passed on AMD EPYC runners and on a bare-metal Intel host. Open: why the guests stay silent under that runner's nested KVM.
 - `boot-matrix` reads what Linux sees in the guest. What Windows sees through WMI and the registry is checked by [guest/verify-stealth.ps1](../guest/verify-stealth.ps1). No check runs that script; [Windows evidence](#windows-evidence) runs it outside CI.
 
 ## VMAware in the probe
