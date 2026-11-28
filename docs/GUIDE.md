@@ -77,6 +77,7 @@ own, before you change any configuration. You need:
 1. In the firmware setup, turn on CPU virtualisation (SVM on AMD, VT-x on
    Intel) and the IOMMU (often called IOMMU or AMD-Vi on AMD, VT-d on Intel).
    The menu names differ from board to board.
+
 2. Check the CPU flag, and check that KVM is there:
 
    ```sh
@@ -85,6 +86,7 @@ own, before you change any configuration. You need:
    ```
 
    It worked when the count is above 0 and `/dev/kvm` exists.
+
 3. Check the IOMMU:
 
    ```sh
@@ -96,6 +98,7 @@ own, before you change any configuration. You need:
    nothing on Intel, add `boot.kernelParams = [ "intel_iommu=on" ];` to your
    configuration, rebuild, reboot and check again. If it is still empty, the
    IOMMU is off in the firmware setup.
+
 4. List your GPUs and their IOMMU groups:
 
    ```sh
@@ -165,6 +168,7 @@ This section adds the module to your flake and turns it on.
    already imports NixVirt's module, use `nixosModules.vfio-stealth` instead.
    You need no overlay: the module builds its own QEMU, OVMF and kernel
    patches.
+
 2. In `configuration.nix`, turn on libvirt and the module, and let your user
    manage VMs:
 
@@ -249,14 +253,18 @@ Some fields need a second step:
 
 - `edid.serial` is the monitor name: copy Display Product Name, not the
   serial number.
+
 - `edid.productCode` is hex, but `edid-decode` prints Model as a decimal
   number. Convert it with `printf '0x%04x\n' 9344`.
+
 - `edid.dpi` is the horizontal resolution divided by the width in inches.
   Take the width in cm from "Maximum image size" and divide it by 2.54.
+
 - `smbios.cache.*` sizes are in KB: 1 MB from `dmidecode` is 1024. Set
   `l1`, `l2` and `l3` from your own CPU. The guest sees its caches through
   CPUID, and the defaults are an eight core Zen 4's, so the rebuild warns
   while they are unset.
+
 - `smbios.cache.assocL1`, `assocL2`, `assocL3` and `ecc` take a byte, not
   the word `dmidecode -t 7` prints. Look the word up in this table, which
   follows the SMBIOS specification,
@@ -282,6 +290,7 @@ Some fields need a second step:
 - Without `cpuIdentity.modelId`, the guest sees the host's CPU model as the
   SMBIOS processor Version. The other `cpuIdentity` fields you leave null
   take the values of a real board for your `cpuVendor`.
+
 - `dmidecode -u -t N` prints each structure's bytes under Header and Data,
   16 to a row, starting at offset 0x00. A word is two bytes, low byte first:
   `10 01` is 0x0110, 272. The options take these bytes as numbers:
@@ -309,10 +318,13 @@ Some fields need a second step:
 - `hdaCodec` shows only in a VM with emulated sound, `domains.<name>.sound`.
   On a board without an HD Audio codec, give the VM none and leave
   `hdaCodec` as it is.
+
 - The disk identity is what the guest sees on its emulated SATA disk, so a
   SATA drive's identity fits it better than an NVMe drive's.
+
 - If you have no CD drive, leave `disk.opticalModel` and
   `disk.opticalFirmware` as they are; they name a real drive.
+
 - You do not read `acpi.waet`, `acpi.c2Latency` and `acpi.c3Latency` from
   your machine. Their descriptions in [OPTIONS.md](OPTIONS.md) say when to
   change them.
@@ -426,6 +438,7 @@ Now you build the configuration and check that the host is ready for a VM.
 
    It worked when the rebuild ends without an error. A `vfio-stealth:` warning
    names an option that is still at its default.
+
 2. Check the host:
 
    ```sh
@@ -529,6 +542,7 @@ This section declares a Windows VM without a GPU. You add the GPU later, in
    and use it for `machine`. The `pc-q35-10.0` below is an example. The VM's
    UUID comes from `identity.seed` and the VM's name. Set `uuid` only to keep
    the one an existing VM already has.
+
 2. Declare the VM:
 
    ```nix
@@ -546,8 +560,10 @@ This section declares a Windows VM without a GPU. You add the GPU later, in
 
    `cores = 4` with the default two threads per core gives 8 vCPUs. A pinned
    machine type keeps the hardware Windows was activated on when QEMU updates.
+
 3. Rebuild. It worked when `virsh -c qemu:///system list --all` shows `win11`
    as shut off. If it does not, `journalctl -b -u nixvirt` says why.
+
 4. The VM uses libvirt's `default` network. If
    `virsh -c qemu:///system net-list --all` shows it as inactive, start it and
    turn on its autostart:
@@ -559,6 +575,7 @@ This section declares a Windows VM without a GPU. You add the GPU later, in
 
    To put the VM on a host bridge instead, set
    `network = { type = "bridge"; source = "br0"; };` with your bridge's name.
+
 5. Run `sudo vfio-stealth-verify-host win11`. It worked when it ends with no
    failures.
 
@@ -598,6 +615,7 @@ second GPU, as [Check the hardware](#check-the-hardware) says.
    block with its address, its audio function, any further functions as
    `extraFunctions`, and its ids. If your card shows no block, the finder
    says why: its group also holds other devices, or the IOMMU is off.
+
 2. Pick how the GPU reaches vfio-pci:
 
    | `gpu.binding` | When it fits |
@@ -610,6 +628,7 @@ second GPU, as [Check the hardware](#check-the-hardware) says.
    desktop, and a GPU that a running desktop holds open cannot be taken from
    its driver cleanly. Run the desktop on another GPU, and cable the
    passed-through card to a monitor input of its own.
+
 3. Declare it with the settings the finder printed, the binding you picked,
    and the host layer on:
 
@@ -629,6 +648,7 @@ second GPU, as [Check the hardware](#check-the-hardware) says.
 
    Keep `extraFunctions` if the finder printed it. `ids` matters only with
    `"boot"`.
+
 4. Rebuild, and reboot if you use `"boot"`. With `"boot"`, it worked when
    `lspci -k -s 01:00.0` shows `Kernel driver in use: vfio-pci`.
 
@@ -676,6 +696,7 @@ then show no picture until Windows loads its driver, or none at all. In that
 case, give the guest a clean copy of the ROM:
 
 1. Make the other GPU the primary one in the firmware setup, and boot.
+
 2. Dump the ROM:
 
    ```sh
@@ -687,6 +708,7 @@ case, give the guest a clean copy of the ROM:
    ```
 
    It worked when the last line prints `55 aa`.
+
 3. Copy it next to your `flake.nix` and run `git add vbios.rom`, since a flake
    sees only files git tracks. Then set `gpu.rom.file = ./vbios.rom;`.
 
@@ -792,6 +814,7 @@ You can pass the host's keyboard and mouse to the VM, and switch them between
 host and guest with a key combination:
 
 1. Find them: `ls /dev/input/by-id/ | grep -e event-kbd -e event-mouse`.
+
 2. Set them, with `host.enable`:
 
    ```nix
@@ -850,15 +873,18 @@ Keep these points in mind:
 
 - The host CPU vendor decides the kernel patches. The options below set
   everything the guest sees, on AMD and Intel alike.
+
 - `hypervMode = "hidden"` is the stealth setting: the CPUID hypervisor bit is
   off, and the guest sees no Hyper-V enlightenments. `"enlightened"` is faster
   for some workloads, but VMAware's HYPERVISOR_BIT and HYPERVISOR_STR checks
   find the VM there. Run `verify-stealth.ps1` with `-HypervMode hidden`.
+
 - VBS and HVCI (Memory integrity) run in the guest on AMD and Intel hosts.
   Turn them on in Windows Security as on a PC. Keep `hypervMode = "hidden"`:
   with `"enlightened"`, VMAware also reports SINGLE_STEP and VMID, and
   INTERRUPT_SHADOW on AMD. On Intel, keep `cet` at its default, off: while the
   guest sees CET, Windows' own Hyper-V does not start.
+
 - Some VMAware checks still fire with these values:
   - FIRMWARE, for the WAET table, which `acpi.waet` keeps because Windows
     needs it for fast timer reads;
@@ -1136,11 +1162,13 @@ VirtIO drivers left behind.
    ```
 
    For a VM with `hypervMode = "hidden"`, add `-HypervMode hidden`.
+
 3. Read the result. Each check prints `[PASS]`, `[FAIL]`, `[WARN]` or
    `[SKIP]`, and the last line counts them. A FAIL names what still gives the
    VM away. A SKIP means the check could not run: without administrator rights
    some checks are skipped, and Windows PowerShell 5.1 cannot read the
    hypervisor vendor that PowerShell 7 shows. The script changes nothing.
+
 4. `cleanup-registry.ps1` deletes what QEMU and VirtIO drivers left in
    Windows, and clears the whole of any event log that names a VM. It keeps
    boot drivers and the drivers of present devices. Because it deletes,
@@ -1195,8 +1223,10 @@ This section moves the module to a newer version and checks the VM again.
    - A kernel patch that no longer fits your kernel fails the kernel build
      with a message naming the edit. Keep the previous input until a fix
      lands.
+
 3. Check again: build `bootCheck`, run `sudo vfio-stealth-verify-host win11`,
    and run `verify-stealth.ps1` in Windows.
+
 4. To go back, run `sudo nixos-rebuild switch --rollback` and restore the
    previous `flake.lock`.
 
@@ -1211,8 +1241,10 @@ fix, and the logs to read.
 This section removes the VMs and the module, and brings back the stock kernel.
 
 1. Shut down every VM.
+
 2. Remove every `domains` declaration and rebuild. The VMs stay defined in
    libvirt.
+
 3. Remove each VM with its firmware variables and TPM state, and its disk
    image. This deletes the disk image and the Windows install in it:
 
@@ -1225,8 +1257,10 @@ This section removes the VMs and the module, and brings back the stock kernel.
    `boot.kernelPackages` line from your configuration, and the module and the
    input from `flake.nix`. Then run `nix flake lock` in `/etc/nixos` to drop
    the input from `flake.lock`.
+
 5. Rebuild and reboot. The stock kernel, its parameters, the sleep targets and
    the GPU's host driver come back.
+
 6. The patched kernel stays in older boot entries until you delete the old
    generations with `sudo nix-collect-garbage -d`. After that, you cannot roll
    back to them. A VM still defined in libvirt then loses the firmware and
